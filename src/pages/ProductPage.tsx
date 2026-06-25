@@ -183,15 +183,26 @@ const ProductPage = () => {
 
             {/* Информация */}
             <div className="flex flex-col">
-              {/* Бейджи */}
-              <div className="flex items-center flex-wrap gap-2 mb-4">
-                <span className="text-[11px] uppercase tracking-wider text-accent border border-accent/40 px-2 py-0.5">{active.shape}</span>
+              <h1 className="font-display text-4xl font-semibold mb-2">{active.name}</h1>
+
+              {/* Цена */}
+              <div className="mb-6">
+                {active.sale_price ? (
+                  <div className="flex items-baseline gap-3">
+                    <span className="font-display text-3xl font-semibold text-accent">{active.sale_price} ₽</span>
+                    <span className="text-lg text-muted-foreground line-through">{active.price} ₽</span>
+                  </div>
+                ) : (
+                  <span className="font-display text-3xl font-semibold">{active.price} ₽</span>
+                )}
               </div>
 
-              <h1 className="font-display text-4xl font-semibold mb-2">{active.name}</h1>
-              <p className="text-muted-foreground text-sm mb-6">{active.size}</p>
-
               <div className="space-y-6 mb-8">
+
+                {/* Форма */}
+                <div className="flex items-center flex-wrap gap-2">
+                  <span className="text-[11px] uppercase tracking-wider text-accent border border-accent/40 px-2 py-0.5 rounded-sm">{active.shape}</span>
+                </div>
 
                 {/* Выбор размера/набора — между карточками группы */}
                 {groupCards.length > 1 && (
@@ -243,18 +254,6 @@ const ProductPage = () => {
                       })}
                     </div>
                   </div>
-                )}
-              </div>
-
-              {/* Цена */}
-              <div className="mb-8">
-                {active.sale_price ? (
-                  <div className="flex items-baseline gap-3">
-                    <span className="font-display text-3xl font-semibold text-accent">{active.sale_price} ₽</span>
-                    <span className="text-lg text-muted-foreground line-through">{active.price} ₽</span>
-                  </div>
-                ) : (
-                  <span className="font-display text-3xl font-semibold">{active.price} ₽</span>
                 )}
               </div>
 

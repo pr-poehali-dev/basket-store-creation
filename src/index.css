@@ -103,8 +103,17 @@
   h2,
   h3,
   h4,
+  h5,
+  h6,
+  p,
+  span,
+  button,
+  input,
+  textarea,
+  select,
+  label,
   .font-display {
-    font-family: "Cormorant", serif;
+    font-family: "Golos Text", sans-serif;
   }
 }
 
