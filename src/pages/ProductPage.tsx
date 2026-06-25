@@ -4,6 +4,7 @@ import Icon from '@/components/ui/icon';
 import { Button } from '@/components/ui/button';
 import Header from '@/components/Header';
 import urls from '../../backend/func2url.json';
+import { colorToCss, sortColors } from '@/data/colors';
 
 interface Product {
   id: number;
@@ -39,11 +40,6 @@ function getCardLabel(card: Card): string {
   const v = card.variants[0];
   if (!v) return '—';
   return v.size || v.name;
-}
-
-function colorToCss(color: string): string {
-  if (!color) return '#cccccc';
-  return color.trim();
 }
 
 const ProductPage = () => {
@@ -88,12 +84,13 @@ const ProductPage = () => {
   const colorVariants = useMemo(() => {
     if (!card) return [];
     const seen = new Set<string>();
-    return card.variants.filter(v => {
+    const unique = card.variants.filter(v => {
       const key = v.color || '';
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
     });
+    return sortColors(unique);
   }, [card]);
 
   // Определяем split_by — по чему разбиты карточки (для заголовка секции)

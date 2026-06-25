@@ -4,6 +4,7 @@ import Icon from '@/components/ui/icon';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { SHAPES, SIZES } from '@/data/products';
+import { colorToCss, sortColors } from '@/data/colors';
 import Header from '@/components/Header';
 import urls from '../../backend/func2url.json';
 
@@ -29,16 +30,6 @@ interface Card {
   variants: Product[];
 }
 
-// Возвращает CSS-цвет по строке (hex или название)
-function colorToCss(color: string): string {
-  if (!color) return '#cccccc';
-  const trimmed = color.trim();
-  // Если это hex или rgb — возвращаем как есть
-  if (trimmed.startsWith('#') || trimmed.startsWith('rgb')) return trimmed;
-  // Иначе пытаемся как CSS color name
-  return trimmed;
-}
-
 // Карточка товара с вариантами цвета
 const ProductCard = ({ card, cardIndex }: { card: Card; cardIndex: number }) => {
   const navigate = useNavigate();
@@ -54,12 +45,13 @@ const ProductCard = ({ card, cardIndex }: { card: Card; cardIndex: number }) => 
   const colorVariants = useMemo(() => {
     if (!hasColorVariants) return [];
     const seen = new Set<string>();
-    return card.variants.filter(v => {
+    const unique = card.variants.filter(v => {
       const key = v.color || '';
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
     });
+    return sortColors(unique);
   }, [card.variants, hasColorVariants]);
 
   const displayVariants = hasColorVariants ? colorVariants : [];
@@ -85,8 +77,7 @@ const ProductCard = ({ card, cardIndex }: { card: Card; cardIndex: number }) => 
           <span className="text-[11px] uppercase tracking-wider text-accent border border-accent/40 px-2 py-0.5">{active.shape}</span>
           <span className="text-[11px] uppercase tracking-wider text-muted-foreground">{active.size}</span>
         </div>
-        <h3 className="font-display text-xl font-semibold mb-1">{active.name}</h3>
-        <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{active.description}</p>
+        <h3 className="font-display text-xl font-semibold mb-3">{active.name}</h3>
 
         {displayVariants.length > 1 && (
           <div className="mb-4">
