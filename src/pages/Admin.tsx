@@ -64,7 +64,7 @@ const Admin = () => {
   const save = async () => {
     setSaving(true);
     const method = editing?.id ? 'PUT' : 'POST';
-    await fetch(urls['products'], { method, body: JSON.stringify(editing) });
+    await fetch(urls['products'], { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(editing) });
     setSaving(false);
     setEditing(null);
     load();
@@ -86,7 +86,7 @@ const Admin = () => {
     const reader = new FileReader();
     reader.onload = async (ev) => {
       const b64 = btoa(String.fromCharCode(...new Uint8Array(ev.target?.result as ArrayBuffer)));
-      const res = await fetch(urls['upload-excel'], { method: 'POST', body: JSON.stringify({ file: b64, mode: uploadMode }) });
+      const res = await fetch(urls['upload-excel'], { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ file: b64, mode: uploadMode }) });
       const data = await res.json();
       setImporting(false);
       setImportMsg(data.imported ? `Загружено товаров: ${data.imported}` : data.error || 'Ошибка');
@@ -104,7 +104,7 @@ const Admin = () => {
     const reader = new FileReader();
     reader.onload = async (ev) => {
       const b64 = btoa(String.fromCharCode(...new Uint8Array(ev.target?.result as ArrayBuffer)));
-      const res = await fetch(urls['upload-image'], { method: 'POST', body: JSON.stringify({ file: b64, ext }) });
+      const res = await fetch(urls['upload-image'], { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ file: b64, ext }) });
       const data = await res.json();
       setImgUploading(false);
       if (data.url) setEditing(prev => prev ? { ...prev, image_url: data.url } : prev);
