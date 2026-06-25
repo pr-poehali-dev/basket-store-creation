@@ -100,12 +100,12 @@ def recolor_basket(img_array: np.ndarray, target_hex: str) -> np.ndarray:
     # Морфология: заполняем дыры (erosion → dilation)
     from PIL import Image as PILImage
     mask_img = PILImage.fromarray((raw_mask * 255).astype(np.uint8))
-    # Слегка сжимаем чтобы убрать выходящие за край пиксели
+    # Сжимаем чтобы убрать выходящие за край пиксели и не задеть руки
     mask_img = mask_img.filter(ImageFilter.MinFilter(3))
-    # Потом расширяем обратно чтобы не было белых пятен внутри
-    mask_img = mask_img.filter(ImageFilter.MaxFilter(5))
+    # Расширяем обратно (чуть меньше чем сжали — остаёмся внутри корзины)
+    mask_img = mask_img.filter(ImageFilter.MaxFilter(3))
     # Лёгкое размытие краёв для плавного перехода
-    mask_soft = mask_img.filter(ImageFilter.GaussianBlur(radius=1.5))
+    mask_soft = mask_img.filter(ImageFilter.GaussianBlur(radius=1.0))
     alpha = np.array(mask_soft).astype(np.float32) / 255.0  # 0..1 вес
 
     # Целевой цвет
@@ -123,27 +123,24 @@ def recolor_basket(img_array: np.ndarray, target_hex: str) -> np.ndarray:
 
     bm = raw_mask  # булева маска для расчётов
 
-    # Средняя яркость и насыщенность корзины в оригинале
+    # Средняя яркость корзины в оригинале (для нормализации текстуры)
     mean_v_orig = float(np.mean(v[bm])) if bm.any() else 0.65
-    mean_s_orig = float(np.mean(s[bm])) if bm.any() else 0.25
 
     if is_near_white:
-        # Белый/молочный/серый: убираем насыщенность, сохраняем текстуру через V
-        new_s[bm] = s[bm] * (target_s / (mean_s_orig + 1e-6)) * 0.5
-        new_s[bm] = np.clip(new_s[bm], 0.0, target_s + 0.05)
+        # Белый/молочный/серый: убираем насыщенность, текстуру через яркость
         new_h[bm] = target_h
-        # Яркость: поднимаем до уровня целевого цвета, сохраняя перепады текстуры
-        v_norm = v[bm] / (mean_v_orig + 1e-6)
-        new_v[bm] = np.clip(target_v * v_norm, 0.4, 1.0)
+        new_s[bm] = min(target_s, 0.15)
+        # Сдвигаем яркость к целевой, сохраняя относительные перепады плетения
+        v_shift = target_v - mean_v_orig
+        new_v[bm] = np.clip(v[bm] + v_shift, 0.35, 1.0)
     else:
-        # Цветной: полностью меняем hue, масштабируем S и V под целевой
+        # Цветной: ПОЛНОСТЬЮ заменяем hue и saturation на целевые (как краска).
+        # Текстуру плетения (тени, блики, рельеф) сохраняем ТОЛЬКО через яркость.
         new_h[bm] = target_h
-        # Насыщенность: сохраняем относительные перепады (тень/свет), меняем базу
-        s_norm = s[bm] / (mean_s_orig + 1e-6)
-        new_s[bm] = np.clip(target_s * s_norm * 0.95, 0.0, 1.0)
-        # Яркость: сохраняем текстуру, корректируем общий уровень
-        v_norm = v[bm] / (mean_v_orig + 1e-6)
-        new_v[bm] = np.clip(target_v * v_norm, 0.08, 1.0)
+        new_s[bm] = target_s  # фиксированная целевая насыщенность = точный цвет
+        # v_rel — отклонение пикселя от средней яркости корзины (это и есть текстура)
+        v_rel = v[bm] - mean_v_orig
+        new_v[bm] = np.clip(target_v + v_rel * 0.85, 0.06, 1.0)
 
     # HSV → RGB для перекрашенных пикселей
     new_r, new_g, new_b = hsv_to_rgb_arr(new_h, new_s, new_v)
