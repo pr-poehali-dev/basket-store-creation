@@ -128,12 +128,12 @@ const Index = () => {
           {[
             { v: '100+', l: 'видов корзин' },
             { v: 'до 400', l: 'корзин создаём ежедневно' },
-            { v: '100%', l: 'ручная работа и натуральные материалы' },
-            { v: '70+', l: 'регионов полюбили наши изделия' },
+            { v: '100%', l: 'ручная работа\nи натуральные материалы' },
+            { v: '70+', l: 'регионов полюбили\nнаши изделия' },
           ].map((s) => (
             <div key={s.l}>
               <p className="font-display text-4xl font-semibold mb-1">{s.v}</p>
-              <p className="text-sm text-muted-foreground">{s.l}</p>
+              <p className="text-sm text-muted-foreground whitespace-pre-line">{s.l}</p>
             </div>
           ))}
         </div>
