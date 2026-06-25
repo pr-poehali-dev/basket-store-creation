@@ -1,29 +1,24 @@
 import { useState } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import Icon from '@/components/ui/icon';
 import { Button } from '@/components/ui/button';
 import { useCart } from '@/context/CartContext';
 
-const NAV = [
-  { id: 'about', label: 'О компании' },
-  { id: 'wholesale', label: 'Оптовикам' },
-  { id: 'delivery', label: 'Доставка' },
-  { id: 'contacts', label: 'Контакты' },
+const NAV_LINKS = [
+  { label: 'Этапы работ', to: '/how-it-works' },
+  { label: 'Доставка', to: '/delivery' },
+  { label: 'Вопрос-ответ', to: '/faq' },
+  { label: 'Контакты', to: '/contacts' },
 ];
 
 const Header = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const navigate = useNavigate();
-  const location = useLocation();
   const { totalCount } = useCart();
 
-  const handleNavClick = (id: string) => {
+  const handlePriceList = () => {
+    navigate('/contacts');
     setMenuOpen(false);
-    if (location.pathname === '/') {
-      document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
-    } else {
-      navigate(`/#${id}`);
-    }
   };
 
   return (
@@ -40,14 +35,14 @@ const Header = () => {
           <Link to="/catalog" className="text-sm text-muted-foreground hover:text-accent transition-colors">
             Каталог
           </Link>
-          {NAV.map((n) => (
-            <button
-              key={n.id}
-              onClick={() => handleNavClick(n.id)}
+          {NAV_LINKS.map((n) => (
+            <Link
+              key={n.to}
+              to={n.to}
               className="text-sm text-muted-foreground hover:text-accent transition-colors"
             >
               {n.label}
-            </button>
+            </Link>
           ))}
         </nav>
         <div className="hidden md:flex items-center gap-3">
@@ -60,7 +55,7 @@ const Header = () => {
             )}
           </Link>
           <Button
-            onClick={() => handleNavClick('contacts')}
+            onClick={handlePriceList}
             className="bg-accent hover:bg-accent/90 text-accent-foreground rounded-none"
           >
             Прайс-лист
@@ -88,14 +83,15 @@ const Header = () => {
           <Link to="/catalog" onClick={() => setMenuOpen(false)} className="text-left text-sm text-muted-foreground hover:text-accent">
             Каталог
           </Link>
-          {NAV.map((n) => (
-            <button
-              key={n.id}
-              onClick={() => handleNavClick(n.id)}
+          {NAV_LINKS.map((n) => (
+            <Link
+              key={n.to}
+              to={n.to}
+              onClick={() => setMenuOpen(false)}
               className="text-left text-sm text-muted-foreground hover:text-accent"
             >
               {n.label}
-            </button>
+            </Link>
           ))}
         </nav>
       )}

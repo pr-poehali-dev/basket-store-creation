@@ -42,11 +42,7 @@ const Payment = () => {
       return;
     }
     const orderNum = Math.floor(Math.random() * 9000) + 1000;
-    if (method === 'qr') {
-      setSuccess(`Заказ №${orderNum} оформлен! QR-код для оплаты будет отправлен менеджером после подтверждения заказа.`);
-    } else {
-      setSuccess(`Заказ №${orderNum} оформлен! Счёт будет выставлен менеджером в ближайшее время.`);
-    }
+    setSuccess(`Заказ №${orderNum} оформлен. Менеджер свяжется с вами в ближайшее время!`);
   };
 
   const handleSuccessClose = () => {
