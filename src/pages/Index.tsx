@@ -258,7 +258,7 @@ const Index = () => {
             <p className="text-accent text-sm tracking-[0.3em] uppercase mb-3">О компании</p>
             <h2 className="font-display text-5xl font-semibold mb-6">Ремесло и масштаб</h2>
             <p className="text-muted-foreground mb-4">
-              Мы — производственная мастерская «FABRICA». С 2013 года плетём корзины из ротанга, лозы, ивы и морской травы для оптовых покупателей.
+              Мы — производственная мастерская «FABRICA». С 2015 года плетём корзины из ивовой лозы для оптовых покупателей.
             </p>
             <p className="text-muted-foreground mb-8">
               Своё сырьё, контроль качества на каждом этапе и стабильные объёмы поставок — от пробной партии до промышленных тиражей.
