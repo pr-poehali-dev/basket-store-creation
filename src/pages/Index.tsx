@@ -124,11 +124,12 @@ const Index = () => {
 
       {/* Stats */}
       <section className="border-y border-border py-10 px-6">
-        <div className="container mx-auto grid grid-cols-1 sm:grid-cols-3 gap-8 text-center">
+        <div className="container mx-auto grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
           {[
             { v: '100+', l: 'видов корзин' },
-            { v: '500+', l: 'оптовых клиентов' },
-            { v: 'от 10 000 ₽', l: 'минимальный опт' },
+            { v: 'до 400', l: 'корзин создаём ежедневно' },
+            { v: '100%', l: 'ручная работа и натуральные материалы' },
+            { v: '70+', l: 'регионов полюбили наши изделия' },
           ].map((s) => (
             <div key={s.l}>
               <p className="font-display text-4xl font-semibold mb-1">{s.v}</p>
