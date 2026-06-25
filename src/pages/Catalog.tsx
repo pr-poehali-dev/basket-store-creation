@@ -33,11 +33,8 @@ interface Card {
 // Карточка товара с вариантами цвета
 const ProductCard = ({ card, cardIndex }: { card: Card; cardIndex: number }) => {
   const navigate = useNavigate();
-  const [activeIdx, setActiveIdx] = useState(0);
 
-  const active = card.variants[activeIdx] ?? card.variants[0];
-
-  const groupByFields = (active.group_by || '').toLowerCase().split(';').map(f => f.trim());
+  const groupByFields = (card.variants[0]?.group_by || '').toLowerCase().split(';').map(f => f.trim());
   const hasColorVariants = card.variants.length > 1 && (
     groupByFields.includes('color') || groupByFields.includes('цвет') || card.type === 'group'
   );
@@ -55,6 +52,16 @@ const ProductCard = ({ card, cardIndex }: { card: Card; cardIndex: number }) => 
   }, [card.variants, hasColorVariants]);
 
   const displayVariants = hasColorVariants ? colorVariants : [];
+
+  // Первый цвет по сортировке (натуральный)
+  const defaultIdx = useMemo(() => {
+    if (!displayVariants.length) return 0;
+    const first = displayVariants[0];
+    return card.variants.indexOf(first);
+  }, [displayVariants, card.variants]);
+
+  const [activeIdx, setActiveIdx] = useState(defaultIdx);
+  const active = card.variants[activeIdx] ?? card.variants[defaultIdx] ?? card.variants[0];
 
   const goToProduct = () => {
     const gid = card.group_id || 'single';

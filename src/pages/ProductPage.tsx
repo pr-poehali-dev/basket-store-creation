@@ -52,6 +52,15 @@ const ProductPage = () => {
   const [activeCardIdx, setActiveCardIdx] = useState(() => parseInt(cardIndex || '0', 10));
   // Индекс активного варианта внутри карточки (переключение цвета)
   const [activeVariantIdx, setActiveVariantIdx] = useState(0);
+  // Количество
+  const [qty, setQty] = useState(1);
+
+  const changeQty = (delta: number) => setQty(q => Math.max(1, q + delta));
+  const handleQtyInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = parseInt(e.target.value, 10);
+    if (!isNaN(val) && val >= 1) setQty(val);
+    else if (e.target.value === '') setQty(1);
+  };
 
   useEffect(() => {
     fetch(urls['products'])
@@ -243,6 +252,28 @@ const ProductPage = () => {
                     </div>
                   </div>
                 )}
+              </div>
+
+              {/* Количество */}
+              <div className="mb-4">
+                <p className="text-xs uppercase tracking-wider text-muted-foreground mb-3">Количество</p>
+                <div className="flex items-center gap-0 w-36">
+                  <button
+                    onClick={() => changeQty(-1)}
+                    className="w-10 h-10 border border-border flex items-center justify-center hover:border-accent hover:text-accent transition-colors text-lg"
+                  >−</button>
+                  <input
+                    type="number"
+                    min={1}
+                    value={qty}
+                    onChange={handleQtyInput}
+                    className="w-16 h-10 border-y border-border text-center text-sm outline-none focus:border-accent bg-background [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                  <button
+                    onClick={() => changeQty(1)}
+                    className="w-10 h-10 border border-border flex items-center justify-center hover:border-accent hover:text-accent transition-colors text-lg"
+                  >+</button>
+                </div>
               </div>
 
               {/* Кнопки */}
