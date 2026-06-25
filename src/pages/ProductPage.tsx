@@ -11,6 +11,7 @@ interface Product {
   description: string;
   shape: string;
   size: string;
+  size_category: string;
   color: string;
   price: number;
   sale_price: number | null;
@@ -18,7 +19,6 @@ interface Product {
   group_id: string | null;
   group_by: string | null;
   split_by: string | null;
-  набор: string | null;
 }
 
 interface Card {
@@ -27,39 +27,23 @@ interface Card {
   variants: Product[];
 }
 
-// Русские названия -> поле в объекте Product
-// Набор и Размер — оба хранятся в поле size
-const FIELD_MAP: Record<string, string> = {
+// Поля разбиения: что создаёт разные карточки
+const SPLIT_MAP: Record<string, string> = {
   'размер': 'size',
-  'цвет': 'color',
   'набор': 'size',
+  'цвет': 'color',
 };
 
-const FIELD_LABELS: Record<string, string> = {
-  color: 'Цвет',
-  size: 'Размер / Набор',
-};
+// Метка карточки для кнопки выбора (размер/набор)
+function getCardLabel(card: Card): string {
+  const v = card.variants[0];
+  if (!v) return '—';
+  return v.size || v.name;
+}
 
 function colorToCss(color: string): string {
   if (!color) return '#cccccc';
   return color.trim();
-}
-
-// Парсим group_by — какие характеристики варьируются внутри карточки
-// Дедуплицируем (Размер + Набор оба -> size, показываем один раз)
-function parseGroupBy(s: string | null): string[] {
-  if (!s) return [];
-  const seen = new Set<string>();
-  const result: string[] = [];
-  for (const part of s.split(';')) {
-    const k = part.trim().toLowerCase();
-    const field = FIELD_MAP[k] || k;
-    if (field && !seen.has(field)) {
-      seen.add(field);
-      result.push(field);
-    }
-  }
-  return result;
 }
 
 const ProductPage = () => {
@@ -67,6 +51,10 @@ const ProductPage = () => {
   const navigate = useNavigate();
   const [cards, setCards] = useState<Card[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Индекс активной карточки в группе (переключение размера/набора)
+  const [activeCardIdx, setActiveCardIdx] = useState(() => parseInt(cardIndex || '0', 10));
+  // Индекс активного варианта внутри карточки (переключение цвета)
   const [activeVariantIdx, setActiveVariantIdx] = useState(0);
 
   useEffect(() => {
@@ -79,61 +67,41 @@ const ProductPage = () => {
       .catch(() => setLoading(false));
   }, []);
 
-  // Находим нужную карточку
-  const card = useMemo(() => {
-    if (!cards.length) return null;
-    const idx = parseInt(cardIndex || '0', 10);
-    // Ищем среди карточек этой группы
-    const groupCards = cards.filter(c => c.group_id === groupId || (groupId === 'single' && c.type === 'single'));
-    return groupCards[idx] || null;
-  }, [cards, groupId, cardIndex]);
+  // Все карточки этой группы
+  const groupCards = useMemo(() => {
+    if (!cards.length) return [];
+    if (groupId === 'single') return cards.filter(c => c.type === 'single');
+    return cards.filter(c => c.group_id === groupId);
+  }, [cards, groupId]);
+
+  // Текущая карточка
+  const card = groupCards[activeCardIdx] ?? groupCards[0];
+
+  // При смене карточки сбрасываем выбранный цвет
+  useEffect(() => {
+    setActiveVariantIdx(0);
+  }, [activeCardIdx]);
 
   const active = card?.variants[activeVariantIdx] ?? card?.variants[0];
-  const groupByFields = useMemo(() => parseGroupBy(active?.group_by || null), [active]);
 
-  // Для каждого поля из group_by — уникальные значения
-  const variantOptions = useMemo(() => {
-    if (!card) return {};
-    const result: Record<string, string[]> = {};
-    for (const field of groupByFields) {
-      const values: string[] = [];
-      for (const v of card.variants) {
-        const val = String(v[field as keyof Product] || '');
-        if (val && !values.includes(val)) values.push(val);
-      }
-      if (values.length > 1) result[field] = values;
-    }
-    return result;
-  }, [card, groupByFields]);
+  // Уникальные цвета в текущей карточке
+  const colorVariants = useMemo(() => {
+    if (!card) return [];
+    const seen = new Set<string>();
+    return card.variants.filter(v => {
+      const key = v.color || '';
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [card]);
 
-  // Текущий выбор по каждому полю
-  const [selectedAttrs, setSelectedAttrs] = useState<Record<string, string>>({});
-
-  // Инициализируем selectedAttrs при загрузке карточки
-  useEffect(() => {
-    if (!active) return;
-    const init: Record<string, string> = {};
-    for (const field of groupByFields) {
-      const val = String(active[field as keyof Product] || '');
-      if (val) init[field] = val;
-    }
-    setSelectedAttrs(init);
-  }, [card?.group_id]);
-
-  // При изменении выбора — находим подходящий вариант
-  useEffect(() => {
-    if (!card || Object.keys(selectedAttrs).length === 0) return;
-    const idx = card.variants.findIndex(v =>
-      Object.entries(selectedAttrs).every(([field, val]) =>
-        String(v[field as keyof Product] || '') === val
-      )
-    );
-    if (idx !== -1) setActiveVariantIdx(idx);
-  }, [selectedAttrs]);
-
-  const handleAttrSelect = (field: string, value: string) => {
-    setSelectedAttrs(prev => ({ ...prev, [field]: value }));
-  };
+  // Определяем split_by — по чему разбиты карточки (для заголовка секции)
+  const splitLabel = useMemo(() => {
+    if (!card?.variants[0]?.split_by) return 'Размер / Набор';
+    const parts = card.variants[0].split_by.split(';').map(s => s.trim()).filter(Boolean);
+    return parts.join(' / ');
+  }, [card]);
 
   if (loading) {
     return (
@@ -162,6 +130,9 @@ const ProductPage = () => {
     );
   }
 
+  // Название модели — берём из первой карточки группы (убираем размер если он в скобках)
+  const modelName = groupCards[0]?.variants[0]?.name || active.name;
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <Header />
@@ -175,21 +146,19 @@ const ProductPage = () => {
             <Icon name="ChevronRight" size={14} />
             <Link to="/catalog" className="hover:text-accent transition-colors">Каталог</Link>
             <Icon name="ChevronRight" size={14} />
-            <span className="text-foreground">{active.name}</span>
+            <span className="text-foreground">{modelName}</span>
           </nav>
 
           <div className="grid md:grid-cols-2 gap-12 lg:gap-20">
 
             {/* Фото */}
-            <div className="space-y-4">
-              <div className="aspect-square bg-secondary overflow-hidden">
-                {active.image_url
-                  ? <img src={active.image_url} alt={active.name} className="w-full h-full object-cover" />
-                  : <div className="w-full h-full flex items-center justify-center">
-                      <Icon name="Image" size={64} className="opacity-20" />
-                    </div>
-                }
-              </div>
+            <div className="aspect-square bg-secondary overflow-hidden">
+              {active.image_url
+                ? <img src={active.image_url} alt={active.name} className="w-full h-full object-cover transition-all duration-300" />
+                : <div className="w-full h-full flex items-center justify-center">
+                    <Icon name="Image" size={64} className="opacity-20" />
+                  </div>
+              }
             </div>
 
             {/* Информация */}
@@ -197,10 +166,10 @@ const ProductPage = () => {
               {/* Бейджи */}
               <div className="flex items-center flex-wrap gap-2 mb-4">
                 <span className="text-[11px] uppercase tracking-wider text-accent border border-accent/40 px-2 py-0.5">{active.shape}</span>
-                <span className="text-[11px] uppercase tracking-wider text-muted-foreground border border-border px-2 py-0.5">{active.size}</span>
               </div>
 
-              <h1 className="font-display text-4xl font-semibold mb-3">{active.name}</h1>
+              <h1 className="font-display text-4xl font-semibold mb-2">{active.name}</h1>
+              <p className="text-muted-foreground text-sm mb-6">{active.size}</p>
 
               {active.description && (
                 <p className="text-muted-foreground mb-6 leading-relaxed">{active.description}</p>
@@ -218,56 +187,59 @@ const ProductPage = () => {
                 )}
               </div>
 
-              {/* Характеристики для выбора */}
               <div className="space-y-6 mb-8">
-                {Object.entries(variantOptions).map(([field, values]) => (
-                  <div key={field}>
-                    <p className="text-xs uppercase tracking-wider text-muted-foreground mb-3">
-                      {FIELD_LABELS[field] || field}
-                      {field === 'color' && selectedAttrs[field] && (
-                        <span className="ml-2 normal-case font-normal text-foreground">{selectedAttrs[field]}</span>
-                      )}
-                    </p>
 
-                    {field === 'color' ? (
-                      // Цвет — кружки
-                      <div className="flex flex-wrap gap-3">
-                        {values.map(val => {
-                          const isActive = selectedAttrs[field] === val;
-                          return (
-                            <button
-                              key={val}
-                              title={val}
-                              onClick={() => handleAttrSelect(field, val)}
-                              className={`w-8 h-8 rounded-full border-2 transition-all ${isActive ? 'border-accent scale-110' : 'border-transparent hover:border-accent/50'}`}
-                              style={{ backgroundColor: colorToCss(val) }}
-                            />
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      // Остальные — кнопки
-                      <div className="flex flex-wrap gap-2">
-                        {values.map(val => {
-                          const isActive = selectedAttrs[field] === val;
-                          return (
-                            <button
-                              key={val}
-                              onClick={() => handleAttrSelect(field, val)}
-                              className={`px-4 py-2 text-sm border transition-colors ${
-                                isActive
-                                  ? 'border-accent bg-accent text-accent-foreground'
-                                  : 'border-border hover:border-accent'
-                              }`}
-                            >
-                              {val}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
+                {/* Выбор размера/набора — между карточками группы */}
+                {groupCards.length > 1 && (
+                  <div>
+                    <p className="text-xs uppercase tracking-wider text-muted-foreground mb-3">{splitLabel}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {groupCards.map((c, idx) => {
+                        const label = getCardLabel(c);
+                        const isActive = idx === activeCardIdx;
+                        return (
+                          <button
+                            key={idx}
+                            onClick={() => setActiveCardIdx(idx)}
+                            className={`px-4 py-2 text-sm border transition-colors ${
+                              isActive
+                                ? 'border-accent bg-accent text-accent-foreground'
+                                : 'border-border hover:border-accent'
+                            }`}
+                          >
+                            {label}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                ))}
+                )}
+
+                {/* Выбор цвета — внутри карточки */}
+                {colorVariants.length > 1 && (
+                  <div>
+                    <p className="text-xs uppercase tracking-wider text-muted-foreground mb-3">
+                      Цвет: <span className="normal-case font-normal text-foreground ml-1">{active.color}</span>
+                    </p>
+                    <div className="flex flex-wrap gap-3">
+                      {colorVariants.map((v) => {
+                        const realIdx = card.variants.indexOf(v);
+                        const isActive = realIdx === activeVariantIdx;
+                        return (
+                          <button
+                            key={v.id}
+                            title={v.color}
+                            onClick={() => setActiveVariantIdx(realIdx)}
+                            className={`w-8 h-8 rounded-full border-2 transition-all ${
+                              isActive ? 'border-accent scale-110' : 'border-transparent hover:border-accent/50'
+                            }`}
+                            style={{ backgroundColor: colorToCss(v.color) }}
+                          />
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Кнопки */}
