@@ -67,7 +67,9 @@ def build_cards(rows):
         else:
             sub_groups = {}
             for item in items:
-                key_parts = [str(item.get(f) or item.get('extra_props', {}).get(f) or '') for f in split_fields]
+                key_parts = [str(item.get(f) or '') for f in split_fields]
+                # Всегда добавляем name в ключ — разные названия = разные карточки
+                key_parts.append(str(item.get('name') or ''))
                 key = '|||'.join(key_parts)
                 sub_groups.setdefault(key, []).append(item)
 
