@@ -2,11 +2,11 @@ import { useState, useMemo } from 'react';
 import Icon from '@/components/ui/icon';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
-import { products, MATERIALS, SIZES, type Product } from '@/data/products';
+import { products, SHAPES, SIZES, type Product } from '@/data/products';
 import Header from '@/components/Header';
 
 const Catalog = () => {
-  const [materials, setMaterials] = useState<string[]>([]);
+  const [shapes, setShapes] = useState<string[]>([]);
   const [sizes, setSizes] = useState<string[]>([]);
   const [maxPrice, setMaxPrice] = useState(900);
 
@@ -17,15 +17,15 @@ const Catalog = () => {
     () =>
       products.filter(
         (p) =>
-          (materials.length === 0 || materials.includes(p.material)) &&
+          (shapes.length === 0 || shapes.includes(p.shape)) &&
           (sizes.length === 0 || sizes.includes(p.size)) &&
           p.price <= maxPrice
       ),
-    [materials, sizes, maxPrice]
+    [shapes, sizes, maxPrice]
   );
 
   const reset = () => {
-    setMaterials([]);
+    setShapes([]);
     setSizes([]);
     setMaxPrice(900);
   };
@@ -51,18 +51,18 @@ const Catalog = () => {
               </div>
 
               <div>
-                <p className="text-sm font-medium mb-3 uppercase tracking-wider text-muted-foreground">Материал</p>
+                <p className="text-sm font-medium mb-3 uppercase tracking-wider text-muted-foreground">Форма</p>
                 <div className="space-y-2">
-                  {MATERIALS.map((m) => (
+                  {SHAPES.map((m) => (
                     <label key={m} className="flex items-center gap-3 cursor-pointer group">
                       <span
                         className={`w-4 h-4 border flex items-center justify-center transition-colors ${
-                          materials.includes(m) ? 'bg-accent border-accent' : 'border-border group-hover:border-accent'
+                          shapes.includes(m) ? 'bg-accent border-accent' : 'border-border group-hover:border-accent'
                         }`}
                       >
-                        {materials.includes(m) && <Icon name="Check" size={12} className="text-accent-foreground" />}
+                        {shapes.includes(m) && <Icon name="Check" size={12} className="text-accent-foreground" />}
                       </span>
-                      <input type="checkbox" className="hidden" checked={materials.includes(m)} onChange={() => toggle(materials, setMaterials, m)} />
+                      <input type="checkbox" className="hidden" checked={shapes.includes(m)} onChange={() => toggle(shapes, setShapes, m)} />
                       <span className="text-sm">{m}</span>
                     </label>
                   ))}
@@ -116,7 +116,7 @@ const Catalog = () => {
                       </div>
                       <div className="p-5">
                         <div className="flex items-center gap-2 mb-2">
-                          <span className="text-[11px] uppercase tracking-wider text-accent border border-accent/40 px-2 py-0.5">{p.material}</span>
+                          <span className="text-[11px] uppercase tracking-wider text-accent border border-accent/40 px-2 py-0.5">{p.shape}</span>
                           <span className="text-[11px] uppercase tracking-wider text-muted-foreground">{p.size}</span>
                         </div>
                         <h3 className="font-display text-xl font-semibold mb-1">{p.name}</h3>
