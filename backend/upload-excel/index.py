@@ -1,4 +1,4 @@
-"""Загрузка товаров из Excel-файла (xlsx/xls). Колонки: name, description, shape, size, color, price, sale_price, image_url."""
+"""Загрузка товаров из Excel-файла (xlsx/xls). Колонки: name, description, shape, size, color, price, sale_price, image_url, group_id, group_by, split_by."""
 import json
 import os
 import base64
@@ -63,6 +63,9 @@ def handler(event: dict, context) -> dict:
             sale_price = int(float(sale_price_raw)) if sale_price_raw else None
         except:
             sale_price = None
+        group_id = col(row, 'group_id') or col(row, 'группа') or None
+        group_by = col(row, 'group_by') or col(row, 'группировать по') or None
+        split_by = col(row, 'split_by') or col(row, 'разделить по') or None
         rows_data.append({
             'name': name,
             'description': col(row, 'description') or col(row, 'описание'),
@@ -72,6 +75,9 @@ def handler(event: dict, context) -> dict:
             'price': price,
             'sale_price': sale_price,
             'image_url': col(row, 'image_url') or col(row, 'фото'),
+            'group_id': group_id if group_id else None,
+            'group_by': group_by if group_by else None,
+            'split_by': split_by if split_by else None,
         })
 
     conn = get_conn()
@@ -82,8 +88,11 @@ def handler(event: dict, context) -> dict:
 
     for p in rows_data:
         cur.execute(
-            "INSERT INTO products (name, description, shape, size, color, price, sale_price, image_url) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
-            (p['name'], p['description'], p['shape'], p['size'], p['color'], p['price'], p['sale_price'], p['image_url'])
+            """INSERT INTO products (name, description, shape, size, color, price, sale_price,
+               image_url, group_id, group_by, split_by)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+            (p['name'], p['description'], p['shape'], p['size'], p['color'], p['price'], p['sale_price'],
+             p['image_url'], p['group_id'], p['group_by'], p['split_by'])
         )
 
     conn.commit()

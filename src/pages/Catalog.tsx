@@ -16,10 +16,114 @@ interface Product {
   price: number;
   sale_price: number | null;
   image_url: string;
+  group_id: string | null;
+  group_by: string | null;
+  split_by: string | null;
 }
 
+interface Card {
+  type: 'single' | 'group';
+  group_id?: string;
+  variants: Product[];
+}
+
+// Возвращает CSS-цвет по строке (hex или название)
+function colorToCss(color: string): string {
+  if (!color) return '#cccccc';
+  const trimmed = color.trim();
+  // Если это hex или rgb — возвращаем как есть
+  if (trimmed.startsWith('#') || trimmed.startsWith('rgb')) return trimmed;
+  // Иначе пытаемся как CSS color name
+  return trimmed;
+}
+
+// Карточка товара с вариантами цвета
+const ProductCard = ({ card }: { card: Card }) => {
+  const [activeIdx, setActiveIdx] = useState(0);
+
+  const active = card.variants[activeIdx] ?? card.variants[0];
+
+  // Определяем, есть ли варианты по цвету (group_by содержит color/цвет)
+  const groupByFields = (active.group_by || '').toLowerCase().split(',').map(f => f.trim());
+  const hasColorVariants = card.variants.length > 1 && (
+    groupByFields.includes('color') || groupByFields.includes('цвет') || card.type === 'group'
+  );
+
+  // Уникальные варианты по цвету (дедупликация)
+  const colorVariants = useMemo(() => {
+    if (!hasColorVariants) return [];
+    const seen = new Set<string>();
+    return card.variants.filter(v => {
+      const key = v.color || '';
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [card.variants, hasColorVariants]);
+
+  const displayVariants = hasColorVariants ? colorVariants : [];
+
+  return (
+    <article className="group bg-card border border-border hover-lift">
+      <div className="overflow-hidden aspect-square">
+        {active.image_url
+          ? <img src={active.image_url} alt={active.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+          : <div className="w-full h-full bg-secondary flex items-center justify-center"><Icon name="Image" size={48} className="opacity-20" /></div>
+        }
+      </div>
+      <div className="p-5">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-[11px] uppercase tracking-wider text-accent border border-accent/40 px-2 py-0.5">{active.shape}</span>
+          <span className="text-[11px] uppercase tracking-wider text-muted-foreground">{active.size}</span>
+        </div>
+        <h3 className="font-display text-xl font-semibold mb-1">{active.name}</h3>
+        <p className="text-sm text-muted-foreground mb-3">{active.description}</p>
+
+        {displayVariants.length > 1 && (
+          <div className="mb-4">
+            <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-2">
+              Цвет: {active.color || '—'}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {displayVariants.map((v, i) => {
+                const realIdx = card.variants.indexOf(v);
+                const isActive = realIdx === activeIdx || (activeIdx >= card.variants.length && i === 0);
+                return (
+                  <button
+                    key={v.id}
+                    title={v.color}
+                    onClick={() => setActiveIdx(realIdx)}
+                    className={`w-6 h-6 rounded-full border-2 transition-all ${isActive ? 'border-accent scale-110' : 'border-transparent hover:border-accent/50'}`}
+                    style={{ backgroundColor: colorToCss(v.color) }}
+                  />
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        <div className="flex items-center justify-between">
+          <span className="font-medium">
+            {active.sale_price ? (
+              <span className="flex items-baseline gap-2">
+                <span className="text-accent">{active.sale_price} ₽</span>
+                <span className="text-xs text-muted-foreground line-through">{active.price} ₽</span>
+              </span>
+            ) : (
+              <>{active.price} ₽<span className="text-xs text-muted-foreground"> / шт</span></>
+            )}
+          </span>
+          <Button size="sm" variant="ghost" className="rounded-none text-accent hover:text-accent hover:bg-accent/10">
+            В заявку <Icon name="ArrowRight" size={14} className="ml-1" />
+          </Button>
+        </div>
+      </div>
+    </article>
+  );
+};
+
 const Catalog = () => {
-  const [products, setProducts] = useState<Product[]>([]);
+  const [cards, setCards] = useState<Card[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [shapes, setShapes] = useState<string[]>([]);
   const [sizes, setSizes] = useState<string[]>([]);
@@ -29,7 +133,7 @@ const Catalog = () => {
     fetch(urls['products'])
       .then(r => r.json())
       .then(data => {
-        setProducts(data.products || []);
+        setCards(data.cards || []);
         setLoadingProducts(false);
       })
       .catch(() => setLoadingProducts(false));
@@ -38,18 +142,19 @@ const Catalog = () => {
   const toggle = (arr: string[], set: (v: string[]) => void, val: string) =>
     set(arr.includes(val) ? arr.filter((x) => x !== val) : [...arr, val]);
 
-  const priceMax = products.length ? Math.max(...products.map(p => p.price), 900) : 900;
+  // Для фильтров и ценового диапазона используем первый вариант каждой карточки
+  const allFirstVariants = useMemo(() => cards.map(c => c.variants[0]).filter(Boolean), [cards]);
+  const priceMax = allFirstVariants.length ? Math.max(...allFirstVariants.map(p => p.price), 900) : 900;
 
-  const filtered = useMemo(
-    () =>
-      products.filter(
-        (p) =>
-          (shapes.length === 0 || shapes.includes(p.shape)) &&
-          (sizes.length === 0 || sizes.includes(p.size)) &&
-          p.price <= maxPrice
-      ),
-    [products, shapes, sizes, maxPrice]
-  );
+  const filtered = useMemo(() => cards.filter(card => {
+    const p = card.variants[0];
+    if (!p) return false;
+    return (
+      (shapes.length === 0 || shapes.includes(p.shape)) &&
+      (sizes.length === 0 || sizes.includes(p.size)) &&
+      p.price <= maxPrice
+    );
+  }), [cards, shapes, sizes, maxPrice]);
 
   const reset = () => {
     setShapes([]);
@@ -121,7 +226,7 @@ const Catalog = () => {
                   <Icon name="Loader" size={36} className="mx-auto mb-4 opacity-40 animate-spin" />
                   Загружаю каталог...
                 </div>
-              ) : products.length === 0 ? (
+              ) : cards.length === 0 ? (
                 <div className="py-24 text-center text-muted-foreground">
                   <Icon name="Package" size={40} className="mx-auto mb-4 opacity-40" />
                   Каталог пока пуст. Товары добавляются через админку.
@@ -136,39 +241,8 @@ const Catalog = () => {
                     </div>
                   ) : (
                     <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-6">
-                      {filtered.map((p) => (
-                        <article key={p.id} className="group bg-card border border-border hover-lift">
-                          <div className="overflow-hidden aspect-square">
-                            {p.image_url
-                              ? <img src={p.image_url} alt={p.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
-                              : <div className="w-full h-full bg-secondary flex items-center justify-center"><Icon name="Image" size={48} className="opacity-20" /></div>
-                            }
-                          </div>
-                          <div className="p-5">
-                            <div className="flex items-center gap-2 mb-2">
-                              <span className="text-[11px] uppercase tracking-wider text-accent border border-accent/40 px-2 py-0.5">{p.shape}</span>
-                              <span className="text-[11px] uppercase tracking-wider text-muted-foreground">{p.size}</span>
-                              {p.color && <span className="text-[11px] uppercase tracking-wider text-muted-foreground">{p.color}</span>}
-                            </div>
-                            <h3 className="font-display text-xl font-semibold mb-1">{p.name}</h3>
-                            <p className="text-sm text-muted-foreground mb-4">{p.description}</p>
-                            <div className="flex items-center justify-between">
-                              <span className="font-medium">
-                                {p.sale_price ? (
-                                  <span className="flex items-baseline gap-2">
-                                    <span className="text-accent">{p.sale_price} ₽</span>
-                                    <span className="text-xs text-muted-foreground line-through">{p.price} ₽</span>
-                                  </span>
-                                ) : (
-                                  <>{p.price} ₽<span className="text-xs text-muted-foreground"> / шт</span></>
-                                )}
-                              </span>
-                              <Button size="sm" variant="ghost" className="rounded-none text-accent hover:text-accent hover:bg-accent/10">
-                                В заявку <Icon name="ArrowRight" size={14} className="ml-1" />
-                              </Button>
-                            </div>
-                          </div>
-                        </article>
+                      {filtered.map((card, idx) => (
+                        <ProductCard key={card.group_id ? `${card.group_id}-${idx}` : card.variants[0]?.id} card={card} />
                       ))}
                     </div>
                   )}

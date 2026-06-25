@@ -16,9 +16,12 @@ interface Product {
   price: number;
   sale_price: number | null;
   image_url: string;
+  group_id: string;
+  group_by: string;
+  split_by: string;
 }
 
-const empty = (): Product => ({ name: '', description: '', shape: 'Круглые', size: 'Средние', color: '', price: 0, sale_price: null, image_url: '' });
+const empty = (): Product => ({ name: '', description: '', shape: 'Круглые', size: 'Средние', color: '', price: 0, sale_price: null, image_url: '', group_id: '', group_by: '', split_by: '' });
 
 const Admin = () => {
   const [authed, setAuthed] = useState(() => sessionStorage.getItem('admin_ok') === '1');
@@ -50,7 +53,7 @@ const Admin = () => {
 
   const load = async () => {
     setLoading(true);
-    const res = await fetch(urls['products']);
+    const res = await fetch(`${urls['products']}?raw=1`);
     const data = await res.json();
     setProducts(data.products || []);
     setLoading(false);
@@ -155,7 +158,7 @@ const Admin = () => {
         <div className="bg-card border border-border p-6 mb-8">
           <h2 className="font-display text-xl font-semibold mb-4">Загрузка из Excel</h2>
           <p className="text-sm text-muted-foreground mb-4">
-            Колонки файла: <code className="bg-secondary px-1">name, description, shape, size, color, price, image_url</code>
+            Колонки файла: <code className="bg-secondary px-1">name, description, shape, size, color, price, sale_price, image_url, group_id, group_by, split_by</code>
           </p>
           <div className="flex flex-wrap items-center gap-4">
             <label className="flex items-center gap-2 text-sm cursor-pointer">
@@ -201,6 +204,7 @@ const Admin = () => {
                   <th className="text-left px-4 py-3 font-medium">Цвет</th>
                   <th className="text-left px-4 py-3 font-medium">Цена</th>
                   <th className="text-left px-4 py-3 font-medium">По акции</th>
+                  <th className="text-left px-4 py-3 font-medium">Группа</th>
                   <th className="text-left px-4 py-3 font-medium"></th>
                 </tr>
               </thead>
@@ -219,9 +223,10 @@ const Admin = () => {
                     <td className="px-4 py-3 text-muted-foreground">{p.color || '—'}</td>
                     <td className="px-4 py-3">{p.price} ₽</td>
                     <td className="px-4 py-3">{p.sale_price ? <span className="text-accent">{p.sale_price} ₽</span> : '—'}</td>
+                    <td className="px-4 py-3 text-muted-foreground text-xs">{p.group_id || '—'}</td>
                     <td className="px-4 py-3">
                       <div className="flex gap-2">
-                        <Button size="sm" variant="outline" className="rounded-none h-8" onClick={() => setEditing({ ...p })}>
+                        <Button size="sm" variant="outline" className="rounded-none h-8" onClick={() => setEditing({ ...p, group_id: p.group_id || '', group_by: p.group_by || '', split_by: p.split_by || '' })}>
                           <Icon name="Pencil" size={14} />
                         </Button>
                         <Button size="sm" variant="outline" className="rounded-none h-8 text-red-500 hover:text-red-600" onClick={() => remove(p.id!)} disabled={deleting === p.id}>
@@ -291,6 +296,29 @@ const Admin = () => {
                 <input type="number" value={editing.sale_price ?? ''} onChange={e => setEditing({ ...editing, sale_price: e.target.value ? +e.target.value : null })}
                   placeholder="Оставьте пустым если акции нет"
                   className="w-full border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent" />
+              </div>
+              <div className="border-t border-border pt-4">
+                <p className="text-xs uppercase tracking-wider text-muted-foreground mb-3">Группировка вариантов</p>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Номер группы — одинаковый для всех вариантов одной модели</label>
+                    <input value={editing.group_id} onChange={e => setEditing({ ...editing, group_id: e.target.value })}
+                      placeholder="напр. italia"
+                      className="w-full border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Группировать по — все характеристики, по которым есть варианты (через запятую)</label>
+                    <input value={editing.group_by} onChange={e => setEditing({ ...editing, group_by: e.target.value })}
+                      placeholder="напр. size, color"
+                      className="w-full border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Разделить на карточки по — что создаёт отдельные карточки (через запятую)</label>
+                    <input value={editing.split_by} onChange={e => setEditing({ ...editing, split_by: e.target.value })}
+                      placeholder="напр. size"
+                      className="w-full border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent" />
+                  </div>
+                </div>
               </div>
               <div>
                 <label className="text-xs uppercase tracking-wider text-muted-foreground mb-1 block">Фото</label>

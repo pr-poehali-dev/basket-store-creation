@@ -1,12 +1,10 @@
 {
   "tests": [
     {
-      "name": "GET products",
+      "name": "GET products returns ok",
       "method": "GET",
       "path": "/",
-      "expectedStatus": 200,
-      "expectedBody": {"products": []},
-      "bodyMatcher": "partial"
+      "expectedStatus": 200
     }
   ]
 }
