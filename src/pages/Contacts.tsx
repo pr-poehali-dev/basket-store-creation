@@ -1,5 +1,4 @@
 import Header from '@/components/Header';
-import Icon from '@/components/ui/icon';
 
 const Contacts = () => {
   return (
@@ -12,69 +11,73 @@ const Contacts = () => {
           <div className="mb-16">
             <p className="text-accent text-sm tracking-[0.3em] uppercase mb-3">О нас</p>
             <h1 className="font-display text-4xl md:text-5xl font-semibold mb-8">О компании</h1>
-            <div className="space-y-4 text-muted-foreground leading-relaxed">
-              <p>
-                FABRICA — собственное производство плетёных корзин из натуральных материалов полного цикла. Мы работаем для розничных сетей, маркетплейсов и HoReCa по всей России.
+            <div className="space-y-6">
+              <p className="font-display text-2xl md:text-3xl font-semibold leading-tight">
+                «FABRICA» сегодня — это команда мастеров, объединенных любовью к традиционному ремеслу. Мы создаем плетеные корзины из натуральной лозы, сочетая многовековые техники с актуальным дизайном.
               </p>
-              <p>
-                Каждая корзина изготавливается вручную под заказ клиента в нужном количестве и цвете. Контролируем качество на каждом этапе — от заготовки материала до упаковки готового изделия.
-              </p>
-              <p>
-                Работаем как с физическими, так и с юридическими лицами. Оплата по 100% предоплате, выставляем счет на юр/физ лицо.
+              <p className="text-muted-foreground leading-relaxed">
+                Собственное производство позволяет нам поставлять экологичную и качественную продукцию для флористов, ритейла и дизайнеров по всей России. Мы ценим ручной труд и в каждое изделие вкладываем частицу души.
               </p>
             </div>
           </div>
 
-          {/* Разделитель */}
           <div className="border-t border-border mb-16" />
 
-          {/* Контактные данные */}
-          <div>
-            <p className="text-accent text-sm tracking-[0.3em] uppercase mb-3">Связаться</p>
-            <h2 className="font-display text-3xl font-semibold mb-8">Контакты</h2>
+          {/* Почему мы */}
+          <div className="mb-16">
+            <h2 className="font-display text-3xl font-semibold mb-10">Качество, созданное вручную на всех этапах</h2>
+            <div className="space-y-8">
+              {[
+                { num: 1, title: 'Отсутствие посредников и дополнительных наценок', desc: 'Мы выращиваем, подготавливаем материал и плетем корзины самостоятельно' },
+                { num: 2, title: 'Неограниченный выбор', desc: 'Не нужно выбирать из наличия, закажите столько — сколько нужно именно вам' },
+                { num: 3, title: 'Контроль качества', desc: 'На каждом этапе производства следим за качеством и делаем постоянный отбор корзин' },
+                { num: 4, title: 'Прочность', desc: 'Мы выбираем прочные сорта прута, особенно по сравнению с китайскими плантациями и используем фирменные техники плотного плетения' },
+              ].map(item => (
+                <div key={item.num} className="flex gap-6 items-start">
+                  <div className="flex-shrink-0 w-12 h-12 rounded-full border border-border flex items-center justify-center">
+                    <span className="font-display text-xl font-semibold">{item.num}</span>
+                  </div>
+                  <div>
+                    <h3 className="font-display text-xl font-semibold mb-1">{item.title}</h3>
+                    <p className="text-muted-foreground text-sm leading-relaxed">{item.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
 
-            <div className="space-y-6">
-              <div className="flex items-start gap-4">
-                <div className="w-10 h-10 border border-border flex items-center justify-center flex-shrink-0">
-                  <Icon name="MapPin" size={18} className="text-accent" />
-                </div>
-                <div>
-                  <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Адрес</p>
-                  <p className="text-sm">г. Саратов, ул. Зенитная, д. 25</p>
-                  <p className="text-xs text-muted-foreground mt-1">Пн–Пт: 10:00–18:00 · Сб–Вс: по договорённости</p>
-                </div>
+          <div className="border-t border-border mb-16" />
+
+          {/* Контакты */}
+          <div className="mb-16">
+            <h2 className="font-display text-3xl font-semibold mb-10">Контакты</h2>
+            <div className="grid md:grid-cols-2 gap-10">
+              <div>
+                <p className="font-display text-xl font-semibold mb-3">Адрес</p>
+                <p className="text-muted-foreground">Саратов, ул. Зенитная, д. 25</p>
               </div>
-
-              <div className="flex items-start gap-4">
-                <div className="w-10 h-10 border border-border flex items-center justify-center flex-shrink-0">
-                  <Icon name="Phone" size={18} className="text-accent" />
-                </div>
-                <div>
-                  <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Телефон</p>
-                  <a href="tel:+78452000000" className="text-sm hover:text-accent transition-colors">+7 (845) 200-00-00</a>
-                </div>
+              <div>
+                <p className="font-display text-xl font-semibold mb-3">Время работы</p>
+                <p className="text-muted-foreground">Пн–Пт: 10:00–19:00</p>
+                <p className="text-muted-foreground">Сб–Вс: выходной</p>
               </div>
-
-              <div className="flex items-start gap-4">
-                <div className="w-10 h-10 border border-border flex items-center justify-center flex-shrink-0">
-                  <Icon name="Mail" size={18} className="text-accent" />
-                </div>
-                <div>
-                  <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Email</p>
-                  <a href="mailto:info@fabrica.ru" className="text-sm hover:text-accent transition-colors">info@fabrica.ru</a>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-4">
-                <div className="w-10 h-10 border border-border flex items-center justify-center flex-shrink-0">
-                  <Icon name="MessageCircle" size={18} className="text-accent" />
-                </div>
-                <div>
-                  <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Мессенджеры</p>
-                  <p className="text-sm">WhatsApp, Telegram</p>
-                </div>
+              <div>
+                <p className="font-display text-xl font-semibold mb-3">Обратная связь</p>
+                <a href="mailto:fabrica.64@yandex.ru" className="block text-muted-foreground hover:text-accent transition-colors">
+                  fabrica.64@yandex.ru
+                </a>
+                <a href="tel:89271200007" className="block text-muted-foreground hover:text-accent transition-colors mt-1">
+                  8 (927) 120-00-07
+                </a>
               </div>
             </div>
+          </div>
+
+          {/* Футер компании */}
+          <div className="border-t border-border pt-16 text-center">
+            <p className="font-display text-2xl font-semibold tracking-wide">ФАБРИКА</p>
+            <p className="text-sm tracking-[0.2em] text-muted-foreground">FABRICA</p>
+            <p className="text-sm text-muted-foreground mt-4">est. 2015–2026</p>
           </div>
 
         </div>

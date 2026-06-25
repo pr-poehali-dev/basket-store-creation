@@ -191,18 +191,6 @@ const ProductPage = () => {
               <h1 className="font-display text-4xl font-semibold mb-2">{active.name}</h1>
               <p className="text-muted-foreground text-sm mb-6">{active.size}</p>
 
-              {/* Цена */}
-              <div className="mb-8">
-                {active.sale_price ? (
-                  <div className="flex items-baseline gap-3">
-                    <span className="font-display text-3xl font-semibold text-accent">{active.sale_price} ₽</span>
-                    <span className="text-lg text-muted-foreground line-through">{active.price} ₽</span>
-                  </div>
-                ) : (
-                  <span className="font-display text-3xl font-semibold">{active.price} ₽</span>
-                )}
-              </div>
-
               <div className="space-y-6 mb-8">
 
                 {/* Выбор размера/набора — между карточками группы */}
@@ -255,6 +243,18 @@ const ProductPage = () => {
                       })}
                     </div>
                   </div>
+                )}
+              </div>
+
+              {/* Цена */}
+              <div className="mb-8">
+                {active.sale_price ? (
+                  <div className="flex items-baseline gap-3">
+                    <span className="font-display text-3xl font-semibold text-accent">{active.sale_price} ₽</span>
+                    <span className="text-lg text-muted-foreground line-through">{active.price} ₽</span>
+                  </div>
+                ) : (
+                  <span className="font-display text-3xl font-semibold">{active.price} ₽</span>
                 )}
               </div>
 

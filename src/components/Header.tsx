@@ -26,7 +26,10 @@ const Header = () => {
       <div className="container mx-auto flex items-center justify-between h-16 px-6">
         <Link to="/" className="flex items-center gap-2">
           <Icon name="Wheat" className="text-accent" size={26} />
-          <span className="font-display text-2xl font-semibold tracking-wide">FABRICA</span>
+          <div className="flex flex-col leading-none">
+            <span className="font-display text-lg font-semibold tracking-widest">ФАБРИКА</span>
+            <span className="font-display text-sm tracking-[0.2em] text-muted-foreground">FABRICA</span>
+          </div>
         </Link>
         <nav className="hidden md:flex items-center gap-8">
           <Link to="/" className="text-sm text-muted-foreground hover:text-accent transition-colors">

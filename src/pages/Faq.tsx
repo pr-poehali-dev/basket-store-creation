@@ -84,10 +84,37 @@ const FAQS = [
       </p>
     ),
   },
+  {
+    question: 'Какие есть скидки?',
+    answer: (
+      <div className="space-y-3 text-sm text-muted-foreground">
+        <div>
+          <p className="font-semibold text-foreground">скидка 16%</p>
+          <p>При заказе от 60 000 рублей</p>
+        </div>
+        <div>
+          <p className="font-semibold text-foreground">скидка 20%</p>
+          <p>При заказе от 200 000 рублей</p>
+        </div>
+        <div>
+          <p className="font-semibold text-foreground">индивидуальные условия</p>
+          <p>При заказе от 500 000 рублей</p>
+        </div>
+      </div>
+    ),
+  },
+  {
+    question: 'Розница есть?',
+    answer: (
+      <p className="text-sm text-muted-foreground leading-relaxed">
+        Нет, мы занимаемся только оптовыми продажами. Минимальная сумма заказа — 10 000 рублей
+      </p>
+    ),
+  },
 ];
 
 const Faq = () => {
-  const [openIndex, setOpenIndex] = useState<number | null>(0);
+  const [openIndex, setOpenIndex] = useState<number | null>(null);
 
   const toggle = (i: number) => {
     setOpenIndex(prev => (prev === i ? null : i));
