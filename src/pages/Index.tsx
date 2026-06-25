@@ -124,8 +124,9 @@ const Index = () => {
 
       {/* Stats */}
       <section className="border-y border-border py-10 px-6">
-        <div className="container mx-auto grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+        <div className="container mx-auto grid grid-cols-2 md:grid-cols-5 gap-8 text-center">
           {[
+            { v: '11 лет', l: 'на рынке' },
             { v: '100+', l: 'видов корзин' },
             { v: 'до 400', l: 'корзин создаём ежедневно' },
             { v: '100%', l: 'ручная работа\nи натуральные материалы' },
