@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Icon from '@/components/ui/icon';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
@@ -38,18 +39,17 @@ function colorToCss(color: string): string {
 }
 
 // Карточка товара с вариантами цвета
-const ProductCard = ({ card }: { card: Card }) => {
+const ProductCard = ({ card, cardIndex }: { card: Card; cardIndex: number }) => {
+  const navigate = useNavigate();
   const [activeIdx, setActiveIdx] = useState(0);
 
   const active = card.variants[activeIdx] ?? card.variants[0];
 
-  // Определяем, есть ли варианты по цвету (group_by содержит color/цвет)
-  const groupByFields = (active.group_by || '').toLowerCase().split(',').map(f => f.trim());
+  const groupByFields = (active.group_by || '').toLowerCase().split(';').map(f => f.trim());
   const hasColorVariants = card.variants.length > 1 && (
     groupByFields.includes('color') || groupByFields.includes('цвет') || card.type === 'group'
   );
 
-  // Уникальные варианты по цвету (дедупликация)
   const colorVariants = useMemo(() => {
     if (!hasColorVariants) return [];
     const seen = new Set<string>();
@@ -63,8 +63,16 @@ const ProductCard = ({ card }: { card: Card }) => {
 
   const displayVariants = hasColorVariants ? colorVariants : [];
 
+  const goToProduct = () => {
+    const gid = card.group_id || 'single';
+    navigate(`/product/${gid}/${cardIndex}`);
+  };
+
   return (
-    <article className="group bg-card border border-border hover-lift">
+    <article
+      className="group bg-card border border-border hover-lift cursor-pointer"
+      onClick={goToProduct}
+    >
       <div className="overflow-hidden aspect-square">
         {active.image_url
           ? <img src={active.image_url} alt={active.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
@@ -75,10 +83,9 @@ const ProductCard = ({ card }: { card: Card }) => {
         <div className="flex items-center flex-wrap gap-2 mb-2">
           <span className="text-[11px] uppercase tracking-wider text-accent border border-accent/40 px-2 py-0.5">{active.shape}</span>
           <span className="text-[11px] uppercase tracking-wider text-muted-foreground">{active.size}</span>
-
         </div>
         <h3 className="font-display text-xl font-semibold mb-1">{active.name}</h3>
-        <p className="text-sm text-muted-foreground mb-3">{active.description}</p>
+        <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{active.description}</p>
 
         {displayVariants.length > 1 && (
           <div className="mb-4">
@@ -93,7 +100,7 @@ const ProductCard = ({ card }: { card: Card }) => {
                   <button
                     key={v.id}
                     title={v.color}
-                    onClick={() => setActiveIdx(realIdx)}
+                    onClick={e => { e.stopPropagation(); setActiveIdx(realIdx); }}
                     className={`w-6 h-6 rounded-full border-2 transition-all ${isActive ? 'border-accent scale-110' : 'border-transparent hover:border-accent/50'}`}
                     style={{ backgroundColor: colorToCss(v.color) }}
                   />
@@ -114,9 +121,9 @@ const ProductCard = ({ card }: { card: Card }) => {
               <>{active.price} ₽<span className="text-xs text-muted-foreground"> / шт</span></>
             )}
           </span>
-          <Button size="sm" variant="ghost" className="rounded-none text-accent hover:text-accent hover:bg-accent/10">
-            В заявку <Icon name="ArrowRight" size={14} className="ml-1" />
-          </Button>
+          <span className="text-xs text-accent flex items-center gap-1">
+            Подробнее <Icon name="ArrowRight" size={12} />
+          </span>
         </div>
       </div>
     </article>
@@ -242,9 +249,21 @@ const Catalog = () => {
                     </div>
                   ) : (
                     <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-6">
-                      {filtered.map((card, idx) => (
-                        <ProductCard key={card.group_id ? `${card.group_id}-${idx}` : card.variants[0]?.id} card={card} />
-                      ))}
+                      {(() => {
+                        const groupCounters: Record<string, number> = {};
+                        return filtered.map((card) => {
+                          const gid = card.group_id || `single_${card.variants[0]?.id}`;
+                          const cardIndex = groupCounters[gid] ?? 0;
+                          groupCounters[gid] = cardIndex + 1;
+                          return (
+                            <ProductCard
+                              key={`${gid}-${cardIndex}`}
+                              card={card}
+                              cardIndex={cardIndex}
+                            />
+                          );
+                        });
+                      })()}
                     </div>
                   )}
                 </>
