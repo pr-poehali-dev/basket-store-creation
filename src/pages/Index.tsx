@@ -114,10 +114,7 @@ const Index = () => {
               alt="Плетёная корзина"
               className="w-full aspect-square object-cover"
             />
-            <div className="absolute -bottom-6 -left-6 bg-card border border-border px-6 py-4 shadow-sm">
-              <p className="font-display text-3xl font-semibold text-accent">11 лет</p>
-              <p className="text-xs text-muted-foreground uppercase tracking-wider">на рынке</p>
-            </div>
+
           </div>
         </div>
       </section>
