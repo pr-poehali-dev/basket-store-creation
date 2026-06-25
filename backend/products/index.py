@@ -36,6 +36,7 @@ def row_to_dict(r):
         'size': r[4], 'color': r[5], 'price': r[6], 'sale_price': r[7],
         'image_url': r[8], 'group_id': r[9], 'group_by': r[10], 'split_by': r[11],
         'набор': r[12], 'size_category': r[13],
+        'labels': r[14], 'priority': r[15], 'weave_type': r[16], 'handles_count': r[17],
     }
 
 def build_cards(rows):
@@ -45,7 +46,6 @@ def build_cards(rows):
     - split_by — характеристики через ; (напр. 'Размер; Набор'), создают отдельные карточки
     - остальное из group_by (напр. 'Цвет') — варианты выбора внутри карточки
     - строки без group_id — каждая отдельная карточка
-    Неизвестные названия (Набор и др.) ищутся в extra_props.
     """
     ungrouped = [p for p in rows if not p['group_id']]
     grouped_map = {}
@@ -68,13 +68,15 @@ def build_cards(rows):
             sub_groups = {}
             for item in items:
                 key_parts = [str(item.get(f) or '') for f in split_fields]
-                # Всегда добавляем name в ключ — разные названия = разные карточки
                 key_parts.append(str(item.get('name') or ''))
                 key = '|||'.join(key_parts)
                 sub_groups.setdefault(key, []).append(item)
 
             for key, sub_items in sub_groups.items():
                 cards.append({'type': 'group', 'group_id': gid, 'variants': sub_items})
+
+    # Сортировка по priority (null в конец)
+    cards.sort(key=lambda c: (c['variants'][0].get('priority') is None, c['variants'][0].get('priority') or 0))
 
     return cards
 
@@ -94,8 +96,9 @@ def handler(event: dict, context) -> dict:
             raw = params.get('raw') == '1'
             cur.execute("""
                 SELECT id, name, description, shape, size, color, price, sale_price,
-                       image_url, group_id, group_by, split_by, набор, size_category
-                FROM products ORDER BY id
+                       image_url, group_id, group_by, split_by, набор, size_category,
+                       labels, priority, weave_type, handles_count
+                FROM products ORDER BY priority NULLS LAST, id
             """)
             rows = [row_to_dict(r) for r in cur.fetchall()]
 
@@ -103,19 +106,21 @@ def handler(event: dict, context) -> dict:
                 return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'products': rows}, ensure_ascii=False)}
 
             cards = build_cards(rows)
-            # Для каталога возвращаем только cards (без дублирования в products)
             return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'cards': cards}, ensure_ascii=False)}
 
         elif method == 'POST':
             sale_price = body.get('sale_price') or None
+            priority = body.get('priority') or None
             cur.execute(
                 """INSERT INTO products (name, description, shape, size, color, price, sale_price,
-                   image_url, group_id, group_by, split_by)
-                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+                   image_url, group_id, group_by, split_by, labels, priority, weave_type, handles_count)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
                 (body.get('name',''), body.get('description',''), body.get('shape','Круглые'),
                  body.get('size','Средние'), body.get('color',''), body.get('price',0), sale_price,
                  body.get('image_url',''), body.get('group_id') or None,
-                 body.get('group_by') or None, body.get('split_by') or None)
+                 body.get('group_by') or None, body.get('split_by') or None,
+                 body.get('labels') or None, priority,
+                 body.get('weave_type') or None, body.get('handles_count') or None)
             )
             new_id = cur.fetchone()[0]
             conn.commit()
@@ -124,14 +129,18 @@ def handler(event: dict, context) -> dict:
         elif method == 'PUT':
             pid = body.get('id')
             sale_price = body.get('sale_price') or None
+            priority = body.get('priority') or None
             cur.execute(
                 """UPDATE products SET name=%s, description=%s, shape=%s, size=%s, color=%s,
                    price=%s, sale_price=%s, image_url=%s, group_id=%s, group_by=%s, split_by=%s,
+                   labels=%s, priority=%s, weave_type=%s, handles_count=%s,
                    updated_at=NOW() WHERE id=%s""",
                 (body.get('name',''), body.get('description',''), body.get('shape','Круглые'),
                  body.get('size','Средние'), body.get('color',''), body.get('price',0), sale_price,
                  body.get('image_url',''), body.get('group_id') or None,
-                 body.get('group_by') or None, body.get('split_by') or None, pid)
+                 body.get('group_by') or None, body.get('split_by') or None,
+                 body.get('labels') or None, priority,
+                 body.get('weave_type') or None, body.get('handles_count') or None, pid)
             )
             conn.commit()
             return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'ok': True})}

@@ -5,6 +5,13 @@ import urls from '../../backend/func2url.json';
 
 const SHAPES = ['Круглые', 'Овальные', 'Прямоугольные', 'Сердечки'];
 const SIZES = ['Малые', 'Средние', 'Большие'];
+const WEAVE_TYPES = ['На колотой', 'На шпоне'];
+const HANDLES_OPTIONS = ['1 ручка', '2 ручки'];
+const LABEL_OPTIONS = [
+  { value: 'новинка', label: 'Новинка' },
+  { value: 'акция',   label: 'Акция' },
+  { value: 'топ продаж', label: 'Топ продаж' },
+];
 
 interface Product {
   id?: number;
@@ -19,9 +26,29 @@ interface Product {
   group_id: string;
   group_by: string;
   split_by: string;
+  labels: string;
+  priority: number | null;
+  weave_type: string;
+  handles_count: string;
 }
 
-const empty = (): Product => ({ name: '', description: '', shape: 'Круглые', size: 'Средние', color: '', price: 0, sale_price: null, image_url: '', group_id: '', group_by: '', split_by: '' });
+const empty = (): Product => ({
+  name: '', description: '', shape: 'Круглые', size: 'Средние',
+  color: '', price: 0, sale_price: null, image_url: '',
+  group_id: '', group_by: '', split_by: '',
+  labels: '', priority: null, weave_type: '', handles_count: '',
+});
+
+// Парсим метки из строки "новинка;акция"
+function parseLabels(s: string): string[] {
+  return s ? s.split(';').map(l => l.trim()).filter(Boolean) : [];
+}
+function labelsToStr(arr: string[]): string {
+  return arr.join(';');
+}
+
+const inputCls = "w-full border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent";
+const labelCls = "text-xs uppercase tracking-wider text-muted-foreground mb-1 block";
 
 const Admin = () => {
   const [authed, setAuthed] = useState(() => sessionStorage.getItem('admin_ok') === '1');
@@ -113,6 +140,13 @@ const Admin = () => {
     reader.readAsArrayBuffer(file);
   };
 
+  const toggleLabel = (val: string) => {
+    if (!editing) return;
+    const current = parseLabels(editing.labels);
+    const next = current.includes(val) ? current.filter(l => l !== val) : [...current, val];
+    setEditing({ ...editing, labels: labelsToStr(next) });
+  };
+
   if (!authed) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center px-6">
@@ -139,6 +173,8 @@ const Admin = () => {
     );
   }
 
+  const editingLabels = editing ? parseLabels(editing.labels) : [];
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="border-b border-border px-6 h-16 flex items-center justify-between">
@@ -159,7 +195,7 @@ const Admin = () => {
         <div className="bg-card border border-border p-6 mb-8">
           <h2 className="font-display text-xl font-semibold mb-4">Загрузка из Excel</h2>
           <p className="text-sm text-muted-foreground mb-4">
-            Колонки файла: <code className="bg-secondary px-1">name, description, shape, size, color, price, sale_price, image_url, group_id, group_by, split_by</code>
+            Колонки файла: <code className="bg-secondary px-1">name, description, shape, size, color, price, sale_price, image_url, group_id, group_by, split_by, labels, priority, weave_type, handles_count</code>
           </p>
           <div className="flex flex-wrap items-center gap-4">
             <label className="flex items-center gap-2 text-sm cursor-pointer">
@@ -221,6 +257,8 @@ const Admin = () => {
                   <th className="text-left px-4 py-3 font-medium">Цвет</th>
                   <th className="text-left px-4 py-3 font-medium">Цена</th>
                   <th className="text-left px-4 py-3 font-medium">По акции</th>
+                  <th className="text-left px-4 py-3 font-medium">Метки</th>
+                  <th className="text-left px-4 py-3 font-medium">Приор.</th>
                   <th className="text-left px-4 py-3 font-medium">Группа</th>
                   <th className="text-left px-4 py-3 font-medium"></th>
                 </tr>
@@ -240,10 +278,27 @@ const Admin = () => {
                     <td className="px-4 py-3 text-muted-foreground">{p.color || '—'}</td>
                     <td className="px-4 py-3">{p.price} ₽</td>
                     <td className="px-4 py-3">{p.sale_price ? <span className="text-accent">{p.sale_price} ₽</span> : '—'}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap gap-1">
+                        {parseLabels(p.labels).map(l => (
+                          <span key={l} className="text-[10px] bg-accent/10 text-accent border border-accent/30 px-1.5 py-0.5 uppercase tracking-wide">{l}</span>
+                        ))}
+                        {!p.labels && <span className="text-muted-foreground">—</span>}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">{p.priority ?? '—'}</td>
                     <td className="px-4 py-3 text-muted-foreground text-xs">{p.group_id || '—'}</td>
                     <td className="px-4 py-3">
                       <div className="flex gap-2">
-                        <Button size="sm" variant="outline" className="rounded-none h-8" onClick={() => setEditing({ ...p, group_id: p.group_id || '', group_by: p.group_by || '', split_by: p.split_by || '' })}>
+                        <Button size="sm" variant="outline" className="rounded-none h-8" onClick={() => setEditing({
+                          ...p,
+                          group_id: p.group_id || '',
+                          group_by: p.group_by || '',
+                          split_by: p.split_by || '',
+                          labels: p.labels || '',
+                          weave_type: p.weave_type || '',
+                          handles_count: p.handles_count || '',
+                        })}>
                           <Icon name="Pencil" size={14} />
                         </Button>
                         <Button size="sm" variant="outline" className="rounded-none h-8 text-red-500 hover:text-red-600" onClick={() => remove(p.id!)} disabled={deleting === p.id}>
@@ -269,82 +324,135 @@ const Admin = () => {
             </div>
 
             <div className="space-y-4">
+              {/* Название */}
               <div>
-                <label className="text-xs uppercase tracking-wider text-muted-foreground mb-1 block">Название</label>
-                <input value={editing.name} onChange={e => setEditing({ ...editing, name: e.target.value })}
-                  className="w-full border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent" />
+                <label className={labelCls}>Название</label>
+                <input value={editing.name} onChange={e => setEditing({ ...editing, name: e.target.value })} className={inputCls} />
               </div>
+
+              {/* Описание */}
               <div>
-                <label className="text-xs uppercase tracking-wider text-muted-foreground mb-1 block">Описание</label>
+                <label className={labelCls}>Описание</label>
                 <textarea value={editing.description} onChange={e => setEditing({ ...editing, description: e.target.value })}
-                  rows={2} className="w-full border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent resize-none" />
+                  rows={2} className={inputCls + ' resize-none'} />
               </div>
+
+              {/* Форма + Размер */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-xs uppercase tracking-wider text-muted-foreground mb-1 block">Форма</label>
-                  <select value={editing.shape} onChange={e => setEditing({ ...editing, shape: e.target.value })}
-                    className="w-full border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent">
+                  <label className={labelCls}>Форма</label>
+                  <select value={editing.shape} onChange={e => setEditing({ ...editing, shape: e.target.value })} className={inputCls}>
                     {SHAPES.map(s => <option key={s}>{s}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs uppercase tracking-wider text-muted-foreground mb-1 block">Размер</label>
-                  <select value={editing.size} onChange={e => setEditing({ ...editing, size: e.target.value })}
-                    className="w-full border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent">
+                  <label className={labelCls}>Размер</label>
+                  <select value={editing.size} onChange={e => setEditing({ ...editing, size: e.target.value })} className={inputCls}>
                     {SIZES.map(s => <option key={s}>{s}</option>)}
                   </select>
                 </div>
               </div>
+
+              {/* Цвет + Цена */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-xs uppercase tracking-wider text-muted-foreground mb-1 block">Цвет</label>
+                  <label className={labelCls}>Цвет</label>
                   <input value={editing.color} onChange={e => setEditing({ ...editing, color: e.target.value })}
-                    placeholder="напр. Натуральный"
-                    className="w-full border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent" />
+                    placeholder="напр. Натуральный" className={inputCls} />
                 </div>
                 <div>
-                  <label className="text-xs uppercase tracking-wider text-muted-foreground mb-1 block">Цена (₽)</label>
-                  <input type="number" value={editing.price} onChange={e => setEditing({ ...editing, price: +e.target.value })}
-                    className="w-full border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent" />
+                  <label className={labelCls}>Цена (₽)</label>
+                  <input type="number" value={editing.price} onChange={e => setEditing({ ...editing, price: +e.target.value })} className={inputCls} />
                 </div>
               </div>
+
+              {/* Цена по акции */}
               <div>
-                <label className="text-xs uppercase tracking-wider text-muted-foreground mb-1 block">Цена по акции (₽) — необязательно</label>
+                <label className={labelCls}>Цена по акции (₽) — необязательно</label>
                 <input type="number" value={editing.sale_price ?? ''} onChange={e => setEditing({ ...editing, sale_price: e.target.value ? +e.target.value : null })}
-                  placeholder="Оставьте пустым если акции нет"
-                  className="w-full border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent" />
+                  placeholder="Оставьте пустым если акции нет" className={inputCls} />
               </div>
+
+              {/* Метки */}
+              <div className="border-t border-border pt-4">
+                <label className={labelCls}>Метки (можно выбрать несколько)</label>
+                <div className="flex flex-wrap gap-3 mt-1">
+                  {LABEL_OPTIONS.map(opt => {
+                    const checked = editingLabels.includes(opt.value);
+                    return (
+                      <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
+                        <span className={`w-4 h-4 border flex items-center justify-center transition-colors flex-shrink-0 ${checked ? 'bg-accent border-accent' : 'border-border hover:border-accent'}`}>
+                          {checked && <Icon name="Check" size={11} className="text-accent-foreground" />}
+                        </span>
+                        <input type="checkbox" className="hidden" checked={checked} onChange={() => toggleLabel(opt.value)} />
+                        <span className="text-sm">{opt.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Приоритет */}
+              <div>
+                <label className={labelCls}>Приоритет в каталоге</label>
+                <input
+                  type="number"
+                  value={editing.priority ?? ''}
+                  onChange={e => setEditing({ ...editing, priority: e.target.value ? +e.target.value : null })}
+                  placeholder="1 — первое место, 2 — второе и т.д. (пусто — в конце)"
+                  className={inputCls}
+                />
+              </div>
+
+              {/* Вид плетения + Кол-во ручек */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className={labelCls}>Вид плетения</label>
+                  <select value={editing.weave_type} onChange={e => setEditing({ ...editing, weave_type: e.target.value })} className={inputCls}>
+                    <option value="">— не указано —</option>
+                    {WEAVE_TYPES.map(w => <option key={w}>{w}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className={labelCls}>Кол-во ручек</label>
+                  <select value={editing.handles_count} onChange={e => setEditing({ ...editing, handles_count: e.target.value })} className={inputCls}>
+                    <option value="">— не указано —</option>
+                    {HANDLES_OPTIONS.map(h => <option key={h}>{h}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              {/* Группировка */}
               <div className="border-t border-border pt-4">
                 <p className="text-xs uppercase tracking-wider text-muted-foreground mb-3">Группировка вариантов</p>
                 <div className="space-y-3">
                   <div>
                     <label className="text-xs text-muted-foreground mb-1 block">Номер группы — одинаковый для всех вариантов одной модели</label>
                     <input value={editing.group_id} onChange={e => setEditing({ ...editing, group_id: e.target.value })}
-                      placeholder="напр. italia"
-                      className="w-full border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent" />
+                      placeholder="напр. italia" className={inputCls} />
                   </div>
                   <div>
-                    <label className="text-xs text-muted-foreground mb-1 block">Группировать по — все характеристики, по которым есть варианты (через запятую)</label>
+                    <label className="text-xs text-muted-foreground mb-1 block">Группировать по — характеристики, по которым есть варианты (через ;)</label>
                     <input value={editing.group_by} onChange={e => setEditing({ ...editing, group_by: e.target.value })}
-                      placeholder="напр. size, color"
-                      className="w-full border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent" />
+                      placeholder="напр. Цвет; Размер" className={inputCls} />
                   </div>
                   <div>
-                    <label className="text-xs text-muted-foreground mb-1 block">Разделить на карточки по — что создаёт отдельные карточки (через запятую)</label>
+                    <label className="text-xs text-muted-foreground mb-1 block">Разделить на карточки по — что создаёт отдельные карточки (через ;)</label>
                     <input value={editing.split_by} onChange={e => setEditing({ ...editing, split_by: e.target.value })}
-                      placeholder="напр. size"
-                      className="w-full border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent" />
+                      placeholder="напр. Размер" className={inputCls} />
                   </div>
                 </div>
               </div>
+
+              {/* Фото */}
               <div>
-                <label className="text-xs uppercase tracking-wider text-muted-foreground mb-1 block">Фото</label>
+                <label className={labelCls}>Фото</label>
                 <div className="flex gap-3 items-start">
                   {editing.image_url && <img src={editing.image_url} className="w-16 h-16 object-cover border border-border" />}
                   <div className="flex-1">
                     <input value={editing.image_url} onChange={e => setEditing({ ...editing, image_url: e.target.value })}
                       placeholder="URL фото или загрузите файл"
-                      className="w-full border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent mb-2" />
+                      className={inputCls + ' mb-2'} />
                     <Button size="sm" variant="outline" className="rounded-none" onClick={() => imgRef.current?.click()} disabled={imgUploading}>
                       <Icon name="Upload" size={14} className="mr-1" />
                       {imgUploading ? 'Загружаю...' : 'Загрузить фото'}
