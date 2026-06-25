@@ -13,7 +13,7 @@ const img2 = 'https://cdn.poehali.dev/projects/d5ee4f52-1455-4c6a-a1d4-6138f3445
 const img3 = 'https://cdn.poehali.dev/projects/d5ee4f52-1455-4c6a-a1d4-6138f3445871/files/a944da5a-4f75-47e3-bf49-f336ddb92630.jpg';
 
 export const SHAPES = ['Круглые', 'Овальные', 'Прямоугольные', 'Сердечки'];
-export const SIZES = ['Малые', 'Средние', 'Большие'] as const;
+export const SIZES = ['до 30 см', '30-50 см', '50-120 см'] as const;
 
 export const products: Product[] = [
   { id: 1, name: 'Корзина «Прованс»', shape: 'Круглые', size: 'Малые', price: 320, image: img1, desc: 'Плетение ручной работы, диаметр 24 см' },

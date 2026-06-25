@@ -3,6 +3,7 @@ import json
 import os
 import base64
 import io
+import re
 import psycopg2
 import openpyxl
 
@@ -13,7 +14,27 @@ CORS = {
 }
 
 VALID_SHAPES = ['Круглые', 'Овальные', 'Прямоугольные', 'Сердечки']
-VALID_SIZES = ['Малые', 'Средние', 'Большие']
+
+def get_size_category(size_str: str) -> str:
+    """
+    Определяет категорию по первому числу в строке размера.
+    'до 30 см' — меньше 30
+    '30-50 см' — от 30 до 50
+    '50-120 см' — больше 50
+    Для наборов (нет числа или несколько размеров) — берём первое число.
+    """
+    if not size_str:
+        return ''
+    nums = re.findall(r'\d+', size_str.replace(',', '.'))
+    if not nums:
+        return ''
+    first = int(nums[0])
+    if first < 30:
+        return 'до 30 см'
+    elif first <= 50:
+        return '30-50 см'
+    else:
+        return '50-120 см'
 
 def get_conn():
     return psycopg2.connect(os.environ['DATABASE_URL'], options=f"-c search_path={os.environ['MAIN_DB_SCHEMA']}")
@@ -53,6 +74,7 @@ def handler(event: dict, context) -> dict:
         if shape not in VALID_SHAPES:
             shape = 'Круглые'
         size = col(row, 'размер', 'size') or ''
+        size_category = get_size_category(size)
         try:
             price = int(float(col(row, 'цена', 'price') or 0))
         except:
@@ -68,6 +90,7 @@ def handler(event: dict, context) -> dict:
             'description': col(row, 'описание', 'description'),
             'shape': shape,
             'size': size,
+            'size_category': size_category,
             'color': col(row, 'цвет', 'color'),
             'price': price,
             'sale_price': sale_price,
@@ -85,10 +108,11 @@ def handler(event: dict, context) -> dict:
 
     for p in rows_data:
         cur.execute(
-            """INSERT INTO products (name, description, shape, size, color, price, sale_price,
+            """INSERT INTO products (name, description, shape, size, size_category, color, price, sale_price,
                image_url, group_id, group_by, split_by)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
-            (p['name'], p['description'], p['shape'], p['size'], p['color'], p['price'], p['sale_price'],
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+            (p['name'], p['description'], p['shape'], p['size'], p['size_category'],
+             p['color'], p['price'], p['sale_price'],
              p['image_url'], p['group_id'], p['group_by'], p['split_by'])
         )
 

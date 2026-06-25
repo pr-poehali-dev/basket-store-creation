@@ -13,6 +13,7 @@ interface Product {
   description: string;
   shape: string;
   size: string;
+  size_category: string;
   color: string;
   price: number;
   sale_price: number | null;
@@ -159,7 +160,7 @@ const Catalog = () => {
     if (!p) return false;
     return (
       (shapes.length === 0 || shapes.includes(p.shape)) &&
-      (sizes.length === 0 || sizes.includes(p.size)) &&
+      (sizes.length === 0 || sizes.includes(p.size_category)) &&
       p.price <= maxPrice
     );
   }), [cards, shapes, sizes, maxPrice]);
