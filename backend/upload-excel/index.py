@@ -1,4 +1,4 @@
-"""Загрузка товаров из Excel-файла. Колонки: название, описание, форма, размер, цвет, цена, цена по акции, фото, группа, группировать по, разделить по, набор."""
+"""Загрузка товаров из Excel-файла. Колонки: название, описание, форма, размер, цвет, цена, цена по акции, фото, группа, группировать по, разделить по."""
 import json
 import os
 import base64
@@ -64,10 +64,6 @@ def handler(event: dict, context) -> dict:
             sale_price = int(float(sale_price_raw)) if sale_price_raw else None
         except:
             sale_price = None
-        group_id = col(row, 'группа', 'group_id') or None
-        group_by = col(row, 'группировать по', 'group_by') or None
-        split_by = col(row, 'разделить по', 'split_by') or None
-        nabor = col(row, 'набор') or None
 
         rows_data.append({
             'name': name,
@@ -78,10 +74,9 @@ def handler(event: dict, context) -> dict:
             'price': price,
             'sale_price': sale_price,
             'image_url': col(row, 'фото', 'image_url'),
-            'group_id': group_id if group_id else None,
-            'group_by': group_by if group_by else None,
-            'split_by': split_by if split_by else None,
-            'набор': nabor if nabor else None,
+            'group_id': col(row, 'группа', 'group_id') or None,
+            'group_by': col(row, 'группировать по', 'group_by') or None,
+            'split_by': col(row, 'разделить по', 'split_by') or None,
         })
 
     conn = get_conn()
@@ -93,10 +88,10 @@ def handler(event: dict, context) -> dict:
     for p in rows_data:
         cur.execute(
             """INSERT INTO products (name, description, shape, size, color, price, sale_price,
-               image_url, group_id, group_by, split_by, набор)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+               image_url, group_id, group_by, split_by)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
             (p['name'], p['description'], p['shape'], p['size'], p['color'], p['price'], p['sale_price'],
-             p['image_url'], p['group_id'], p['group_by'], p['split_by'], p['набор'])
+             p['image_url'], p['group_id'], p['group_by'], p['split_by'])
         )
 
     conn.commit()

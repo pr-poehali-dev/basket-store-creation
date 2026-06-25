@@ -13,18 +13,18 @@ CORS = {
 FIELD_MAP = {
     'размер': 'size',
     'цвет': 'color',
-    'набор': 'набор',
 }
 
 def parse_fields(s):
-    """Парсит строку 'Размер; Цвет; Набор' -> ['size', 'color', 'набор']"""
+    """Парсит 'Размер; Цвет' -> ['size', 'color']. Неизвестные названия оставляет как есть."""
     if not s:
         return []
     result = []
     for part in s.split(';'):
         key = part.strip().lower()
-        result.append(FIELD_MAP.get(key, key))
-    return [f for f in result if f]
+        if key:
+            result.append(FIELD_MAP.get(key, key))
+    return result
 
 def get_conn():
     return psycopg2.connect(os.environ['DATABASE_URL'], options=f"-c search_path={os.environ['MAIN_DB_SCHEMA']}")
@@ -34,16 +34,16 @@ def row_to_dict(r):
         'id': r[0], 'name': r[1], 'description': r[2], 'shape': r[3],
         'size': r[4], 'color': r[5], 'price': r[6], 'sale_price': r[7],
         'image_url': r[8], 'group_id': r[9], 'group_by': r[10], 'split_by': r[11],
-        'набор': r[12],
     }
 
 def build_cards(rows):
     """
     Группируем строки в карточки:
     - group_id объединяет все варианты одной модели
-    - split_by — характеристики через ; (Размер; Набор), по которым делаем отдельные карточки
-    - всё остальное из group_by (Цвет) — варианты выбора внутри карточки
+    - split_by — характеристики через ; (напр. 'Размер; Набор'), создают отдельные карточки
+    - остальное из group_by (напр. 'Цвет') — варианты выбора внутри карточки
     - строки без group_id — каждая отдельная карточка
+    Неизвестные названия (Набор и др.) ищутся в extra_props.
     """
     ungrouped = [p for p in rows if not p['group_id']]
     grouped_map = {}
@@ -65,7 +65,7 @@ def build_cards(rows):
         else:
             sub_groups = {}
             for item in items:
-                key_parts = [str(item.get(f) or '') for f in split_fields]
+                key_parts = [str(item.get(f) or item.get('extra_props', {}).get(f) or '') for f in split_fields]
                 key = '|||'.join(key_parts)
                 sub_groups.setdefault(key, []).append(item)
 
@@ -90,7 +90,7 @@ def handler(event: dict, context) -> dict:
             raw = params.get('raw') == '1'
             cur.execute("""
                 SELECT id, name, description, shape, size, color, price, sale_price,
-                       image_url, group_id, group_by, split_by, набор
+                       image_url, group_id, group_by, split_by
                 FROM products ORDER BY id
             """)
             rows = [row_to_dict(r) for r in cur.fetchall()]
@@ -105,13 +105,12 @@ def handler(event: dict, context) -> dict:
             sale_price = body.get('sale_price') or None
             cur.execute(
                 """INSERT INTO products (name, description, shape, size, color, price, sale_price,
-                   image_url, group_id, group_by, split_by, набор)
-                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+                   image_url, group_id, group_by, split_by)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
                 (body.get('name',''), body.get('description',''), body.get('shape','Круглые'),
                  body.get('size','Средние'), body.get('color',''), body.get('price',0), sale_price,
                  body.get('image_url',''), body.get('group_id') or None,
-                 body.get('group_by') or None, body.get('split_by') or None,
-                 body.get('набор') or None)
+                 body.get('group_by') or None, body.get('split_by') or None)
             )
             new_id = cur.fetchone()[0]
             conn.commit()
@@ -123,12 +122,11 @@ def handler(event: dict, context) -> dict:
             cur.execute(
                 """UPDATE products SET name=%s, description=%s, shape=%s, size=%s, color=%s,
                    price=%s, sale_price=%s, image_url=%s, group_id=%s, group_by=%s, split_by=%s,
-                   набор=%s, updated_at=NOW() WHERE id=%s""",
+                   updated_at=NOW() WHERE id=%s""",
                 (body.get('name',''), body.get('description',''), body.get('shape','Круглые'),
                  body.get('size','Средние'), body.get('color',''), body.get('price',0), sale_price,
                  body.get('image_url',''), body.get('group_id') or None,
-                 body.get('group_by') or None, body.get('split_by') or None,
-                 body.get('набор') or None, pid)
+                 body.get('group_by') or None, body.get('split_by') or None, pid)
             )
             conn.commit()
             return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'ok': True})}
