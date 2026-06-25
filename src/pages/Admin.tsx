@@ -14,10 +14,11 @@ interface Product {
   size: string;
   color: string;
   price: number;
+  sale_price: number | null;
   image_url: string;
 }
 
-const empty = (): Product => ({ name: '', description: '', shape: 'Круглые', size: 'Средние', color: '', price: 0, image_url: '' });
+const empty = (): Product => ({ name: '', description: '', shape: 'Круглые', size: 'Средние', color: '', price: 0, sale_price: null, image_url: '' });
 
 const Admin = () => {
   const [authed, setAuthed] = useState(() => sessionStorage.getItem('admin_ok') === '1');
@@ -199,6 +200,7 @@ const Admin = () => {
                   <th className="text-left px-4 py-3 font-medium">Размер</th>
                   <th className="text-left px-4 py-3 font-medium">Цвет</th>
                   <th className="text-left px-4 py-3 font-medium">Цена</th>
+                  <th className="text-left px-4 py-3 font-medium">По акции</th>
                   <th className="text-left px-4 py-3 font-medium"></th>
                 </tr>
               </thead>
@@ -216,6 +218,7 @@ const Admin = () => {
                     <td className="px-4 py-3 text-muted-foreground">{p.size}</td>
                     <td className="px-4 py-3 text-muted-foreground">{p.color || '—'}</td>
                     <td className="px-4 py-3">{p.price} ₽</td>
+                    <td className="px-4 py-3">{p.sale_price ? <span className="text-accent">{p.sale_price} ₽</span> : '—'}</td>
                     <td className="px-4 py-3">
                       <div className="flex gap-2">
                         <Button size="sm" variant="outline" className="rounded-none h-8" onClick={() => setEditing({ ...p })}>
@@ -282,6 +285,12 @@ const Admin = () => {
                   <input type="number" value={editing.price} onChange={e => setEditing({ ...editing, price: +e.target.value })}
                     className="w-full border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent" />
                 </div>
+              </div>
+              <div>
+                <label className="text-xs uppercase tracking-wider text-muted-foreground mb-1 block">Цена по акции (₽) — необязательно</label>
+                <input type="number" value={editing.sale_price ?? ''} onChange={e => setEditing({ ...editing, sale_price: e.target.value ? +e.target.value : null })}
+                  placeholder="Оставьте пустым если акции нет"
+                  className="w-full border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent" />
               </div>
               <div>
                 <label className="text-xs uppercase tracking-wider text-muted-foreground mb-1 block">Фото</label>

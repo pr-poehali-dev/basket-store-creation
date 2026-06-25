@@ -14,6 +14,7 @@ interface Product {
   size: string;
   color: string;
   price: number;
+  sale_price: number | null;
   image_url: string;
 }
 
@@ -153,7 +154,14 @@ const Catalog = () => {
                             <p className="text-sm text-muted-foreground mb-4">{p.description}</p>
                             <div className="flex items-center justify-between">
                               <span className="font-medium">
-                                {p.price} ₽<span className="text-xs text-muted-foreground"> / шт</span>
+                                {p.sale_price ? (
+                                  <span className="flex items-baseline gap-2">
+                                    <span className="text-accent">{p.sale_price} ₽</span>
+                                    <span className="text-xs text-muted-foreground line-through">{p.price} ₽</span>
+                                  </span>
+                                ) : (
+                                  <>{p.price} ₽<span className="text-xs text-muted-foreground"> / шт</span></>
+                                )}
                               </span>
                               <Button size="sm" variant="ghost" className="rounded-none text-accent hover:text-accent hover:bg-accent/10">
                                 В заявку <Icon name="ArrowRight" size={14} className="ml-1" />

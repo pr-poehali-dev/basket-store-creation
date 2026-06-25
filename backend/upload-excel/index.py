@@ -1,4 +1,4 @@
-"""Загрузка товаров из Excel-файла (xlsx/xls). Колонки: name, description, shape, size, color, price, image_url."""
+"""Загрузка товаров из Excel-файла (xlsx/xls). Колонки: name, description, shape, size, color, price, sale_price, image_url."""
 import json
 import os
 import base64
@@ -58,6 +58,11 @@ def handler(event: dict, context) -> dict:
             price = int(float(col(row, 'price') or col(row, 'цена') or 0))
         except:
             price = 0
+        sale_price_raw = col(row, 'sale_price') or col(row, 'цена по акции') or col(row, 'акция')
+        try:
+            sale_price = int(float(sale_price_raw)) if sale_price_raw else None
+        except:
+            sale_price = None
         rows_data.append({
             'name': name,
             'description': col(row, 'description') or col(row, 'описание'),
@@ -65,6 +70,7 @@ def handler(event: dict, context) -> dict:
             'size': size,
             'color': col(row, 'color') or col(row, 'цвет'),
             'price': price,
+            'sale_price': sale_price,
             'image_url': col(row, 'image_url') or col(row, 'фото'),
         })
 
@@ -76,8 +82,8 @@ def handler(event: dict, context) -> dict:
 
     for p in rows_data:
         cur.execute(
-            "INSERT INTO products (name, description, shape, size, color, price, image_url) VALUES (%s,%s,%s,%s,%s,%s,%s)",
-            (p['name'], p['description'], p['shape'], p['size'], p['color'], p['price'], p['image_url'])
+            "INSERT INTO products (name, description, shape, size, color, price, sale_price, image_url) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
+            (p['name'], p['description'], p['shape'], p['size'], p['color'], p['price'], p['sale_price'], p['image_url'])
         )
 
     conn.commit()

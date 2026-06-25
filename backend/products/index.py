@@ -25,20 +25,21 @@ def handler(event: dict, context) -> dict:
 
     try:
         if method == 'GET':
-            cur.execute("SELECT id, name, description, shape, size, color, price, image_url FROM products ORDER BY id")
+            cur.execute("SELECT id, name, description, shape, size, color, price, sale_price, image_url FROM products ORDER BY id")
             rows = cur.fetchall()
             products = [
                 {'id': r[0], 'name': r[1], 'description': r[2], 'shape': r[3],
-                 'size': r[4], 'color': r[5], 'price': r[6], 'image_url': r[7]}
+                 'size': r[4], 'color': r[5], 'price': r[6], 'sale_price': r[7], 'image_url': r[8]}
                 for r in rows
             ]
             return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'products': products})}
 
         elif method == 'POST':
+            sale_price = body.get('sale_price') or None
             cur.execute(
-                "INSERT INTO products (name, description, shape, size, color, price, image_url) VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING id",
+                "INSERT INTO products (name, description, shape, size, color, price, sale_price, image_url) VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
                 (body.get('name',''), body.get('description',''), body.get('shape','Круглые'),
-                 body.get('size','Средние'), body.get('color',''), body.get('price',0), body.get('image_url',''))
+                 body.get('size','Средние'), body.get('color',''), body.get('price',0), sale_price, body.get('image_url',''))
             )
             new_id = cur.fetchone()[0]
             conn.commit()
@@ -46,10 +47,11 @@ def handler(event: dict, context) -> dict:
 
         elif method == 'PUT':
             pid = body.get('id')
+            sale_price = body.get('sale_price') or None
             cur.execute(
-                "UPDATE products SET name=%s, description=%s, shape=%s, size=%s, color=%s, price=%s, image_url=%s, updated_at=NOW() WHERE id=%s",
+                "UPDATE products SET name=%s, description=%s, shape=%s, size=%s, color=%s, price=%s, sale_price=%s, image_url=%s, updated_at=NOW() WHERE id=%s",
                 (body.get('name',''), body.get('description',''), body.get('shape','Круглые'),
-                 body.get('size','Средние'), body.get('color',''), body.get('price',0), body.get('image_url',''), pid)
+                 body.get('size','Средние'), body.get('color',''), body.get('price',0), sale_price, body.get('image_url',''), pid)
             )
             conn.commit()
             return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'ok': True})}
