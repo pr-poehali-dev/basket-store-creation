@@ -1,9 +1,9 @@
 import { useState, useMemo } from 'react';
-import { Link } from 'react-router-dom';
 import Icon from '@/components/ui/icon';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { products, MATERIALS, SIZES, type Product } from '@/data/products';
+import Header from '@/components/Header';
 
 const Catalog = () => {
   const [materials, setMaterials] = useState<string[]>([]);
@@ -32,18 +32,7 @@ const Catalog = () => {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <header className="fixed top-0 inset-x-0 z-50 bg-background/85 backdrop-blur-md border-b border-border">
-        <div className="container mx-auto flex items-center justify-between h-16 px-6">
-          <Link to="/" className="flex items-center gap-2">
-            <Icon name="Wheat" className="text-accent" size={26} />
-            <span className="font-display text-2xl font-semibold tracking-wide">FABRICA</span>
-          </Link>
-          <Link to="/" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-accent transition-colors">
-            <Icon name="ArrowLeft" size={16} />
-            На главную
-          </Link>
-        </div>
-      </header>
+      <Header />
 
       <main className="pt-32 pb-24 px-6">
         <div className="container mx-auto">
