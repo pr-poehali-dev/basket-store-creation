@@ -12,13 +12,7 @@ interface LocationState {
 }
 
 const DAYS = ['ПН', 'ВТ', 'СР', 'ЧТ', 'ПТ', 'СБ', 'ВС'];
-
-// Временные интервалы с шагом 2 часа
-const TIME_SLOTS = Array.from({ length: 12 }, (_, i) => {
-  const from = String(i * 2).padStart(2, '0') + ':00';
-  const to = String(i * 2 + 2).padStart(2, '0') + ':00';
-  return `с ${from} до ${to}`;
-});
+const HOURS = Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2, '0')}:00`);
 
 function fmt(n: number) {
   return n.toLocaleString('ru-RU') + ' ₽';
@@ -54,7 +48,8 @@ const Checkout = () => {
     phone: '',
     date: '',
     address: '',
-    timeSlot: TIME_SLOTS[4], // с 08:00 до 10:00 по умолчанию
+    timeFrom: '09:00',
+    timeTo: '18:00',
     wishes: '',
   });
   const [days, setDays] = useState<string[]>([]);
@@ -91,7 +86,8 @@ const Checkout = () => {
     if (showDeliveryFields) {
       if (!form.address.trim()) newErrors.address = true;
       if (days.length === 0) newErrors.days = true;
-      if (!form.timeSlot) newErrors.timeSlot = true;
+      if (!form.timeFrom) newErrors.timeFrom = true;
+      if (!form.timeTo) newErrors.timeTo = true;
     }
     setErrors(newErrors);
     if (Object.keys(newErrors).length > 0) {
@@ -247,7 +243,7 @@ const Checkout = () => {
                     type="text"
                     value={form.address}
                     onChange={e => set('address', e.target.value)}
-                    placeholder="Улица, дом, квартира / офис"
+                    placeholder="Город, улица, дом (или название магазина)"
                     className={inputCls('address')}
                   />
                 </div>
@@ -285,15 +281,29 @@ const Checkout = () => {
                   <label className="block text-xs uppercase tracking-wider text-muted-foreground mb-1.5">
                     Время, когда сможете принять доставку <span className="text-destructive">*</span>
                   </label>
-                  <select
-                    value={form.timeSlot}
-                    onChange={e => set('timeSlot', e.target.value)}
-                    className={inputCls('timeSlot') + ' cursor-pointer'}
-                  >
-                    {TIME_SLOTS.map(slot => (
-                      <option key={slot} value={slot}>{slot}</option>
-                    ))}
-                  </select>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1">
+                      <p className="text-xs text-muted-foreground mb-1">От</p>
+                      <select
+                        value={form.timeFrom}
+                        onChange={e => set('timeFrom', e.target.value)}
+                        className={inputCls('timeFrom') + ' cursor-pointer'}
+                      >
+                        {HOURS.map(h => <option key={h} value={h}>{h}</option>)}
+                      </select>
+                    </div>
+                    <div className="mt-5 text-muted-foreground">—</div>
+                    <div className="flex-1">
+                      <p className="text-xs text-muted-foreground mb-1">До</p>
+                      <select
+                        value={form.timeTo}
+                        onChange={e => set('timeTo', e.target.value)}
+                        className={inputCls('timeTo') + ' cursor-pointer'}
+                      >
+                        {HOURS.map(h => <option key={h} value={h}>{h}</option>)}
+                      </select>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
