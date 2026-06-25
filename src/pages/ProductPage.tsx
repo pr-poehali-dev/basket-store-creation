@@ -95,6 +95,7 @@ const ProductPage = () => {
     const sorted = sortColors(unique);
     const first = sorted[0];
     setActiveVariantIdx(first ? card.variants.indexOf(first) : 0);
+    setQty(1);
   }, [activeCardIdx, card?.group_id]);
 
   const active = card?.variants[activeVariantIdx] ?? card?.variants[0];
@@ -241,7 +242,7 @@ const ProductPage = () => {
                           <button
                             key={v.id}
                             title={v.color}
-                            onClick={() => setActiveVariantIdx(realIdx)}
+                            onClick={() => { setActiveVariantIdx(realIdx); setQty(1); }}
                             className={`w-8 h-8 rounded-full border-2 transition-all ${
                               isActive ? 'border-accent scale-110' : 'border-transparent hover:border-accent/50'
                             }`}
@@ -278,7 +279,7 @@ const ProductPage = () => {
 
               {/* Кнопки */}
               <div className="flex flex-col sm:flex-row gap-3 mb-8">
-                <Button className="flex-1 bg-accent hover:bg-accent/90 text-accent-foreground rounded-none h-12 text-base">
+                <Button onClick={() => setQty(1)} className="flex-1 bg-accent hover:bg-accent/90 text-accent-foreground rounded-none h-12 text-base">
                   В корзину
                 </Button>
                 <Button variant="outline" className="rounded-none h-12" onClick={() => navigate('/catalog')}>

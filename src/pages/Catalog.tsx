@@ -247,7 +247,7 @@ const Catalog = () => {
                       По выбранным фильтрам ничего не найдено
                     </div>
                   ) : (
-                    <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-6">
+                    <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-6" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))' }}>
                       {(() => {
                         const groupCounters: Record<string, number> = {};
                         return filtered.map((card) => {
