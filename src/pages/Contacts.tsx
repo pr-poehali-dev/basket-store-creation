@@ -1,41 +1,51 @@
 import Header from '@/components/Header';
+import Icon from '@/components/ui/icon';
 
 const ADVANTAGES = [
-  { num: 1, title: 'Без посредников', desc: 'Мы выращиваем, подготавливаем материал и плетем корзины самостоятельно' },
-  { num: 2, title: 'Неограниченный выбор', desc: 'Не нужно выбирать из наличия, закажите столько — сколько нужно именно вам' },
-  { num: 3, title: 'Контроль качества', desc: 'На каждом этапе производства следим за качеством и делаем постоянный отбор корзин' },
-  { num: 4, title: 'Прочность', desc: 'Выбираем прочные сорта прута и используем фирменные техники плотного плетения' },
+  { num: 1, icon: 'Sprout', title: 'Без посредников', desc: 'Выращиваем, подготавливаем материал и плетём корзины самостоятельно' },
+  { num: 2, icon: 'Infinity', title: 'Неограниченный выбор', desc: 'Не нужно выбирать из наличия — закажите столько, сколько нужно именно вам' },
+  { num: 3, icon: 'ShieldCheck', title: 'Контроль качества', desc: 'На каждом этапе производства следим за качеством и делаем постоянный отбор' },
+  { num: 4, icon: 'Hammer', title: 'Прочность', desc: 'Выбираем прочные сорта прута и используем фирменные техники плотного плетения' },
 ];
 
 const Contacts = () => {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <Header />
-      <main className="pt-32 pb-24 px-6">
-        <div className="container mx-auto max-w-4xl">
+      <main className="pt-32 pb-0 px-6">
+        <div className="container mx-auto max-w-5xl">
 
-          {/* О компании — центрированный hero-блок */}
-          <div className="text-center mb-20">
-            <p className="text-accent text-sm tracking-[0.3em] uppercase mb-4">О нас</p>
-            <h1 className="text-4xl md:text-5xl font-bold mb-8 leading-tight">О компании</h1>
-            <p className="text-xl md:text-2xl font-semibold leading-relaxed max-w-3xl mx-auto mb-6">
-              «FABRICA» сегодня — это команда мастеров, объединённых любовью к традиционному ремеслу. Мы создаём плетёные корзины из натуральной лозы, сочетая многовековые техники с актуальным дизайном.
-            </p>
-            <p className="text-muted-foreground leading-relaxed max-w-2xl mx-auto">
-              Собственное производство позволяет нам поставлять экологичную и качественную продукцию для флористов, ритейла и дизайнеров по всей России. Мы ценим ручной труд и в каждое изделие вкладываем частицу души.
-            </p>
+          {/* Hero — крупная цитата + фото */}
+          <div className="grid md:grid-cols-5 gap-12 items-center mb-24">
+            <div className="md:col-span-3">
+              <p className="text-accent text-sm tracking-[0.3em] uppercase mb-5">О нас</p>
+              <h1 className="text-4xl md:text-6xl font-bold leading-tight mb-8">
+                Ремесло,<br />которое живёт
+              </h1>
+              <p className="text-xl font-semibold leading-relaxed mb-4">
+                «FABRICA» — команда мастеров, объединённых любовью к традиционному ремеслу. Создаём плетёные корзины из натуральной лозы, сочетая многовековые техники с актуальным дизайном.
+              </p>
+              <p className="text-muted-foreground leading-relaxed">
+                Собственное производство позволяет поставлять экологичную и качественную продукцию для флористов, ритейла и дизайнеров по всей России.
+              </p>
+            </div>
+            <div className="md:col-span-2">
+              <img
+                src="https://cdn.poehali.dev/projects/d5ee4f52-1455-4c6a-a1d4-6138f3445871/files/9795083f-43e9-4777-9ce5-b2fe7a649051.jpg"
+                alt="Производство FABRICA"
+                className="w-full aspect-[3/4] object-cover rounded-3xl"
+              />
+            </div>
           </div>
 
-          <div className="border-t border-border mb-20" />
-
-          {/* Преимущества — 2 колонки симметрично */}
-          <div className="mb-20">
-            <h2 className="text-3xl font-bold text-center mb-12">Качество, созданное вручную на всех этапах</h2>
-            <div className="grid md:grid-cols-2 gap-8">
+          {/* Преимущества — горизонтальная лента */}
+          <div className="bg-secondary/40 rounded-3xl p-10 mb-24">
+            <h2 className="text-3xl font-bold mb-10">Качество на всех этапах</h2>
+            <div className="grid md:grid-cols-2 gap-6">
               {ADVANTAGES.map(item => (
-                <div key={item.num} className="border border-border rounded-xl p-6 flex gap-4 items-start">
-                  <div className="flex-shrink-0 w-10 h-10 rounded-full border border-border flex items-center justify-center text-accent font-bold">
-                    {item.num}
+                <div key={item.num} className="flex gap-4 items-start">
+                  <div className="flex-shrink-0 w-10 h-10 rounded-full bg-accent/20 flex items-center justify-center">
+                    <Icon name={item.icon} size={18} className="text-accent" />
                   </div>
                   <div>
                     <h3 className="font-semibold mb-1">{item.title}</h3>
@@ -46,39 +56,61 @@ const Contacts = () => {
             </div>
           </div>
 
-          <div className="border-t border-border mb-20" />
-
-          {/* Контакты — симметричная сетка */}
-          <div className="mb-20">
-            <h2 className="text-3xl font-bold text-center mb-12">Контакты</h2>
-            <div className="grid md:grid-cols-3 gap-6">
-              <div className="border border-border rounded-xl p-6 text-center">
-                <p className="text-xs uppercase tracking-wider text-accent mb-3">Адрес</p>
-                <p className="font-semibold mb-1">Саратов</p>
-                <p className="text-muted-foreground text-sm">ул. Зенитная, д. 25</p>
-              </div>
-              <div className="border border-border rounded-xl p-6 text-center">
-                <p className="text-xs uppercase tracking-wider text-accent mb-3">Время работы</p>
-                <p className="font-semibold mb-1">Пн–Пт: 10:00–19:00</p>
-                <p className="text-muted-foreground text-sm">Сб–Вс: выходной</p>
-              </div>
-              <div className="border border-border rounded-xl p-6 text-center">
-                <p className="text-xs uppercase tracking-wider text-accent mb-3">Обратная связь</p>
-                <a href="mailto:fabrica.64@yandex.ru" className="block font-semibold hover:text-accent transition-colors text-sm mb-1">
-                  fabrica.64@yandex.ru
-                </a>
-                <a href="tel:89271200007" className="block text-muted-foreground hover:text-accent transition-colors text-sm">
-                  8 (927) 120-00-07
-                </a>
+          {/* Фото производства на всю ширину */}
+          <div className="relative rounded-3xl overflow-hidden mb-24">
+            <img
+              src="https://cdn.poehali.dev/projects/d5ee4f52-1455-4c6a-a1d4-6138f3445871/files/e76b26a1-3bb3-4205-9d7a-9744468c0e10.jpg"
+              alt="Производство корзин"
+              className="w-full aspect-[21/9] object-cover"
+            />
+            <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-transparent to-transparent flex items-center p-12">
+              <div className="text-white max-w-sm">
+                <p className="text-3xl font-bold mb-3">С 2015 года</p>
+                <p className="text-base opacity-80 leading-relaxed">Делаем корзины из натуральной ивовой лозы для оптовых покупателей по всей России</p>
               </div>
             </div>
           </div>
 
-          {/* Подпись */}
-          <div className="border-t border-border pt-16 text-center">
-            <p className="text-2xl font-bold tracking-wide">ФАБРИКА</p>
-            <p className="text-sm tracking-[0.2em] text-muted-foreground">FABRICA</p>
-            <p className="text-sm text-muted-foreground mt-4">est. 2015–2026</p>
+          {/* Контакты */}
+          <div className="pb-24">
+            <h2 className="text-4xl font-bold mb-12">Контакты</h2>
+            <div className="grid md:grid-cols-3 gap-6 mb-12">
+              <div className="border border-border rounded-3xl p-8">
+                <div className="w-10 h-10 rounded-full bg-accent/15 flex items-center justify-center mb-4">
+                  <Icon name="MapPin" size={18} className="text-accent" />
+                </div>
+                <p className="text-xs uppercase tracking-wider text-muted-foreground mb-2">Адрес</p>
+                <p className="font-semibold">Саратов</p>
+                <p className="text-muted-foreground text-sm mt-1">ул. Зенитная, д. 25</p>
+              </div>
+              <div className="border border-border rounded-3xl p-8">
+                <div className="w-10 h-10 rounded-full bg-accent/15 flex items-center justify-center mb-4">
+                  <Icon name="Clock" size={18} className="text-accent" />
+                </div>
+                <p className="text-xs uppercase tracking-wider text-muted-foreground mb-2">Время работы</p>
+                <p className="font-semibold">Пн–Пт: 10:00–19:00</p>
+                <p className="text-muted-foreground text-sm mt-1">Сб–Вс: выходной</p>
+              </div>
+              <div className="border border-border rounded-3xl p-8">
+                <div className="w-10 h-10 rounded-full bg-accent/15 flex items-center justify-center mb-4">
+                  <Icon name="MessageCircle" size={18} className="text-accent" />
+                </div>
+                <p className="text-xs uppercase tracking-wider text-muted-foreground mb-2">Обратная связь</p>
+                <a href="mailto:fabrica.64@yandex.ru" className="block font-semibold hover:text-accent transition-colors text-sm">
+                  fabrica.64@yandex.ru
+                </a>
+                <a href="tel:89271200007" className="block text-muted-foreground hover:text-accent transition-colors text-sm mt-1">
+                  8 (927) 120-00-07
+                </a>
+              </div>
+            </div>
+
+            {/* Подпись */}
+            <div className="border-t border-border pt-12 text-center">
+              <p className="text-2xl font-bold tracking-wide">ФАБРИКА</p>
+              <p className="text-sm tracking-[0.2em] text-muted-foreground">FABRICA</p>
+              <p className="text-sm text-muted-foreground mt-3">est. 2015–2026</p>
+            </div>
           </div>
 
         </div>

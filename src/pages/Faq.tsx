@@ -124,13 +124,27 @@ const Faq = () => {
     <div className="min-h-screen bg-background text-foreground">
       <Header />
       <main className="pt-32 pb-24 px-6">
-        <div className="container mx-auto max-w-3xl">
-          <div className="mb-12">
-            <p className="text-accent text-sm tracking-[0.3em] uppercase mb-3">Часто спрашивают</p>
-            <h1 className="text-4xl md:text-5xl font-semibold">Вопрос-ответ</h1>
+        <div className="container mx-auto max-w-5xl">
+
+          {/* Hero — фото слева, текст справа */}
+          <div className="grid md:grid-cols-2 gap-12 items-center mb-20">
+            <div className="relative">
+              <img
+                src="https://cdn.poehali.dev/projects/d5ee4f52-1455-4c6a-a1d4-6138f3445871/files/4187519b-09d8-4273-a90f-2a8b3d4665b0.jpg"
+                alt="Корзины FABRICA"
+                className="w-full aspect-square object-cover rounded-3xl"
+              />
+            </div>
+            <div>
+              <p className="text-accent text-sm tracking-[0.3em] uppercase mb-4">Часто спрашивают</p>
+              <h1 className="text-4xl md:text-5xl font-bold leading-tight mb-6">Вопрос-ответ</h1>
+              <p className="text-muted-foreground leading-relaxed">
+                Собрали ответы на самые популярные вопросы о заказе, доставке, оплате и производстве.
+              </p>
+            </div>
           </div>
 
-          <div className="divide-y divide-border">
+          <div className="max-w-3xl mx-auto divide-y divide-border">
             {FAQS.map((faq, i) => (
               <div key={i}>
                 <button
@@ -157,5 +171,6 @@ const Faq = () => {
     </div>
   );
 };
+
 
 export default Faq;

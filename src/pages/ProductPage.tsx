@@ -201,7 +201,7 @@ const ProductPage = () => {
 
                 {/* Форма */}
                 <div className="flex items-center flex-wrap gap-2">
-                  <span className="text-[11px] uppercase tracking-wider text-accent border border-accent/40 px-2 py-0.5 rounded-sm">{active.shape}</span>
+                  <span className="text-[11px] uppercase tracking-wider text-accent border border-accent/40 px-2 py-0.5 rounded-full">{active.shape}</span>
                 </div>
 
                 {/* Выбор размера/набора — между карточками группы */}
@@ -216,7 +216,7 @@ const ProductPage = () => {
                           <button
                             key={idx}
                             onClick={() => setActiveCardIdx(idx)}
-                            className={`px-4 py-2 text-sm border transition-colors ${
+                            className={`px-4 py-2 text-sm border rounded-full transition-colors ${
                               isActive
                                 ? 'border-accent bg-accent text-accent-foreground'
                                 : 'border-border hover:border-accent'

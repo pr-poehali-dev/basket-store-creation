@@ -126,7 +126,7 @@ const ProductCard = ({ card, cardIndex }: { card: Card; cardIndex: number }) => 
       <div className="p-5 flex flex-col flex-1">
         <h3 className="text-xl font-semibold mb-2">{active.name}</h3>
         <div className="flex items-center flex-wrap gap-2 mb-3">
-          <span className="text-[11px] uppercase tracking-wider text-accent border border-accent/40 px-2 py-0.5">{active.shape}</span>
+          <span className="text-[11px] uppercase tracking-wider text-accent border border-accent/40 px-2 py-0.5 rounded-full">{active.shape}</span>
           <span className="text-[11px] uppercase tracking-wider text-muted-foreground">{active.size}</span>
         </div>
 
