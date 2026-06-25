@@ -105,7 +105,7 @@ const Cart = () => {
         <div className="container mx-auto">
           <div className="mb-10">
             <p className="text-accent text-sm tracking-[0.3em] uppercase mb-3">Оформление</p>
-            <h1 className="font-display text-5xl font-semibold">Корзина</h1>
+            <h1 className="text-5xl font-semibold">Корзина</h1>
           </div>
 
           {/* Прогресс */}
@@ -121,7 +121,7 @@ const Cart = () => {
             <div className="py-24 text-center text-muted-foreground">
               <Icon name="ShoppingCart" size={48} className="mx-auto mb-4 opacity-30" />
               <p className="mb-6 text-lg">Корзина пуста</p>
-              <Button asChild className="bg-accent text-accent-foreground rounded-none">
+              <Button asChild className="bg-accent text-accent-foreground">
                 <Link to="/catalog">Перейти в каталог</Link>
               </Button>
             </div>
@@ -217,8 +217,8 @@ const Cart = () => {
 
               {/* Итог */}
               <div className="space-y-6">
-                <div className="border border-border p-6 space-y-3">
-                  <h2 className="font-display text-xl font-semibold mb-4">Итого</h2>
+                <div className="border border-border p-6 space-y-3 rounded-2xl">
+                  <h2 className="text-xl font-semibold mb-4">Итого</h2>
 
                   {showFullBreakdown ? (
                     <>
@@ -270,8 +270,8 @@ const Cart = () => {
                 </div>
 
                 {/* Доставка */}
-                <div className="border border-border p-6 space-y-4">
-                  <h2 className="font-display text-xl font-semibold">Доставка</h2>
+                <div className="border border-border p-6 space-y-4 rounded-2xl">
+                  <h2 className="text-xl font-semibold">Доставка</h2>
 
                   <label className="flex items-start gap-3 cursor-pointer">
                     <input type="radio" name="delivery" checked={delivery === 'pickup'} onChange={() => setDelivery('pickup')} className="mt-1 accent-accent" />
@@ -305,7 +305,7 @@ const Cart = () => {
                 </div>
 
                 <Button
-                  className="w-full bg-accent hover:bg-accent/90 text-accent-foreground rounded-none h-12 text-base disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full bg-accent hover:bg-accent/90 text-accent-foreground h-12 text-base disabled:opacity-50 disabled:cursor-not-allowed"
                   disabled={!canOrder}
                   onClick={handleCheckout}
                 >

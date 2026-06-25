@@ -127,7 +127,7 @@ const Faq = () => {
         <div className="container mx-auto max-w-3xl">
           <div className="mb-12">
             <p className="text-accent text-sm tracking-[0.3em] uppercase mb-3">Часто спрашивают</p>
-            <h1 className="font-display text-4xl md:text-5xl font-semibold">Вопрос-ответ</h1>
+            <h1 className="text-4xl md:text-5xl font-semibold">Вопрос-ответ</h1>
           </div>
 
           <div className="divide-y divide-border">
@@ -137,7 +137,7 @@ const Faq = () => {
                   onClick={() => toggle(i)}
                   className="w-full flex items-center justify-between py-6 text-left gap-4"
                 >
-                  <span className="font-display text-xl font-semibold">{faq.question}</span>
+                  <span className="text-xl font-semibold">{faq.question}</span>
                   <Icon
                     name={openIndex === i ? 'X' : 'Plus'}
                     size={20}

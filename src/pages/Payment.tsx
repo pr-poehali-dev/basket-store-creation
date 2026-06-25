@@ -57,11 +57,11 @@ const Payment = () => {
       {/* Модальное окно успеха */}
       {success && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-          <div className="bg-background border border-border p-8 max-w-md w-full text-center">
+          <div className="bg-background border border-border p-8 max-w-md w-full text-center rounded-3xl">
             <Icon name="CheckCircle" size={52} className="mx-auto mb-4 text-accent" />
-            <h2 className="font-display text-2xl font-semibold mb-3">Готово!</h2>
+            <h2 className="text-2xl font-semibold mb-3">Готово!</h2>
             <p className="text-muted-foreground leading-relaxed mb-6">{success}</p>
-            <Button onClick={handleSuccessClose} className="bg-accent text-accent-foreground rounded-none w-full h-11">
+            <Button onClick={handleSuccessClose} className="bg-accent text-accent-foreground w-full h-11">
               Хорошо
             </Button>
           </div>
@@ -84,11 +84,11 @@ const Payment = () => {
 
           <div className="mb-8">
             <p className="text-accent text-sm tracking-[0.3em] uppercase mb-3">Шаг 3</p>
-            <h1 className="font-display text-4xl font-semibold">Способ оплаты</h1>
+            <h1 className="text-4xl font-semibold">Способ оплаты</h1>
           </div>
 
           {/* Сводка */}
-          <div className="border border-border p-5 mb-8 bg-secondary/20 space-y-2">
+          <div className="border border-border p-5 mb-8 bg-secondary/20 space-y-2 rounded-2xl">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Сумма заказа</span>
               <span className="font-semibold">{fmt(total)}</span>
@@ -166,14 +166,14 @@ const Payment = () => {
             <Button
               onClick={handleOrder}
               disabled={!method}
-              className="flex-1 bg-accent hover:bg-accent/90 text-accent-foreground rounded-none h-12 text-base disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 bg-accent hover:bg-accent/90 text-accent-foreground h-12 text-base disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Оформить заказ
             </Button>
             <Button
               variant="outline"
               onClick={() => navigate('/checkout', { state })}
-              className="rounded-none h-12"
+              className="h-12"
             >
               <Icon name="ArrowLeft" size={16} className="mr-2" />
               Назад

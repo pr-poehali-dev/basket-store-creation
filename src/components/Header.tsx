@@ -59,7 +59,7 @@ const Header = () => {
           </Link>
           <Button
             onClick={handlePriceList}
-            className="bg-accent hover:bg-accent/90 text-accent-foreground rounded-none"
+            className="bg-accent hover:bg-accent/90 text-accent-foreground"
           >
             Прайс-лист
           </Button>

@@ -142,7 +142,7 @@ const ProductPage = () => {
         <div className="pt-40 text-center text-muted-foreground">
           <Icon name="PackageX" size={40} className="mx-auto mb-4 opacity-40" />
           <p className="mb-4">Товар не найден</p>
-          <Button variant="outline" className="rounded-none" onClick={() => navigate('/catalog')}>
+          <Button variant="outline" onClick={() => navigate('/catalog')}>
             Вернуться в каталог
           </Button>
         </div>
@@ -183,17 +183,17 @@ const ProductPage = () => {
 
             {/* Информация */}
             <div className="flex flex-col">
-              <h1 className="font-display text-4xl font-semibold mb-2">{active.name}</h1>
+              <h1 className="text-4xl font-semibold mb-2">{active.name}</h1>
 
               {/* Цена */}
               <div className="mb-6">
                 {active.sale_price ? (
                   <div className="flex items-baseline gap-3">
-                    <span className="font-display text-3xl font-semibold text-accent">{active.sale_price} ₽</span>
+                    <span className="text-3xl font-semibold text-accent">{active.sale_price} ₽</span>
                     <span className="text-lg text-muted-foreground line-through">{active.price} ₽</span>
                   </div>
                 ) : (
-                  <span className="font-display text-3xl font-semibold">{active.price} ₽</span>
+                  <span className="text-3xl font-semibold">{active.price} ₽</span>
                 )}
               </div>
 
@@ -296,12 +296,12 @@ const ProductPage = () => {
                     setAddedToCart(true);
                     setTimeout(() => setAddedToCart(false), 2000);
                   }}
-                  className="flex-1 bg-accent hover:bg-accent/90 text-accent-foreground rounded-none h-12 text-base"
+                  className="flex-1 bg-accent hover:bg-accent/90 text-accent-foreground h-12 text-base"
                 >
                   <Icon name={addedToCart ? 'Check' : 'ShoppingCart'} size={18} className="mr-2" />
                   {addedToCart ? 'Добавлено!' : 'В корзину'}
                 </Button>
-                <Button variant="outline" className="rounded-none h-12" onClick={() => navigate('/catalog')}>
+                <Button variant="outline" className="h-12" onClick={() => navigate('/catalog')}>
                   <Icon name="ArrowLeft" size={16} className="mr-2" />
                   Назад
                 </Button>

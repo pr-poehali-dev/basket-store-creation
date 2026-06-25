@@ -124,7 +124,7 @@ const ProductCard = ({ card, cardIndex }: { card: Card; cardIndex: number }) => 
       </div>
 
       <div className="p-5 flex flex-col flex-1">
-        <h3 className="font-display text-xl font-semibold mb-2">{active.name}</h3>
+        <h3 className="text-xl font-semibold mb-2">{active.name}</h3>
         <div className="flex items-center flex-wrap gap-2 mb-3">
           <span className="text-[11px] uppercase tracking-wider text-accent border border-accent/40 px-2 py-0.5">{active.shape}</span>
           <span className="text-[11px] uppercase tracking-wider text-muted-foreground">{active.size}</span>
@@ -192,7 +192,7 @@ const ProductCard = ({ card, cardIndex }: { card: Card; cardIndex: number }) => 
               >+</button>
             </div>
             <Button
-              className={`flex-1 h-8 rounded-none text-xs transition-all ${added ? 'bg-green-600 hover:bg-green-600 text-white' : 'bg-accent hover:bg-accent/90 text-accent-foreground'}`}
+              className={`flex-1 h-8 text-xs transition-all ${added ? 'bg-green-600 hover:bg-green-600 text-white' : 'bg-accent hover:bg-accent/90 text-accent-foreground'}`}
               onClick={handleAddToCart}
             >
               {added ? (
@@ -335,13 +335,13 @@ const Catalog = () => {
         <div className="container mx-auto">
           <div className="mb-12 max-w-xl">
             <p className="text-accent text-sm tracking-[0.3em] uppercase mb-3">Продукция</p>
-            <h1 className="font-display text-5xl font-semibold">Каталог корзин</h1>
+            <h1 className="text-5xl font-semibold">Каталог корзин</h1>
           </div>
 
           <div className="grid lg:grid-cols-[280px_1fr] gap-10">
             <aside className="space-y-8 lg:sticky lg:top-24 self-start">
               <div className="flex items-center justify-between">
-                <h3 className="font-display text-2xl">Фильтры</h3>
+                <h3 className="text-2xl font-semibold">Фильтры</h3>
                 <button onClick={reset} className="text-xs text-muted-foreground hover:text-accent">
                   Сбросить
                 </button>
@@ -429,7 +429,7 @@ const Catalog = () => {
                         value={search}
                         onChange={e => setSearch(e.target.value)}
                         placeholder="Поиск по названию..."
-                        className="w-full border border-border bg-background pl-9 pr-4 py-2 text-sm outline-none focus:border-accent"
+                        className="w-full border border-border bg-background pl-9 pr-4 py-2 text-sm outline-none focus:border-accent rounded-2xl"
                       />
                       {search && (
                         <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-accent">
@@ -440,7 +440,7 @@ const Catalog = () => {
                     <select
                       value={sort}
                       onChange={e => setSort(e.target.value)}
-                      className="border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent cursor-pointer"
+                      className="border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent cursor-pointer rounded-2xl shadow-none appearance-none"
                     >
                       {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                     </select>

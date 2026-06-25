@@ -36,7 +36,7 @@ const HowItWorks = () => {
         <div className="container mx-auto max-w-2xl">
           <div className="mb-12">
             <p className="text-accent text-sm tracking-[0.3em] uppercase mb-3">Как мы работаем</p>
-            <h1 className="font-display text-4xl md:text-5xl font-semibold">Этапы работ</h1>
+            <h1 className="text-4xl md:text-5xl font-semibold">Этапы работ</h1>
           </div>
 
           <div className="relative">
@@ -48,12 +48,12 @@ const HowItWorks = () => {
                 <div key={step.num} className="flex gap-8 relative">
                   {/* Круг с номером */}
                   <div className="flex-shrink-0 w-14 h-14 rounded-full border border-border bg-background flex items-center justify-center z-10">
-                    <span className="font-display text-xl font-semibold text-foreground">{step.num}</span>
+                    <span className="text-xl font-semibold text-foreground">{step.num}</span>
                   </div>
 
                   {/* Контент */}
                   <div className={`pb-14 pt-3 flex-1 ${i === STEPS.length - 1 ? 'pb-0' : ''}`}>
-                    <h2 className="font-display text-2xl font-semibold mb-2">{step.title}</h2>
+                    <h2 className="text-2xl font-semibold mb-2">{step.title}</h2>
                     {step.desc && (
                       <p className="text-muted-foreground leading-relaxed whitespace-pre-line">{step.desc}</p>
                     )}

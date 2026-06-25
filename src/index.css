@@ -22,8 +22,8 @@
     --muted: 36 24% 92%;
     --muted-foreground: 30 12% 42%;
 
-    --accent: 25 45% 50%;
-    --accent-foreground: 40 33% 97%;
+    --accent: 74 38% 68%;
+    --accent-foreground: 74 25% 18%;
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
@@ -32,7 +32,7 @@
     --input: 34 20% 86%;
     --ring: 25 45% 50%;
 
-    --radius: 0.5rem;
+    --radius: 1.5rem;
 
     --sidebar-background: 0 0% 98%;
 
@@ -99,21 +99,8 @@
     @apply bg-background text-foreground;
     font-family: "Golos Text", sans-serif;
   }
-  h1,
-  h2,
-  h3,
-  h4,
-  h5,
-  h6,
-  p,
-  span,
-  button,
-  input,
-  textarea,
-  select,
-  label,
-  .font-display {
-    font-family: "Golos Text", sans-serif;
+  * {
+    font-family: "Golos Text", sans-serif !important;
   }
 }
 

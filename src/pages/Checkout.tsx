@@ -126,11 +126,11 @@ const Checkout = () => {
 
           <div className="mb-8">
             <p className="text-accent text-sm tracking-[0.3em] uppercase mb-3">Шаг 2</p>
-            <h1 className="font-display text-4xl font-semibold">Данные для доставки</h1>
+            <h1 className="text-4xl font-semibold">Данные для доставки</h1>
           </div>
 
           {/* Сводка заказа */}
-          <div className="border border-border p-5 mb-8 bg-secondary/20 space-y-2">
+          <div className="border border-border p-5 mb-8 bg-secondary/20 space-y-2 rounded-2xl">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Сумма заказа</span>
               <span className="font-semibold">{fmt(total)}</span>
@@ -307,14 +307,14 @@ const Checkout = () => {
             <div className="flex flex-col sm:flex-row gap-3 pt-2">
               <Button
                 onClick={handleSubmit}
-                className="flex-1 bg-accent hover:bg-accent/90 text-accent-foreground rounded-none h-12 text-base"
+                className="flex-1 bg-accent hover:bg-accent/90 text-accent-foreground h-12 text-base"
               >
                 Выбрать способ оплаты
               </Button>
               <Button
                 variant="outline"
                 onClick={() => navigate('/cart')}
-                className="rounded-none h-12"
+                className="h-12"
               >
                 <Icon name="ArrowLeft" size={16} className="mr-2" />
                 Вернуться в корзину
