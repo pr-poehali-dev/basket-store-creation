@@ -309,7 +309,7 @@ const Cart = () => {
                   disabled={!canOrder}
                   onClick={handleCheckout}
                 >
-                  Оформить заказ
+                  Внести данные для доставки
                 </Button>
                 {!canOrder && (
                   <p className="text-xs text-center text-muted-foreground -mt-3">

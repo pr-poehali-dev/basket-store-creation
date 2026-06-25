@@ -3,7 +3,6 @@ import { useLocation, useNavigate, Link } from 'react-router-dom';
 import Header from '@/components/Header';
 import Icon from '@/components/ui/icon';
 import { Button } from '@/components/ui/button';
-import { useCart } from '@/context/CartContext';
 
 interface LocationState {
   total: number;
@@ -32,7 +31,6 @@ function phoneMask(raw: string): string {
 const Checkout = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { clearCart } = useCart();
   const state = location.state as LocationState | null;
 
   const total = state?.total ?? 0;
@@ -55,7 +53,6 @@ const Checkout = () => {
   const [days, setDays] = useState<string[]>([]);
   const [errors, setErrors] = useState<Record<string, boolean>>({});
   const [showError, setShowError] = useState(false);
-  const [success, setSuccess] = useState<string | null>(null);
 
   useEffect(() => {
     if (!state) navigate('/cart');
@@ -99,13 +96,9 @@ const Checkout = () => {
 
   const handleSubmit = () => {
     if (!validate()) return;
-    const orderNum = Math.floor(Math.random() * 9000) + 1000;
-    setSuccess(`Заказ №${orderNum} успешно оформлен! В ближайшее время с вами свяжется менеджер для подтверждения заказа и согласования способа оплаты.`);
-  };
-
-  const handleSuccessClose = () => {
-    clearCart();
-    navigate('/');
+    navigate('/payment', {
+      state: { total, deliveryLabel, isPickup, form, days },
+    });
   };
 
   if (!state) return null;
@@ -117,35 +110,23 @@ const Checkout = () => {
     <div className="min-h-screen bg-background text-foreground">
       <Header />
 
-      {/* Модальное окно успеха */}
-      {success && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-          <div className="bg-background border border-border p-8 max-w-md w-full text-center">
-            <Icon name="CheckCircle" size={52} className="mx-auto mb-4 text-accent" />
-            <h2 className="font-display text-2xl font-semibold mb-3">Готово!</h2>
-            <p className="text-muted-foreground leading-relaxed mb-6">{success}</p>
-            <Button onClick={handleSuccessClose} className="bg-accent text-accent-foreground rounded-none w-full h-11">
-              Хорошо
-            </Button>
-          </div>
-        </div>
-      )}
-
       <main className="pt-32 pb-24 px-6">
         <div className="container mx-auto max-w-2xl">
 
           {/* Прогресс */}
-          <div className="flex items-center gap-2 text-sm mb-8">
+          <div className="flex items-center gap-2 text-sm mb-8 flex-wrap">
             <Link to="/cart" className="text-muted-foreground hover:text-accent transition-colors">Корзина</Link>
             <Icon name="ChevronRight" size={14} className="text-muted-foreground" />
-            <span className="font-medium text-foreground">Оформление</span>
+            <span className="font-medium text-foreground">Данные для доставки</span>
             <Icon name="ChevronRight" size={14} className="text-muted-foreground" />
-            <span className="text-muted-foreground">Подтверждение</span>
+            <span className="text-muted-foreground">Способ оплаты</span>
+            <Icon name="ChevronRight" size={14} className="text-muted-foreground" />
+            <span className="text-muted-foreground">Оформление</span>
           </div>
 
           <div className="mb-8">
             <p className="text-accent text-sm tracking-[0.3em] uppercase mb-3">Шаг 2</p>
-            <h1 className="font-display text-4xl font-semibold">Оформление заказа</h1>
+            <h1 className="font-display text-4xl font-semibold">Данные для доставки</h1>
           </div>
 
           {/* Сводка заказа */}

@@ -9,6 +9,7 @@ import Catalog from "./pages/Catalog";
 import ProductPage from "./pages/ProductPage";
 import Cart from "./pages/Cart";
 import Checkout from "./pages/Checkout";
+import Payment from "./pages/Payment";
 import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
 import { CartProvider } from "./context/CartContext";
@@ -28,6 +29,7 @@ const App = () => (
             <Route path="/product/:groupId/:cardIndex" element={<ProductPage />} />
             <Route path="/cart" element={<Cart />} />
             <Route path="/checkout" element={<Checkout />} />
+            <Route path="/payment" element={<Payment />} />
             <Route path="/admin" element={<Admin />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
