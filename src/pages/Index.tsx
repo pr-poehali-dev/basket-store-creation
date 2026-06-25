@@ -288,11 +288,12 @@ const Index = () => {
             <h2 className="font-display text-5xl font-semibold mb-4">Условия оптовой торговли</h2>
             <p className="text-muted-foreground">Гибкая система скидок и индивидуальные условия для постоянных партнёров.</p>
           </div>
-          <div className="grid md:grid-cols-3 gap-6">
+          <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-6">
             {[
-              { tier: 'Старт', qty: 'от 10 шт', disc: '—', note: 'Базовые оптовые цены' },
-              { tier: 'Партнёр', qty: 'от 100 шт', disc: '−10%', note: 'Приоритетная отгрузка', hl: true },
-              { tier: 'Дистрибьютор', qty: 'от 500 шт', disc: '−20%', note: 'Индивидуальный менеджер' },
+              { tier: 'Старт', qty: 'от 10 000 ₽', disc: '—', note: 'Базовые оптовые цены' },
+              { tier: 'Партнёр', qty: 'от 60 000 ₽', disc: '−16%', note: 'Персональные условия поставок', hl: true },
+              { tier: 'Дистрибьютор', qty: 'от 200 000 ₽', disc: '−20%', note: 'Приоритетная отгрузка' },
+              { tier: 'Представительство', qty: 'от 500 000 ₽', disc: 'до 40%', note: 'Индивидуальный менеджер' },
             ].map((t) => (
               <div
                 key={t.tier}
