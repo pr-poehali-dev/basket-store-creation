@@ -91,7 +91,7 @@ const ProductCard = ({ card, cardIndex }: { card: Card; cardIndex: number }) => 
             <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-2">
               Цвет: {active.color || '—'}
             </p>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex gap-2 overflow-hidden">
               {displayVariants.map((v, i) => {
                 const realIdx = card.variants.indexOf(v);
                 const isActive = realIdx === activeIdx || (activeIdx >= card.variants.length && i === 0);
@@ -247,7 +247,7 @@ const Catalog = () => {
                       По выбранным фильтрам ничего не найдено
                     </div>
                   ) : (
-                    <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-6" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))' }}>
+                    <div className="grid gap-6" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))' }}>
                       {(() => {
                         const groupCounters: Record<string, number> = {};
                         return filtered.map((card) => {
