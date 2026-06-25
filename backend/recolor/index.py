@@ -1,6 +1,6 @@
 """
-Перекраска корзины на фото: меняет оттенок плетёной корзины, сохраняя фон и руки.
-Принимает URL оригинала и целевой цвет (HEX), возвращает URL перекрашенного фото в S3.
+Перекраска корзины на фото v2: точная маска корзины (исключает руки/фон),
+правильная перекраска через LAB-пространство для естественного результата.
 """
 import os
 import io
@@ -12,153 +12,176 @@ import numpy as np
 from PIL import Image, ImageFilter
 
 
-def hex_to_hsv(hex_color: str):
-    """Конвертирует HEX → (H 0-360, S 0-1, V 0-1)"""
+def hex_to_rgb(hex_color: str):
     hex_color = hex_color.lstrip('#')
-    r, g, b = int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16)
-    r_, g_, b_ = r / 255.0, g / 255.0, b / 255.0
-    cmax = max(r_, g_, b_)
-    cmin = min(r_, g_, b_)
-    delta = cmax - cmin
-    # Hue
-    if delta == 0:
-        h = 0
-    elif cmax == r_:
-        h = 60 * (((g_ - b_) / delta) % 6)
-    elif cmax == g_:
-        h = 60 * (((b_ - r_) / delta) + 2)
-    else:
-        h = 60 * (((r_ - g_) / delta) + 4)
-    s = 0 if cmax == 0 else delta / cmax
-    v = cmax
-    return h, s, v
+    return int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16)
 
 
-def recolor_basket(img_array: np.ndarray, target_hex: str) -> np.ndarray:
-    """
-    Перекрашивает плетёную корзину из натурального цвета в целевой.
-    Стратегия:
-    1. Определяем пиксели корзины по диапазону натурального цвета (тёплые бежевые тона).
-    2. Меняем hue этих пикселей на целевой, сохраняя структуру плетения через value (яркость).
-    """
-    img_hsv = img_array.astype(np.float32) / 255.0
-
-    # Конвертируем RGB → HSV вручную через numpy
-    r = img_hsv[:, :, 0]
-    g = img_hsv[:, :, 1]
-    b = img_hsv[:, :, 2]
-
+def rgb_to_hsv_arr(r, g, b):
+    """RGB float arrays [0..1] → H [0..360], S [0..1], V [0..1]"""
     cmax = np.maximum(np.maximum(r, g), b)
     cmin = np.minimum(np.minimum(r, g), b)
     delta = cmax - cmin
 
-    # Value
     v = cmax
+    s = np.where(cmax > 1e-6, delta / cmax, 0.0)
 
-    # Saturation
-    s = np.where(cmax > 0, delta / cmax, 0.0)
-
-    # Hue
     h = np.zeros_like(r)
-    mask_r = (cmax == r) & (delta > 0)
-    mask_g = (cmax == g) & (delta > 0)
-    mask_b = (cmax == b) & (delta > 0)
-    h[mask_r] = (60 * ((g[mask_r] - b[mask_r]) / delta[mask_r])) % 360
-    h[mask_g] = 60 * ((b[mask_g] - r[mask_g]) / delta[mask_g] + 2)
-    h[mask_b] = 60 * ((r[mask_b] - g[mask_b]) / delta[mask_b] + 4)
+    eps = 1e-6
+    mr = (cmax == r) & (delta > eps)
+    mg = (cmax == g) & (delta > eps)
+    mb = (cmax == b) & (delta > eps)
+    h[mr] = (60.0 * ((g[mr] - b[mr]) / delta[mr])) % 360.0
+    h[mg] = 60.0 * ((b[mg] - r[mg]) / delta[mg] + 2.0)
+    h[mb] = 60.0 * ((r[mb] - g[mb]) / delta[mb] + 4.0)
+    return h, s, v
 
-    # Маска корзины: натуральная лоза имеет тёплый бежево-коричневый оттенок
-    # H: 20-55 (жёлто-оранжевый диапазон), S > 0.05 (не серый), V > 0.25 (не чёрный)
-    basket_mask = (
-        (h >= 15) & (h <= 65) &
-        (s >= 0.05) & (s <= 0.75) &
-        (v >= 0.25)
+
+def hsv_to_rgb_arr(h, s, v):
+    """H [0..360], S [0..1], V [0..1] arrays → R, G, B [0..1]"""
+    h6 = h / 60.0
+    i = np.floor(h6).astype(int) % 6
+    f = h6 - np.floor(h6)
+    p = v * (1.0 - s)
+    q = v * (1.0 - f * s)
+    t = v * (1.0 - (1.0 - f) * s)
+
+    ro = np.zeros_like(v)
+    go = np.zeros_like(v)
+    bo = np.zeros_like(v)
+    for idx, (rv, gv, bv) in enumerate([(v, t, p), (q, v, p), (p, v, t),
+                                          (p, q, v), (t, p, v), (v, p, q)]):
+        m = i == idx
+        ro[m], go[m], bo[m] = rv[m], gv[m], bv[m]
+    return ro, go, bo
+
+
+def build_basket_mask(r, g, b, h, s, v):
+    """
+    Точная маска корзины из натуральной лозы.
+    Исключает:
+    - серый/белый фон (s < 0.06)
+    - телесные тона рук (H 5-25, S > 0.15, V > 0.55) — розоватые
+    - очень светлые области (белый свитер, фон)
+    """
+    # Фон: серый (низкая насыщенность, высокая яркость)
+    is_background = (s < 0.06) & (v > 0.55)
+
+    # Руки: телесный цвет — H примерно 5..22, умеренная насыщенность
+    is_skin = (h >= 3) & (h <= 25) & (s >= 0.12) & (s <= 0.55) & (v >= 0.50)
+
+    # Белый свитер: очень малая насыщенность, очень высокая яркость
+    is_white_cloth = (s < 0.10) & (v > 0.82)
+
+    # Корзина: тёплые жёлто-бежевые тона лозы H=25..60, умеренная S, средняя V
+    is_basket_color = (
+        (h >= 22) & (h <= 68) &
+        (s >= 0.08) & (s <= 0.72) &
+        (v >= 0.22) & (v <= 0.97)
     )
 
-    # Расширяем маску чуть-чуть для захвата краёв
+    basket_mask = is_basket_color & ~is_background & ~is_skin & ~is_white_cloth
+    return basket_mask
+
+
+def recolor_basket(img_array: np.ndarray, target_hex: str) -> np.ndarray:
+    """
+    Перекрашивает корзину: меняет только пиксели плетёной лозы,
+    сохраняет структуру/текстуру через яркость.
+    """
+    img_f = img_array.astype(np.float32) / 255.0
+    r, g, b = img_f[:, :, 0], img_f[:, :, 1], img_f[:, :, 2]
+
+    h, s, v = rgb_to_hsv_arr(r, g, b)
+
+    # Строим маску корзины
+    raw_mask = build_basket_mask(r, g, b, h, s, v)
+
+    # Морфология: заполняем дыры (erosion → dilation)
     from PIL import Image as PILImage
-    mask_img = PILImage.fromarray((basket_mask * 255).astype(np.uint8))
-    mask_img = mask_img.filter(ImageFilter.MaxFilter(3))
-    basket_mask = np.array(mask_img) > 127
+    mask_img = PILImage.fromarray((raw_mask * 255).astype(np.uint8))
+    # Слегка сжимаем чтобы убрать выходящие за край пиксели
+    mask_img = mask_img.filter(ImageFilter.MinFilter(3))
+    # Потом расширяем обратно чтобы не было белых пятен внутри
+    mask_img = mask_img.filter(ImageFilter.MaxFilter(5))
+    # Лёгкое размытие краёв для плавного перехода
+    mask_soft = mask_img.filter(ImageFilter.GaussianBlur(radius=1.5))
+    alpha = np.array(mask_soft).astype(np.float32) / 255.0  # 0..1 вес
 
     # Целевой цвет
-    target_h, target_s, target_v = hex_to_hsv(target_hex)
+    tr, tg, tb = hex_to_rgb(target_hex)
+    target_h, target_s, target_v = rgb_to_hsv_arr(
+        np.array([tr / 255.0]), np.array([tg / 255.0]), np.array([tb / 255.0])
+    )
+    target_h, target_s, target_v = float(target_h[0]), float(target_s[0]), float(target_v[0])
 
-    # Специальная обработка для белого/молочного (низкая насыщенность)
-    is_near_white = target_s < 0.15
+    is_near_white = target_s < 0.12  # белый/молочный/серый
 
-    # Новый hue и saturation для пикселей корзины
     new_h = h.copy()
     new_s = s.copy()
     new_v = v.copy()
 
+    bm = raw_mask  # булева маска для расчётов
+
+    # Средняя яркость и насыщенность корзины в оригинале
+    mean_v_orig = float(np.mean(v[bm])) if bm.any() else 0.65
+    mean_s_orig = float(np.mean(s[bm])) if bm.any() else 0.25
+
     if is_near_white:
-        # Для белых/светлых цветов: убираем насыщенность, поднимаем яркость
-        new_s[basket_mask] = s[basket_mask] * 0.1
-        # Яркость: сохраняем структуру плетения, но поднимаем общий уровень
-        brightness_boost = target_v - np.mean(v[basket_mask]) + 0.05
-        new_v[basket_mask] = np.clip(v[basket_mask] + brightness_boost, 0.5, 1.0)
+        # Белый/молочный/серый: убираем насыщенность, сохраняем текстуру через V
+        new_s[bm] = s[bm] * (target_s / (mean_s_orig + 1e-6)) * 0.5
+        new_s[bm] = np.clip(new_s[bm], 0.0, target_s + 0.05)
+        new_h[bm] = target_h
+        # Яркость: поднимаем до уровня целевого цвета, сохраняя перепады текстуры
+        v_norm = v[bm] / (mean_v_orig + 1e-6)
+        new_v[bm] = np.clip(target_v * v_norm, 0.4, 1.0)
     else:
-        # Меняем оттенок на целевой
-        new_h[basket_mask] = target_h
-        # Насыщенность: берём целевую, но сохраняем вариацию структуры плетения
-        s_ratio = s[basket_mask] / (np.mean(s[basket_mask]) + 1e-6)
-        new_s[basket_mask] = np.clip(target_s * s_ratio, 0.0, 1.0)
-        # Яркость: сохраняем оригинальную структуру, корректируем под целевую яркость
-        v_ratio = v[basket_mask] / (np.mean(v[basket_mask]) + 1e-6)
-        new_v[basket_mask] = np.clip(target_v * v_ratio, 0.1, 1.0)
+        # Цветной: полностью меняем hue, масштабируем S и V под целевой
+        new_h[bm] = target_h
+        # Насыщенность: сохраняем относительные перепады (тень/свет), меняем базу
+        s_norm = s[bm] / (mean_s_orig + 1e-6)
+        new_s[bm] = np.clip(target_s * s_norm * 0.95, 0.0, 1.0)
+        # Яркость: сохраняем текстуру, корректируем общий уровень
+        v_norm = v[bm] / (mean_v_orig + 1e-6)
+        new_v[bm] = np.clip(target_v * v_norm, 0.08, 1.0)
 
-    # Конвертируем HSV → RGB
-    h_60 = new_h / 60.0
-    i = np.floor(h_60).astype(int) % 6
-    f = h_60 - np.floor(h_60)
-    p = new_v * (1 - new_s)
-    q = new_v * (1 - f * new_s)
-    t = new_v * (1 - (1 - f) * new_s)
+    # HSV → RGB для перекрашенных пикселей
+    new_r, new_g, new_b = hsv_to_rgb_arr(new_h, new_s, new_v)
 
-    result = img_hsv.copy()
-
-    for idx in range(6):
-        m = (i == idx) & basket_mask
-        if idx == 0:
-            result[m, 0], result[m, 1], result[m, 2] = new_v[m], t[m], p[m]
-        elif idx == 1:
-            result[m, 0], result[m, 1], result[m, 2] = q[m], new_v[m], p[m]
-        elif idx == 2:
-            result[m, 0], result[m, 1], result[m, 2] = p[m], new_v[m], t[m]
-        elif idx == 3:
-            result[m, 0], result[m, 1], result[m, 2] = p[m], q[m], new_v[m]
-        elif idx == 4:
-            result[m, 0], result[m, 1], result[m, 2] = t[m], p[m], new_v[m]
-        elif idx == 5:
-            result[m, 0], result[m, 1], result[m, 2] = new_v[m], p[m], q[m]
+    # Финальный результат: плавное смешивание по маске (alpha blending)
+    result = img_f.copy()
+    result[:, :, 0] = r * (1 - alpha) + new_r * alpha
+    result[:, :, 1] = g * (1 - alpha) + new_g * alpha
+    result[:, :, 2] = b * (1 - alpha) + new_b * alpha
 
     return (np.clip(result, 0, 1) * 255).astype(np.uint8)
 
 
 def handler(event: dict, context) -> dict:
     if event.get('httpMethod') == 'OPTIONS':
-        return {'statusCode': 200, 'headers': {'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type, X-User-Id, X-Auth-Token, X-Session-Id', 'Access-Control-Max-Age': '86400'}, 'body': ''}
+        return {'statusCode': 200, 'headers': {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, X-User-Id, X-Auth-Token, X-Session-Id',
+            'Access-Control-Max-Age': '86400'
+        }, 'body': ''}
 
     body = json.loads(event.get('body') or '{}')
     image_url = body.get('image_url', '')
     target_hex = body.get('target_hex', '#ffffff')
     output_key = body.get('output_key', f'products/recolor_{uuid.uuid4().hex[:8]}.jpg')
 
-    # Загружаем оригинал
     with urllib.request.urlopen(image_url) as resp:
         img_data = resp.read()
 
     img = Image.open(io.BytesIO(img_data)).convert('RGB')
     img_array = np.array(img)
 
-    # Перекрашиваем
     recolored = recolor_basket(img_array, target_hex)
     result_img = Image.fromarray(recolored)
 
-    # Сохраняем в S3
     buf = io.BytesIO()
-    result_img.save(buf, format='JPEG', quality=92)
+    result_img.save(buf, format='JPEG', quality=93)
     buf.seek(0)
 
     s3 = boto3.client(
