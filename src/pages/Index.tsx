@@ -50,7 +50,7 @@ const Index = () => {
         <div className="container mx-auto flex items-center justify-between h-16 px-6">
           <button onClick={() => scrollTo('home')} className="flex items-center gap-2">
             <Icon name="Wheat" className="text-accent" size={26} />
-            <span className="font-display text-2xl font-semibold tracking-wide">ЛОЗА</span>
+            <span className="font-display text-2xl font-semibold tracking-wide">FABRICA</span>
           </button>
           <nav className="hidden md:flex items-center gap-8">
             {NAV.map((n) => (
@@ -124,12 +124,11 @@ const Index = () => {
 
       {/* Stats */}
       <section className="border-y border-border py-10 px-6">
-        <div className="container mx-auto grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+        <div className="container mx-auto grid grid-cols-1 sm:grid-cols-3 gap-8 text-center">
           {[
-            { v: '50+', l: 'видов корзин' },
-            { v: '300+', l: 'оптовых клиентов' },
-            { v: '99%', l: 'заказов в срок' },
-            { v: 'от 10 шт', l: 'минимальный опт' },
+            { v: '100+', l: 'видов корзин' },
+            { v: '500+', l: 'оптовых клиентов' },
+            { v: 'от 10 000 ₽', l: 'минимальный опт' },
           ].map((s) => (
             <div key={s.l}>
               <p className="font-display text-4xl font-semibold mb-1">{s.v}</p>
@@ -259,7 +258,7 @@ const Index = () => {
             <p className="text-accent text-sm tracking-[0.3em] uppercase mb-3">О компании</p>
             <h2 className="font-display text-5xl font-semibold mb-6">Ремесло и масштаб</h2>
             <p className="text-muted-foreground mb-4">
-              Мы — производственная мастерская «ЛОЗА». С 2013 года плетём корзины из ротанга, лозы, ивы и морской травы для оптовых покупателей.
+              Мы — производственная мастерская «FABRICA». С 2013 года плетём корзины из ротанга, лозы, ивы и морской травы для оптовых покупателей.
             </p>
             <p className="text-muted-foreground mb-8">
               Своё сырьё, контроль качества на каждом этапе и стабильные объёмы поставок — от пробной партии до промышленных тиражей.
@@ -341,7 +340,7 @@ const Index = () => {
             <div className="space-y-4">
               {[
                 { icon: 'Phone', t: '+7 (800) 000-00-00' },
-                { icon: 'Mail', t: 'opt@loza.ru' },
+                { icon: 'Mail', t: 'opt@fabrica.ru' },
                 { icon: 'MapPin', t: 'г. Москва, ул. Производственная, 5' },
                 { icon: 'Clock', t: 'Пн–Пт 9:00–18:00' },
               ].map((c) => (
@@ -368,7 +367,7 @@ const Index = () => {
         <div className="container mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <Icon name="Wheat" className="text-accent" size={22} />
-            <span className="font-display text-xl font-semibold">ЛОЗА</span>
+            <span className="font-display text-xl font-semibold">FABRICA</span>
           </div>
           <p className="text-sm text-muted-foreground">© 2026 Производство плетёных корзин. Оптовая торговля.</p>
         </div>
