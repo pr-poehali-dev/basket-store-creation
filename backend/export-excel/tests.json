@@ -1,0 +1,12 @@
+{
+  "tests": [
+    {
+      "name": "GET export-excel returns base64 file",
+      "method": "GET",
+      "path": "/",
+      "expectedStatus": 200,
+      "expectedBody": {"file": "string"},
+      "bodyMatcher": "partial"
+    }
+  ]
+}

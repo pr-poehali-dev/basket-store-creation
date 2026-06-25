@@ -1,4 +1,4 @@
-"""Загрузка товаров из Excel-файла. Колонки: название, описание, форма, размер, цвет, цена, цена по акции, фото, группа, группировать по, разделить по."""
+"""Загрузка товаров из Excel. При наличии артикула (sku) — обновляет существующий товар, иначе создаёт новый."""
 import json
 import os
 import base64
@@ -16,13 +16,6 @@ CORS = {
 VALID_SHAPES = ['Круглые', 'Овальные', 'Прямоугольные', 'Сердечки']
 
 def get_size_category(size_str: str) -> str:
-    """
-    Определяет категорию по первому числу в строке размера.
-    'до 30 см' — меньше 30
-    '30-50 см' — от 30 до 50
-    '50-120 см' — больше 50
-    Для наборов (нет числа или несколько размеров) — берём первое число.
-    """
     if not size_str:
         return ''
     nums = re.findall(r'\d+', size_str.replace(',', '.'))
@@ -84,8 +77,14 @@ def handler(event: dict, context) -> dict:
             sale_price = int(float(sale_price_raw)) if sale_price_raw else None
         except:
             sale_price = None
+        priority_raw = col(row, 'приоритет', 'priority')
+        try:
+            priority = int(float(priority_raw)) if priority_raw else None
+        except:
+            priority = None
 
         rows_data.append({
+            'sku': col(row, 'артикул', 'sku') or None,
             'name': name,
             'description': col(row, 'описание', 'description'),
             'shape': shape,
@@ -98,6 +97,10 @@ def handler(event: dict, context) -> dict:
             'group_id': col(row, 'группа', 'group_id') or None,
             'group_by': col(row, 'группировать по', 'group_by') or None,
             'split_by': col(row, 'разделить по', 'split_by') or None,
+            'labels': col(row, 'метки', 'labels') or None,
+            'priority': priority,
+            'weave_type': col(row, 'вид плетения', 'weave_type') or None,
+            'handles_count': col(row, 'кол-во ручек', 'handles_count') or None,
         })
 
     conn = get_conn()
@@ -106,18 +109,38 @@ def handler(event: dict, context) -> dict:
     if mode == 'replace':
         cur.execute("DELETE FROM products")
 
+    imported = 0
     for p in rows_data:
+        if p['sku'] and mode != 'replace':
+            # Upsert по артикулу
+            cur.execute("SELECT id FROM products WHERE sku=%s", (p['sku'],))
+            existing = cur.fetchone()
+            if existing:
+                cur.execute(
+                    """UPDATE products SET name=%s, description=%s, shape=%s, size=%s, size_category=%s,
+                       color=%s, price=%s, sale_price=%s, image_url=%s, group_id=%s, group_by=%s,
+                       split_by=%s, labels=%s, priority=%s, weave_type=%s, handles_count=%s,
+                       updated_at=NOW() WHERE id=%s""",
+                    (p['name'], p['description'], p['shape'], p['size'], p['size_category'],
+                     p['color'], p['price'], p['sale_price'], p['image_url'],
+                     p['group_id'], p['group_by'], p['split_by'],
+                     p['labels'], p['priority'], p['weave_type'], p['handles_count'], existing[0])
+                )
+                imported += 1
+                continue
         cur.execute(
-            """INSERT INTO products (name, description, shape, size, size_category, color, price, sale_price,
-               image_url, group_id, group_by, split_by)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
-            (p['name'], p['description'], p['shape'], p['size'], p['size_category'],
-             p['color'], p['price'], p['sale_price'],
-             p['image_url'], p['group_id'], p['group_by'], p['split_by'])
+            """INSERT INTO products (sku, name, description, shape, size, size_category, color, price, sale_price,
+               image_url, group_id, group_by, split_by, labels, priority, weave_type, handles_count)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+            (p['sku'], p['name'], p['description'], p['shape'], p['size'], p['size_category'],
+             p['color'], p['price'], p['sale_price'], p['image_url'],
+             p['group_id'], p['group_by'], p['split_by'],
+             p['labels'], p['priority'], p['weave_type'], p['handles_count'])
         )
+        imported += 1
 
     conn.commit()
     cur.close()
     conn.close()
 
-    return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'imported': len(rows_data)})}
+    return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'imported': imported})}

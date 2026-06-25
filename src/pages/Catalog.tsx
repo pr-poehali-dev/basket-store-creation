@@ -9,8 +9,6 @@ import Header from '@/components/Header';
 import { useCart } from '@/context/CartContext';
 import urls from '../../backend/func2url.json';
 
-const WEAVE_TYPES = ['На колотой', 'На шпоне'];
-const HANDLES_OPTIONS = ['1 ручка', '2 ручки'];
 
 interface Product {
   id: number;
@@ -49,6 +47,7 @@ const ProductCard = ({ card, cardIndex }: { card: Card; cardIndex: number }) => 
   const navigate = useNavigate();
   const { addItem } = useCart();
   const [qty, setQty] = useState(1);
+  const [qtyStr, setQtyStr] = useState('1');
   const [added, setAdded] = useState(false);
 
   const groupByFields = (card.variants[0]?.group_by || '').toLowerCase().split(';').map(f => f.trim());
@@ -125,11 +124,11 @@ const ProductCard = ({ card, cardIndex }: { card: Card; cardIndex: number }) => 
       </div>
 
       <div className="p-5 flex flex-col flex-1">
-        <div className="flex items-center flex-wrap gap-2 mb-2">
+        <h3 className="font-display text-xl font-semibold mb-2">{active.name}</h3>
+        <div className="flex items-center flex-wrap gap-2 mb-3">
           <span className="text-[11px] uppercase tracking-wider text-accent border border-accent/40 px-2 py-0.5">{active.shape}</span>
           <span className="text-[11px] uppercase tracking-wider text-muted-foreground">{active.size}</span>
         </div>
-        <h3 className="font-display text-xl font-semibold mb-3">{active.name}</h3>
 
         {displayVariants.length > 1 && (
           <div className="mb-4">
@@ -176,12 +175,19 @@ const ProductCard = ({ card, cardIndex }: { card: Card; cardIndex: number }) => 
           <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
             <div className="flex items-center border border-border">
               <button
-                onClick={e => { e.stopPropagation(); setQty(q => Math.max(1, q - 1)); }}
+                onClick={e => { e.stopPropagation(); const nv = Math.max(1, qty - 1); setQty(nv); setQtyStr(String(nv)); }}
                 className="w-7 h-8 flex items-center justify-center hover:bg-secondary transition-colors text-base"
               >−</button>
-              <span className="w-8 text-center text-sm">{qty}</span>
+              <input
+                type="number"
+                value={qtyStr}
+                onChange={e => { setQtyStr(e.target.value); const v = parseInt(e.target.value, 10); if (!isNaN(v) && v >= 1) setQty(v); }}
+                onBlur={() => { if (isNaN(parseInt(qtyStr, 10)) || parseInt(qtyStr, 10) < 1) { setQty(1); setQtyStr('1'); } else { setQtyStr(String(qty)); } }}
+                onClick={e => e.stopPropagation()}
+                className="w-9 h-8 border-x border-border text-center text-sm outline-none bg-background [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              />
               <button
-                onClick={e => { e.stopPropagation(); setQty(q => q + 1); }}
+                onClick={e => { e.stopPropagation(); const nv = qty + 1; setQty(nv); setQtyStr(String(nv)); }}
                 className="w-7 h-8 flex items-center justify-center hover:bg-secondary transition-colors text-base"
               >+</button>
             </div>
@@ -227,8 +233,6 @@ const Catalog = () => {
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [shapes, setShapes] = useState<string[]>([]);
   const [sizes, setSizes] = useState<string[]>([]);
-  const [weaveTypes, setWeaveTypes] = useState<string[]>([]);
-  const [handles, setHandles] = useState<string[]>([]);
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 900]);
   const [minInput, setMinInput] = useState('0');
   const [maxInput, setMaxInput] = useState('900');
@@ -291,8 +295,6 @@ const Catalog = () => {
       const matchesFilters =
         (shapes.length === 0 || shapes.includes(p.shape)) &&
         (sizes.length === 0 || sizes.includes(p.size_category)) &&
-        (weaveTypes.length === 0 || weaveTypes.includes(p.weave_type ?? '')) &&
-        (handles.length === 0 || handles.includes(p.handles_count ?? '')) &&
         price >= priceRange[0] && price <= priceRange[1];
       const matchesSearch = !q || card.variants.some(v =>
         v.name.toLowerCase().includes(q) ||
@@ -313,13 +315,11 @@ const Catalog = () => {
     });
 
     return result;
-  }, [cards, shapes, sizes, weaveTypes, handles, priceRange, search, sort]);
+  }, [cards, shapes, sizes, priceRange, search, sort]);
 
   const reset = () => {
     setShapes([]);
     setSizes([]);
-    setWeaveTypes([]);
-    setHandles([]);
     setPriceRange([globalMin, globalMax]);
     setMinInput(String(globalMin));
     setMaxInput(String(globalMax));
@@ -363,26 +363,6 @@ const Catalog = () => {
                 <div className="space-y-2">
                   {SIZES.map(s => (
                     <CheckFilter key={s} label={s} checked={sizes.includes(s)} onChange={() => toggle(sizes, setSizes, s)} />
-                  ))}
-                </div>
-              </div>
-
-              {/* Вид плетения */}
-              <div>
-                <p className="text-sm font-medium mb-3 uppercase tracking-wider text-muted-foreground">Вид плетения</p>
-                <div className="space-y-2">
-                  {WEAVE_TYPES.map(w => (
-                    <CheckFilter key={w} label={w} checked={weaveTypes.includes(w)} onChange={() => toggle(weaveTypes, setWeaveTypes, w)} />
-                  ))}
-                </div>
-              </div>
-
-              {/* Кол-во ручек */}
-              <div>
-                <p className="text-sm font-medium mb-3 uppercase tracking-wider text-muted-foreground">Кол-во ручек</p>
-                <div className="space-y-2">
-                  {HANDLES_OPTIONS.map(h => (
-                    <CheckFilter key={h} label={h} checked={handles.includes(h)} onChange={() => toggle(handles, setHandles, h)} />
                   ))}
                 </div>
               </div>

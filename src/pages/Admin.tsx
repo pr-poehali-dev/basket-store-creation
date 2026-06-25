@@ -8,13 +8,32 @@ const SIZES = ['Малые', 'Средние', 'Большие'];
 const WEAVE_TYPES = ['На колотой', 'На шпоне'];
 const HANDLES_OPTIONS = ['1 ручка', '2 ручки'];
 const LABEL_OPTIONS = [
-  { value: 'новинка', label: 'Новинка' },
-  { value: 'акция',   label: 'Акция' },
+  { value: 'новинка',    label: 'Новинка' },
+  { value: 'акция',      label: 'Акция' },
   { value: 'топ продаж', label: 'Топ продаж' },
 ];
 
+// Все возможные колонки таблицы (key → заголовок)
+const ALL_COLUMNS = [
+  { key: 'photo',         label: 'Фото' },
+  { key: 'sku',           label: 'Артикул' },
+  { key: 'name',          label: 'Название' },
+  { key: 'shape',         label: 'Форма' },
+  { key: 'size',          label: 'Размер' },
+  { key: 'color',         label: 'Цвет' },
+  { key: 'price',         label: 'Цена' },
+  { key: 'sale_price',    label: 'По акции' },
+  { key: 'labels',        label: 'Метки' },
+  { key: 'priority',      label: 'Приоритет' },
+  { key: 'weave_type',    label: 'Плетение' },
+  { key: 'handles_count', label: 'Ручки' },
+  { key: 'group_id',      label: 'Группа' },
+];
+const DEFAULT_VISIBLE = ['photo', 'sku', 'name', 'shape', 'size', 'color', 'price', 'sale_price', 'labels', 'priority'];
+
 interface Product {
   id?: number;
+  sku: string;
   name: string;
   description: string;
   shape: string;
@@ -33,19 +52,16 @@ interface Product {
 }
 
 const empty = (): Product => ({
-  name: '', description: '', shape: 'Круглые', size: 'Средние',
+  sku: '', name: '', description: '', shape: 'Круглые', size: 'Средние',
   color: '', price: 0, sale_price: null, image_url: '',
   group_id: '', group_by: '', split_by: '',
   labels: '', priority: null, weave_type: '', handles_count: '',
 });
 
-// Парсим метки из строки "новинка;акция"
 function parseLabels(s: string): string[] {
   return s ? s.split(';').map(l => l.trim()).filter(Boolean) : [];
 }
-function labelsToStr(arr: string[]): string {
-  return arr.join(';');
-}
+function labelsToStr(arr: string[]): string { return arr.join(';'); }
 
 const inputCls = "w-full border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent";
 const labelCls = "text-xs uppercase tracking-wider text-muted-foreground mb-1 block";
@@ -64,14 +80,29 @@ const Admin = () => {
   const [deleting, setDeleting] = useState<number | null>(null);
   const [uploadMode, setUploadMode] = useState<'append' | 'replace'>('append');
   const [importing, setImporting] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [importMsg, setImportMsg] = useState('');
   const [imgUploading, setImgUploading] = useState(false);
+  const [visibleCols, setVisibleCols] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem('admin_cols') || 'null') || DEFAULT_VISIBLE; }
+    catch { return DEFAULT_VISIBLE; }
+  });
+  const [colsOpen, setColsOpen] = useState(false);
+
   const fileRef = useRef<HTMLInputElement>(null);
   const imgRef = useRef<HTMLInputElement>(null);
 
+  const toggleCol = (key: string) => {
+    const next = visibleCols.includes(key)
+      ? visibleCols.filter(k => k !== key)
+      : [...visibleCols, key];
+    setVisibleCols(next);
+    localStorage.setItem('admin_cols', JSON.stringify(next));
+  };
+  const col = (key: string) => visibleCols.includes(key);
+
   const login = async () => {
-    setAuthLoading(true);
-    setAuthError('');
+    setAuthLoading(true); setAuthError('');
     const res = await fetch(urls['admin-auth'], { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password }) });
     const data = await res.json();
     setAuthLoading(false);
@@ -93,35 +124,44 @@ const Admin = () => {
     setSaving(true);
     const method = editing?.id ? 'PUT' : 'POST';
     await fetch(urls['products'], { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(editing) });
-    setSaving(false);
-    setEditing(null);
-    load();
+    setSaving(false); setEditing(null); load();
   };
 
   const remove = async (id: number) => {
     if (!confirm('Удалить товар?')) return;
     setDeleting(id);
     await fetch(`${urls['products']}?id=${id}`, { method: 'DELETE' });
-    setDeleting(null);
-    load();
+    setDeleting(null); load();
   };
 
   const handleExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setImporting(true);
-    setImportMsg('');
+    setImporting(true); setImportMsg('');
     const reader = new FileReader();
     reader.onload = async (ev) => {
       const b64 = btoa(String.fromCharCode(...new Uint8Array(ev.target?.result as ArrayBuffer)));
       const res = await fetch(urls['upload-excel'], { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ file: b64, mode: uploadMode }) });
       const data = await res.json();
       setImporting(false);
-      setImportMsg(data.imported ? `Загружено товаров: ${data.imported}` : data.error || 'Ошибка');
+      setImportMsg(data.imported ? `Загружено/обновлено: ${data.imported}` : data.error || 'Ошибка');
       load();
     };
     reader.readAsArrayBuffer(file);
     e.target.value = '';
+  };
+
+  const handleExport = async () => {
+    setExporting(true);
+    const res = await fetch(urls['export-excel']);
+    const data = await res.json();
+    setExporting(false);
+    if (!data.file) return;
+    const bytes = Uint8Array.from(atob(data.file), c => c.charCodeAt(0));
+    const blob = new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'products.xlsx'; a.click();
+    URL.revokeObjectURL(url);
   };
 
   const handleImg = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -156,14 +196,9 @@ const Admin = () => {
             <span className="font-display text-2xl font-semibold">FABRICA</span>
           </div>
           <h1 className="font-display text-3xl font-semibold mb-6">Вход в админку</h1>
-          <input
-            type="password"
-            placeholder="Пароль"
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && login()}
-            className="w-full border border-border bg-background px-4 py-3 text-sm mb-3 outline-none focus:border-accent"
-          />
+          <input type="password" placeholder="Пароль" value={password}
+            onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === 'Enter' && login()}
+            className="w-full border border-border bg-background px-4 py-3 text-sm mb-3 outline-none focus:border-accent" />
           {authError && <p className="text-red-500 text-sm mb-3">{authError}</p>}
           <Button onClick={login} disabled={authLoading} className="w-full bg-accent hover:bg-accent/90 text-accent-foreground rounded-none h-11">
             {authLoading ? 'Проверяю...' : 'Войти'}
@@ -174,6 +209,7 @@ const Admin = () => {
   }
 
   const editingLabels = editing ? parseLabels(editing.labels) : [];
+  const filteredProducts = products.filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase()) || (p.sku || '').toLowerCase().includes(search.toLowerCase()));
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -184,59 +220,84 @@ const Admin = () => {
         </div>
         <div className="flex items-center gap-3">
           <a href="/" className="text-sm text-muted-foreground hover:text-accent">На сайт</a>
-          <Button size="sm" variant="outline" className="rounded-none" onClick={() => { sessionStorage.removeItem('admin_ok'); setAuthed(false); }}>
-            Выйти
-          </Button>
+          <Button size="sm" variant="outline" className="rounded-none" onClick={() => { sessionStorage.removeItem('admin_ok'); setAuthed(false); }}>Выйти</Button>
         </div>
       </header>
 
       <main className="container mx-auto px-6 py-10">
-        {/* Excel import */}
+        {/* Excel блок */}
         <div className="bg-card border border-border p-6 mb-8">
-          <h2 className="font-display text-xl font-semibold mb-4">Загрузка из Excel</h2>
+          <h2 className="font-display text-xl font-semibold mb-4">Excel</h2>
           <p className="text-sm text-muted-foreground mb-4">
-            Колонки файла: <code className="bg-secondary px-1">name, description, shape, size, color, price, sale_price, image_url, group_id, group_by, split_by, labels, priority, weave_type, handles_count</code>
+            Колонки: <code className="bg-secondary px-1">артикул, название, описание, форма, размер, цвет, цена, цена по акции, фото, группа, группировать по, разделить по, метки, приоритет, вид плетения, кол-во ручек</code>
           </p>
-          <div className="flex flex-wrap items-center gap-4">
+          <p className="text-xs text-muted-foreground mb-4">
+            Если артикул совпадает с существующим — товар обновится. Новый артикул — создаётся новая позиция.
+          </p>
+          <div className="flex flex-wrap items-center gap-4 mb-4">
             <label className="flex items-center gap-2 text-sm cursor-pointer">
               <input type="radio" checked={uploadMode === 'append'} onChange={() => setUploadMode('append')} />
-              Добавить к существующим
+              Добавить / обновить по артикулу
             </label>
             <label className="flex items-center gap-2 text-sm cursor-pointer">
               <input type="radio" checked={uploadMode === 'replace'} onChange={() => setUploadMode('replace')} />
               Заменить все товары
             </label>
           </div>
-          <div className="flex items-center gap-3 mt-4">
+          <div className="flex flex-wrap items-center gap-3">
             <Button onClick={() => fileRef.current?.click()} disabled={importing} className="rounded-none bg-accent hover:bg-accent/90 text-accent-foreground">
               <Icon name="Upload" size={16} className="mr-2" />
-              {importing ? 'Загружаю...' : 'Выбрать файл .xlsx'}
+              {importing ? 'Загружаю...' : 'Загрузить .xlsx'}
+            </Button>
+            <Button onClick={handleExport} disabled={exporting} variant="outline" className="rounded-none">
+              <Icon name="Download" size={16} className="mr-2" />
+              {exporting ? 'Готовлю...' : 'Выгрузить .xlsx'}
             </Button>
             {importMsg && <span className="text-sm text-muted-foreground">{importMsg}</span>}
           </div>
           <input ref={fileRef} type="file" accept=".xlsx" className="hidden" onChange={handleExcel} />
         </div>
 
-        {/* Table */}
+        {/* Шапка таблицы */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
           <h2 className="font-display text-xl font-semibold">Товары ({products.length})</h2>
           <div className="flex items-center gap-3 w-full sm:w-auto">
             <div className="relative flex-1 sm:w-64">
               <Icon name="Search" size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <input
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder="Поиск по названию..."
-                className="w-full border border-border bg-background pl-8 pr-8 py-2 text-sm outline-none focus:border-accent"
-              />
+              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Поиск по названию / артикулу..."
+                className="w-full border border-border bg-background pl-8 pr-8 py-2 text-sm outline-none focus:border-accent" />
               {search && (
                 <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-accent">
                   <Icon name="X" size={13} />
                 </button>
               )}
             </div>
+            {/* Настройка колонок */}
+            <div className="relative">
+              <Button size="sm" variant="outline" className="rounded-none" onClick={() => setColsOpen(v => !v)}>
+                <Icon name="SlidersHorizontal" size={14} className="mr-1.5" /> Колонки
+              </Button>
+              {colsOpen && (
+                <div className="absolute right-0 top-full mt-1 z-30 bg-background border border-border shadow-lg p-3 w-52">
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground mb-2">Показывать колонки</p>
+                  <div className="space-y-1.5">
+                    {ALL_COLUMNS.map(c => (
+                      <label key={c.key} className="flex items-center gap-2 cursor-pointer">
+                        <span className={`w-4 h-4 border flex items-center justify-center flex-shrink-0 transition-colors ${visibleCols.includes(c.key) ? 'bg-accent border-accent' : 'border-border hover:border-accent'}`}>
+                          {visibleCols.includes(c.key) && <Icon name="Check" size={11} className="text-accent-foreground" />}
+                        </span>
+                        <input type="checkbox" className="hidden" checked={visibleCols.includes(c.key)} onChange={() => toggleCol(c.key)} />
+                        <span className="text-sm">{c.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <button onClick={() => { setVisibleCols(DEFAULT_VISIBLE); localStorage.setItem('admin_cols', JSON.stringify(DEFAULT_VISIBLE)); }}
+                    className="text-xs text-muted-foreground hover:text-accent mt-3">Сбросить</button>
+                </div>
+              )}
+            </div>
             <Button onClick={() => setEditing(empty())} className="rounded-none bg-accent hover:bg-accent/90 text-accent-foreground whitespace-nowrap">
-              <Icon name="Plus" size={16} className="mr-2" /> Добавить товар
+              <Icon name="Plus" size={16} className="mr-2" /> Добавить
             </Button>
           </div>
         </div>
@@ -250,54 +311,59 @@ const Admin = () => {
             <table className="w-full text-sm">
               <thead className="bg-secondary/40 border-b border-border">
                 <tr>
-                  <th className="text-left px-4 py-3 font-medium">Фото</th>
-                  <th className="text-left px-4 py-3 font-medium">Название</th>
-                  <th className="text-left px-4 py-3 font-medium">Форма</th>
-                  <th className="text-left px-4 py-3 font-medium">Размер</th>
-                  <th className="text-left px-4 py-3 font-medium">Цвет</th>
-                  <th className="text-left px-4 py-3 font-medium">Цена</th>
-                  <th className="text-left px-4 py-3 font-medium">По акции</th>
-                  <th className="text-left px-4 py-3 font-medium">Метки</th>
-                  <th className="text-left px-4 py-3 font-medium">Приор.</th>
-                  <th className="text-left px-4 py-3 font-medium">Группа</th>
+                  {col('photo')         && <th className="text-left px-4 py-3 font-medium">Фото</th>}
+                  {col('sku')           && <th className="text-left px-4 py-3 font-medium">Артикул</th>}
+                  {col('name')          && <th className="text-left px-4 py-3 font-medium">Название</th>}
+                  {col('shape')         && <th className="text-left px-4 py-3 font-medium">Форма</th>}
+                  {col('size')          && <th className="text-left px-4 py-3 font-medium">Размер</th>}
+                  {col('color')         && <th className="text-left px-4 py-3 font-medium">Цвет</th>}
+                  {col('price')         && <th className="text-left px-4 py-3 font-medium">Цена</th>}
+                  {col('sale_price')    && <th className="text-left px-4 py-3 font-medium">По акции</th>}
+                  {col('labels')        && <th className="text-left px-4 py-3 font-medium">Метки</th>}
+                  {col('priority')      && <th className="text-left px-4 py-3 font-medium">Приор.</th>}
+                  {col('weave_type')    && <th className="text-left px-4 py-3 font-medium">Плетение</th>}
+                  {col('handles_count') && <th className="text-left px-4 py-3 font-medium">Ручки</th>}
+                  {col('group_id')      && <th className="text-left px-4 py-3 font-medium">Группа</th>}
                   <th className="text-left px-4 py-3 font-medium"></th>
                 </tr>
               </thead>
               <tbody>
-                {products.filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase())).map((p) => (
+                {filteredProducts.map((p) => (
                   <tr key={p.id} className="border-b border-border last:border-0 hover:bg-secondary/20">
-                    <td className="px-4 py-3">
-                      {p.image_url
-                        ? <img src={p.image_url} alt={p.name} className="w-12 h-12 object-cover" />
-                        : <div className="w-12 h-12 bg-secondary flex items-center justify-center"><Icon name="Image" size={18} className="opacity-30" /></div>
-                      }
-                    </td>
-                    <td className="px-4 py-3 font-medium">{p.name}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{p.shape}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{p.size}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{p.color || '—'}</td>
-                    <td className="px-4 py-3">{p.price} ₽</td>
-                    <td className="px-4 py-3">{p.sale_price ? <span className="text-accent">{p.sale_price} ₽</span> : '—'}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-1">
-                        {parseLabels(p.labels).map(l => (
-                          <span key={l} className="text-[10px] bg-accent/10 text-accent border border-accent/30 px-1.5 py-0.5 uppercase tracking-wide">{l}</span>
-                        ))}
-                        {!p.labels && <span className="text-muted-foreground">—</span>}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">{p.priority ?? '—'}</td>
-                    <td className="px-4 py-3 text-muted-foreground text-xs">{p.group_id || '—'}</td>
+                    {col('photo') && (
+                      <td className="px-4 py-3">
+                        {p.image_url
+                          ? <img src={p.image_url} alt={p.name} className="w-12 h-12 object-cover" />
+                          : <div className="w-12 h-12 bg-secondary flex items-center justify-center"><Icon name="Image" size={18} className="opacity-30" /></div>}
+                      </td>
+                    )}
+                    {col('sku')           && <td className="px-4 py-3 text-muted-foreground font-mono text-xs">{p.sku || '—'}</td>}
+                    {col('name')          && <td className="px-4 py-3 font-medium">{p.name}</td>}
+                    {col('shape')         && <td className="px-4 py-3 text-muted-foreground">{p.shape}</td>}
+                    {col('size')          && <td className="px-4 py-3 text-muted-foreground">{p.size}</td>}
+                    {col('color')         && <td className="px-4 py-3 text-muted-foreground">{p.color || '—'}</td>}
+                    {col('price')         && <td className="px-4 py-3">{p.price} ₽</td>}
+                    {col('sale_price')    && <td className="px-4 py-3">{p.sale_price ? <span className="text-accent">{p.sale_price} ₽</span> : '—'}</td>}
+                    {col('labels')        && (
+                      <td className="px-4 py-3">
+                        <div className="flex flex-wrap gap-1">
+                          {parseLabels(p.labels).map(l => (
+                            <span key={l} className="text-[10px] bg-accent/10 text-accent border border-accent/30 px-1.5 py-0.5 uppercase tracking-wide">{l}</span>
+                          ))}
+                          {!p.labels && <span className="text-muted-foreground">—</span>}
+                        </div>
+                      </td>
+                    )}
+                    {col('priority')      && <td className="px-4 py-3 text-muted-foreground">{p.priority ?? '—'}</td>}
+                    {col('weave_type')    && <td className="px-4 py-3 text-muted-foreground">{p.weave_type || '—'}</td>}
+                    {col('handles_count') && <td className="px-4 py-3 text-muted-foreground">{p.handles_count || '—'}</td>}
+                    {col('group_id')      && <td className="px-4 py-3 text-muted-foreground text-xs">{p.group_id || '—'}</td>}
                     <td className="px-4 py-3">
                       <div className="flex gap-2">
                         <Button size="sm" variant="outline" className="rounded-none h-8" onClick={() => setEditing({
-                          ...p,
-                          group_id: p.group_id || '',
-                          group_by: p.group_by || '',
-                          split_by: p.split_by || '',
-                          labels: p.labels || '',
-                          weave_type: p.weave_type || '',
-                          handles_count: p.handles_count || '',
+                          ...p, sku: p.sku || '', group_id: p.group_id || '', group_by: p.group_by || '',
+                          split_by: p.split_by || '', labels: p.labels || '',
+                          weave_type: p.weave_type || '', handles_count: p.handles_count || '',
                         })}>
                           <Icon name="Pencil" size={14} />
                         </Button>
@@ -314,6 +380,9 @@ const Admin = () => {
         )}
       </main>
 
+      {/* Клик вне меню колонок — закрыть */}
+      {colsOpen && <div className="fixed inset-0 z-20" onClick={() => setColsOpen(false)} />}
+
       {/* Edit modal */}
       {editing && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center px-4" onClick={e => e.target === e.currentTarget && setEditing(null)}>
@@ -324,6 +393,13 @@ const Admin = () => {
             </div>
 
             <div className="space-y-4">
+              {/* Артикул */}
+              <div>
+                <label className={labelCls}>Артикул <span className="normal-case text-muted-foreground/60">(уникальный, обязательный)</span></label>
+                <input value={editing.sku} onChange={e => setEditing({ ...editing, sku: e.target.value })}
+                  placeholder="напр. KRG-001" className={inputCls} />
+              </div>
+
               {/* Название */}
               <div>
                 <label className={labelCls}>Название</label>
@@ -395,13 +471,8 @@ const Admin = () => {
               {/* Приоритет */}
               <div>
                 <label className={labelCls}>Приоритет в каталоге</label>
-                <input
-                  type="number"
-                  value={editing.priority ?? ''}
-                  onChange={e => setEditing({ ...editing, priority: e.target.value ? +e.target.value : null })}
-                  placeholder="1 — первое место, 2 — второе и т.д. (пусто — в конце)"
-                  className={inputCls}
-                />
+                <input type="number" value={editing.priority ?? ''} onChange={e => setEditing({ ...editing, priority: e.target.value ? +e.target.value : null })}
+                  placeholder="1 — первое место, 2 — второе (пусто — в конце)" className={inputCls} />
               </div>
 
               {/* Вид плетения + Кол-во ручек */}
@@ -428,18 +499,15 @@ const Admin = () => {
                 <div className="space-y-3">
                   <div>
                     <label className="text-xs text-muted-foreground mb-1 block">Номер группы — одинаковый для всех вариантов одной модели</label>
-                    <input value={editing.group_id} onChange={e => setEditing({ ...editing, group_id: e.target.value })}
-                      placeholder="напр. italia" className={inputCls} />
+                    <input value={editing.group_id} onChange={e => setEditing({ ...editing, group_id: e.target.value })} placeholder="напр. italia" className={inputCls} />
                   </div>
                   <div>
                     <label className="text-xs text-muted-foreground mb-1 block">Группировать по — характеристики, по которым есть варианты (через ;)</label>
-                    <input value={editing.group_by} onChange={e => setEditing({ ...editing, group_by: e.target.value })}
-                      placeholder="напр. Цвет; Размер" className={inputCls} />
+                    <input value={editing.group_by} onChange={e => setEditing({ ...editing, group_by: e.target.value })} placeholder="напр. Цвет; Размер" className={inputCls} />
                   </div>
                   <div>
                     <label className="text-xs text-muted-foreground mb-1 block">Разделить на карточки по — что создаёт отдельные карточки (через ;)</label>
-                    <input value={editing.split_by} onChange={e => setEditing({ ...editing, split_by: e.target.value })}
-                      placeholder="напр. Размер" className={inputCls} />
+                    <input value={editing.split_by} onChange={e => setEditing({ ...editing, split_by: e.target.value })} placeholder="напр. Размер" className={inputCls} />
                   </div>
                 </div>
               </div>
@@ -451,8 +519,7 @@ const Admin = () => {
                   {editing.image_url && <img src={editing.image_url} className="w-16 h-16 object-cover border border-border" />}
                   <div className="flex-1">
                     <input value={editing.image_url} onChange={e => setEditing({ ...editing, image_url: e.target.value })}
-                      placeholder="URL фото или загрузите файл"
-                      className={inputCls + ' mb-2'} />
+                      placeholder="URL фото или загрузите файл" className={inputCls + ' mb-2'} />
                     <Button size="sm" variant="outline" className="rounded-none" onClick={() => imgRef.current?.click()} disabled={imgUploading}>
                       <Icon name="Upload" size={14} className="mr-1" />
                       {imgUploading ? 'Загружаю...' : 'Загрузить фото'}
