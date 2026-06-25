@@ -73,10 +73,20 @@ const ProductPage = () => {
   // Текущая карточка
   const card = groupCards[activeCardIdx] ?? groupCards[0];
 
-  // При смене карточки сбрасываем выбранный цвет
+  // При смене карточки — активируем первый цвет по сортировке (натуральный)
   useEffect(() => {
-    setActiveVariantIdx(0);
-  }, [activeCardIdx]);
+    if (!card) return;
+    const seen = new Set<string>();
+    const unique = card.variants.filter(v => {
+      const key = v.color || '';
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    const sorted = sortColors(unique);
+    const first = sorted[0];
+    setActiveVariantIdx(first ? card.variants.indexOf(first) : 0);
+  }, [activeCardIdx, card?.group_id]);
 
   const active = card?.variants[activeVariantIdx] ?? card?.variants[0];
 
@@ -168,10 +178,6 @@ const ProductPage = () => {
               <h1 className="font-display text-4xl font-semibold mb-2">{active.name}</h1>
               <p className="text-muted-foreground text-sm mb-6">{active.size}</p>
 
-              {active.description && (
-                <p className="text-muted-foreground mb-6 leading-relaxed">{active.description}</p>
-              )}
-
               {/* Цена */}
               <div className="mb-8">
                 {active.sale_price ? (
@@ -240,7 +246,7 @@ const ProductPage = () => {
               </div>
 
               {/* Кнопки */}
-              <div className="flex flex-col sm:flex-row gap-3 mt-auto">
+              <div className="flex flex-col sm:flex-row gap-3 mb-8">
                 <Button className="flex-1 bg-accent hover:bg-accent/90 text-accent-foreground rounded-none h-12 text-base">
                   В корзину
                 </Button>
@@ -249,6 +255,22 @@ const ProductPage = () => {
                   Назад
                 </Button>
               </div>
+
+              {/* Описание — в конце, с абзацами по · */}
+              {active.description && (
+                <div className="text-muted-foreground leading-relaxed space-y-2 border-t border-border pt-6">
+                  {active.description.split('·').map((part, i) => {
+                    const text = part.trim();
+                    if (!text) return null;
+                    return (
+                      <p key={i} className={i === 0 ? '' : 'flex gap-2'}>
+                        {i > 0 && <span className="text-accent mt-0.5">·</span>}
+                        {text}
+                      </p>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
           </div>
