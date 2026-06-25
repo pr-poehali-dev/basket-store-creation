@@ -44,7 +44,7 @@ const Admin = () => {
   const login = async () => {
     setAuthLoading(true);
     setAuthError('');
-    const res = await fetch(urls['admin-auth'], { method: 'POST', body: JSON.stringify({ password }) });
+    const res = await fetch(urls['admin-auth'], { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password }) });
     const data = await res.json();
     setAuthLoading(false);
     if (data.ok) { sessionStorage.setItem('admin_ok', '1'); setAuthed(true); }

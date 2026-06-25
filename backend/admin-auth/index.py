@@ -12,7 +12,8 @@ def handler(event: dict, context) -> dict:
     if event.get('httpMethod') == 'OPTIONS':
         return {'statusCode': 200, 'headers': CORS, 'body': ''}
 
-    body = json.loads(event.get('body') or '{}')
+    raw_body = event.get('body') or ''
+    body = json.loads(raw_body) if raw_body and raw_body.strip() else {}
     password = body.get('password', '')
     admin_password = os.environ.get('ADMIN_PASSWORD', '')
 
