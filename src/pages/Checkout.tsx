@@ -8,10 +8,17 @@ import { useCart } from '@/context/CartContext';
 interface LocationState {
   total: number;
   deliveryLabel: string;
+  isPickup: boolean;
 }
 
 const DAYS = ['ПН', 'ВТ', 'СР', 'ЧТ', 'ПТ', 'СБ', 'ВС'];
-const HOURS = Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2, '0')}:00`);
+
+// Временные интервалы с шагом 2 часа
+const TIME_SLOTS = Array.from({ length: 12 }, (_, i) => {
+  const from = String(i * 2).padStart(2, '0') + ':00';
+  const to = String(i * 2 + 2).padStart(2, '0') + ':00';
+  return `с ${from} до ${to}`;
+});
 
 function fmt(n: number) {
   return n.toLocaleString('ru-RU') + ' ₽';
@@ -36,7 +43,10 @@ const Checkout = () => {
 
   const total = state?.total ?? 0;
   const deliveryLabel = state?.deliveryLabel ?? 'Самовывоз';
-  const showExtra = total >= 20_000;
+  const isPickup = state?.isPickup ?? true;
+
+  // Показываем поля адреса/дней/времени только для доставки при сумме >= 20k
+  const showDeliveryFields = !isPickup && total >= 20_000;
 
   const [form, setForm] = useState({
     name: '',
@@ -44,7 +54,7 @@ const Checkout = () => {
     phone: '',
     date: '',
     address: '',
-    time: '09:00',
+    timeSlot: TIME_SLOTS[4], // с 08:00 до 10:00 по умолчанию
     wishes: '',
   });
   const [days, setDays] = useState<string[]>([]);
@@ -52,7 +62,6 @@ const Checkout = () => {
   const [showError, setShowError] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
 
-  // Если зашли напрямую без state — вернуть в корзину
   useEffect(() => {
     if (!state) navigate('/cart');
   }, [state, navigate]);
@@ -70,20 +79,19 @@ const Checkout = () => {
   };
 
   const handlePhone = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const masked = phoneMask(e.target.value);
-    set('phone', masked);
+    set('phone', phoneMask(e.target.value));
   };
 
   const validate = (): boolean => {
     const newErrors: Record<string, boolean> = {};
     if (!form.name.trim()) newErrors.name = true;
-    if (!form.city.trim()) newErrors.city = true;
+    if (!isPickup && !form.city.trim()) newErrors.city = true;
     if (form.phone.replace(/\D/g, '').length < 11) newErrors.phone = true;
     if (!form.date) newErrors.date = true;
-    if (showExtra) {
+    if (showDeliveryFields) {
       if (!form.address.trim()) newErrors.address = true;
       if (days.length === 0) newErrors.days = true;
-      if (!form.time) newErrors.time = true;
+      if (!form.timeSlot) newErrors.timeSlot = true;
     }
     setErrors(newErrors);
     if (Object.keys(newErrors).length > 0) {
@@ -181,19 +189,21 @@ const Checkout = () => {
               />
             </div>
 
-            {/* Город */}
-            <div>
-              <label className="block text-xs uppercase tracking-wider text-muted-foreground mb-1.5">
-                Город <span className="text-destructive">*</span>
-              </label>
-              <input
-                type="text"
-                value={form.city}
-                onChange={e => set('city', e.target.value)}
-                placeholder="Город получения"
-                className={inputCls('city')}
-              />
-            </div>
+            {/* Город — только для доставки */}
+            {!isPickup && (
+              <div>
+                <label className="block text-xs uppercase tracking-wider text-muted-foreground mb-1.5">
+                  Город <span className="text-destructive">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={form.city}
+                  onChange={e => set('city', e.target.value)}
+                  placeholder="Город получения"
+                  className={inputCls('city')}
+                />
+              </div>
+            )}
 
             {/* Телефон */}
             <div>
@@ -209,7 +219,7 @@ const Checkout = () => {
               />
             </div>
 
-            {/* Желаемая дата */}
+            {/* Дата */}
             <div>
               <label className="block text-xs uppercase tracking-wider text-muted-foreground mb-1.5">
                 Желаемая дата получения заказа <span className="text-destructive">*</span>
@@ -223,71 +233,69 @@ const Checkout = () => {
               />
             </div>
 
-            {/* Дополнительные поля при сумме от 20 000 */}
-            {showExtra && (
-              <>
-                <div className="border-t border-border pt-5">
-                  <p className="text-xs text-muted-foreground mb-4">Дополнительно для доставки</p>
+            {/* Дополнительные поля: адрес, дни, время — только для доставки >= 20k */}
+            {showDeliveryFields && (
+              <div className="border-t border-border pt-5 space-y-5">
+                <p className="text-xs text-muted-foreground">Дополнительно для организации доставки</p>
 
-                  {/* Адрес */}
-                  <div className="mb-5">
-                    <label className="block text-xs uppercase tracking-wider text-muted-foreground mb-1.5">
-                      Точный адрес получения <span className="text-destructive">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={form.address}
-                      onChange={e => set('address', e.target.value)}
-                      placeholder="Улица, дом, квартира / офис"
-                      className={inputCls('address')}
-                    />
-                  </div>
-
-                  {/* Дни недели */}
-                  <div className="mb-5">
-                    <label className="block text-xs uppercase tracking-wider text-muted-foreground mb-2">
-                      Дни, когда сможете принять доставку <span className="text-destructive">*</span>
-                    </label>
-                    <div className="flex flex-wrap gap-2">
-                      {DAYS.map(day => (
-                        <button
-                          key={day}
-                          type="button"
-                          onClick={() => toggleDay(day)}
-                          className={`px-3 py-1.5 text-sm border transition-colors ${
-                            days.includes(day)
-                              ? 'bg-accent border-accent text-accent-foreground'
-                              : errors.days
-                              ? 'border-destructive hover:border-accent'
-                              : 'border-border hover:border-accent'
-                          }`}
-                        >
-                          {day}
-                        </button>
-                      ))}
-                    </div>
-                    {errors.days && (
-                      <p className="text-xs text-destructive mt-1">Выберите хотя бы один день</p>
-                    )}
-                  </div>
-
-                  {/* Время */}
-                  <div>
-                    <label className="block text-xs uppercase tracking-wider text-muted-foreground mb-1.5">
-                      Время, когда сможете принять доставку <span className="text-destructive">*</span>
-                    </label>
-                    <select
-                      value={form.time}
-                      onChange={e => set('time', e.target.value)}
-                      className={inputCls('time') + ' cursor-pointer'}
-                    >
-                      {HOURS.map(h => (
-                        <option key={h} value={h}>{h}</option>
-                      ))}
-                    </select>
-                  </div>
+                {/* Адрес */}
+                <div>
+                  <label className="block text-xs uppercase tracking-wider text-muted-foreground mb-1.5">
+                    Точный адрес получения <span className="text-destructive">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={form.address}
+                    onChange={e => set('address', e.target.value)}
+                    placeholder="Улица, дом, квартира / офис"
+                    className={inputCls('address')}
+                  />
                 </div>
-              </>
+
+                {/* Дни */}
+                <div>
+                  <label className="block text-xs uppercase tracking-wider text-muted-foreground mb-2">
+                    Дни, когда сможете принять доставку <span className="text-destructive">*</span>
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {DAYS.map(day => (
+                      <button
+                        key={day}
+                        type="button"
+                        onClick={() => toggleDay(day)}
+                        className={`px-3 py-1.5 text-sm border transition-colors ${
+                          days.includes(day)
+                            ? 'bg-accent border-accent text-accent-foreground'
+                            : errors.days
+                            ? 'border-destructive hover:border-accent'
+                            : 'border-border hover:border-accent'
+                        }`}
+                      >
+                        {day}
+                      </button>
+                    ))}
+                  </div>
+                  {errors.days && (
+                    <p className="text-xs text-destructive mt-1">Выберите хотя бы один день</p>
+                  )}
+                </div>
+
+                {/* Временной интервал */}
+                <div>
+                  <label className="block text-xs uppercase tracking-wider text-muted-foreground mb-1.5">
+                    Время, когда сможете принять доставку <span className="text-destructive">*</span>
+                  </label>
+                  <select
+                    value={form.timeSlot}
+                    onChange={e => set('timeSlot', e.target.value)}
+                    className={inputCls('timeSlot') + ' cursor-pointer'}
+                  >
+                    {TIME_SLOTS.map(slot => (
+                      <option key={slot} value={slot}>{slot}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
             )}
 
             {/* Пожелания */}

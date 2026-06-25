@@ -19,52 +19,48 @@ function fmt(n: number) {
   return n.toLocaleString('ru-RU') + ' ₽';
 }
 
-// Фактическая цена единицы товара (акционная если есть)
-function effectivePrice(item: { price: number; sale_price: number | null }) {
-  return item.sale_price ?? item.price;
-}
-
 const Cart = () => {
   const { items, removeItem, updateQty, clearCart } = useCart();
   const [delivery, setDelivery] = useState<'pickup' | 'courier'>('pickup');
   const navigate = useNavigate();
 
-  // Сумма без скидки (базовые цены всех товаров)
+  // Сумма по базовым ценам (без акций) — для определения порога скидки
   const subtotal = useMemo(
     () => items.reduce((s, i) => s + i.price * i.qty, 0),
     [items]
   );
 
-  // Сумма с учётом акционных цен (до применения оптовой скидки)
-  const subtotalEffective = useMemo(
-    () => items.reduce((s, i) => s + effectivePrice(i) * i.qty, 0),
+  // Есть ли акционные товары в корзине
+  const hasPromo = useMemo(() => items.some(i => i.is_promo && i.sale_price !== null), [items]);
+
+  // Экономия по акции
+  const promoDiscount = useMemo(
+    () => items
+      .filter(i => i.is_promo && i.sale_price !== null)
+      .reduce((s, i) => s + (i.price - i.sale_price!) * i.qty, 0),
     [items]
   );
 
-  // Сумма только обычных товаров по базовой цене (для расчёта оптовой скидки)
-  const regularSubtotal = useMemo(
-    () => items.filter(i => !i.is_promo).reduce((s, i) => s + i.price * i.qty, 0),
-    [items]
-  );
-
-  // Порог скидки считается от полной суммы (subtotal) без учёта акций
+  // Порог скидки — от общей базовой суммы (все товары)
   const discountPct = useMemo(() => {
-    if (subtotal >= 500_000) return null;
+    if (subtotal >= 500_000) return null; // персональная
     if (subtotal >= 200_000) return 20;
     if (subtotal >= 60_000) return 16;
     return 0;
   }, [subtotal]);
 
   const isPersonal = subtotal >= 500_000;
+  const hasWholesale = !isPersonal && !!discountPct && discountPct > 0;
 
-  // Оптовая скидка в рублях — только на обычные товары
-  const discountAmount = useMemo(() => {
-    if (!discountPct) return 0;
-    return Math.round(regularSubtotal * discountPct / 100);
-  }, [regularSubtotal, discountPct]);
+  // Оптовая скидка только на обычные товары (по базовой цене)
+  const regularSubtotal = useMemo(
+    () => items.filter(i => !i.is_promo).reduce((s, i) => s + i.price * i.qty, 0),
+    [items]
+  );
+  const wholesaleDiscount = hasWholesale ? Math.round(regularSubtotal * discountPct! / 100) : 0;
 
-  // Итог = акционные цены + базовые обычных − оптовая скидка
-  const total = subtotalEffective - discountAmount;
+  // Итог = базовая сумма − скидка по акции − оптовая скидка
+  const total = subtotal - promoDiscount - wholesaleDiscount;
 
   const deliveryInfo = useMemo(() => deliveryRange(total), [total]);
   const deliveryMin = deliveryInfo ? Math.round(total * deliveryInfo.pct[0] / 100) : 0;
@@ -76,8 +72,14 @@ const Cart = () => {
     const deliveryLabel = delivery === 'pickup'
       ? 'Самовывоз'
       : (deliveryInfo?.label ?? 'Доставка перевозчиком');
-    navigate('/checkout', { state: { total, deliveryLabel } });
+    navigate('/checkout', { state: { total, deliveryLabel, isPickup: delivery === 'pickup' } });
   };
+
+  // Логика отображения блока сумм
+  // Случай 1: есть акционные товары → всегда показываем разбивку
+  // Случай 2: нет акционных, сумма < 60k → только итог
+  // Случай 3: нет акционных, сумма >= 60k → сумма без скидки + оптовая скидка + итог
+  const showFullBreakdown = hasPromo || hasWholesale || isPersonal;
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -120,10 +122,11 @@ const Cart = () => {
                 </div>
 
                 {items.map(item => {
-                  const unitPrice = effectivePrice(item);
-                  const lineTotal = unitPrice * item.qty;
+                  const unitEffective = item.is_promo && item.sale_price ? item.sale_price : item.price;
+                  const lineTotal = unitEffective * item.qty;
                   return (
                     <div key={item.id} className="flex gap-4 border border-border p-4">
+                      {/* Фото */}
                       <div className="w-20 h-20 bg-secondary shrink-0 overflow-hidden">
                         {item.image_url
                           ? <img src={item.image_url} alt={item.name} className="w-full h-full object-cover" />
@@ -133,6 +136,7 @@ const Cart = () => {
                         }
                       </div>
 
+                      {/* Инфо */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-2">
                           <div>
@@ -144,28 +148,45 @@ const Cart = () => {
                               </span>
                             )}
                           </div>
-                          <button onClick={() => removeItem(item.id)} className="text-muted-foreground hover:text-destructive transition-colors shrink-0">
+                          <button onClick={() => removeItem(item.id)} className="text-muted-foreground hover:text-destructive transition-colors shrink-0 mt-0.5">
                             <Icon name="Trash2" size={16} />
                           </button>
                         </div>
 
                         <div className="flex items-center justify-between mt-3">
+                          {/* Кол-во с ручным вводом */}
                           <div className="flex items-center border border-border">
-                            <button onClick={() => updateQty(item.id, item.qty - 1)} className="w-8 h-8 flex items-center justify-center hover:bg-secondary transition-colors text-lg">−</button>
-                            <span className="w-10 text-center text-sm">{item.qty}</span>
-                            <button onClick={() => updateQty(item.id, item.qty + 1)} className="w-8 h-8 flex items-center justify-center hover:bg-secondary transition-colors text-lg">+</button>
+                            <button
+                              onClick={() => updateQty(item.id, item.qty - 1)}
+                              className="w-8 h-8 flex items-center justify-center hover:bg-secondary transition-colors text-lg"
+                            >−</button>
+                            <input
+                              type="number"
+                              min={1}
+                              value={item.qty}
+                              onChange={e => {
+                                const v = parseInt(e.target.value, 10);
+                                if (!isNaN(v) && v >= 1) updateQty(item.id, v);
+                              }}
+                              className="w-12 h-8 border-x border-border text-center text-sm outline-none focus:border-accent bg-background [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            />
+                            <button
+                              onClick={() => updateQty(item.id, item.qty + 1)}
+                              className="w-8 h-8 flex items-center justify-center hover:bg-secondary transition-colors text-lg"
+                            >+</button>
                           </div>
 
+                          {/* Цена */}
                           <div className="text-right">
                             <p className="font-semibold">{fmt(lineTotal)}</p>
                             {item.is_promo && item.sale_price ? (
-                              <div className="text-xs text-muted-foreground">
+                              <div className="text-xs text-muted-foreground flex items-center gap-1 justify-end">
                                 <span className="text-accent">{fmt(item.sale_price)}</span>
-                                {item.qty > 1 && <span> × {item.qty}</span>}
-                                <span className="line-through ml-1">{fmt(item.price)}</span>
+                                <span className="line-through">{fmt(item.price)}</span>
+                                {item.qty > 1 && <span>× {item.qty}</span>}
                               </div>
                             ) : item.qty > 1 ? (
-                              <p className="text-xs text-muted-foreground">{fmt(unitPrice)} × {item.qty}</p>
+                              <p className="text-xs text-muted-foreground">{fmt(item.price)} × {item.qty}</p>
                             ) : null}
                           </div>
                         </div>
@@ -174,9 +195,11 @@ const Cart = () => {
                   );
                 })}
 
-                <p className="text-xs text-muted-foreground border-l-2 border-accent/40 pl-3">
-                  Скидка не распространяется на товары по акции
-                </p>
+                {(hasPromo || hasWholesale) && (
+                  <p className="text-xs text-muted-foreground border-l-2 border-accent/40 pl-3">
+                    Скидка не распространяется на товары по акции
+                  </p>
+                )}
               </div>
 
               {/* Итог */}
@@ -184,39 +207,50 @@ const Cart = () => {
                 <div className="border border-border p-6 space-y-3">
                   <h2 className="font-display text-xl font-semibold mb-4">Итого</h2>
 
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Сумма без скидки</span>
-                    <span>{fmt(subtotal)}</span>
-                  </div>
+                  {showFullBreakdown ? (
+                    <>
+                      {/* Всегда показываем базовую сумму */}
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Сумма без скидки</span>
+                        <span>{fmt(subtotal)}</span>
+                      </div>
 
-                  {/* Скидка по акции */}
-                  {subtotalEffective < subtotal && (
-                    <div className="flex justify-between text-sm text-accent">
-                      <span>Скидка по акции</span>
-                      <span>−{fmt(subtotal - subtotalEffective)}</span>
+                      {/* Скидка по акции */}
+                      {hasPromo && promoDiscount > 0 && (
+                        <div className="flex justify-between text-sm text-accent">
+                          <span>Скидка по акции</span>
+                          <span>−{fmt(promoDiscount)}</span>
+                        </div>
+                      )}
+
+                      {/* Оптовая скидка или персональная */}
+                      {isPersonal ? (
+                        <div className="bg-accent/5 border border-accent/20 p-3 text-sm text-muted-foreground">
+                          <Icon name="Info" size={14} className="inline mr-1.5 text-accent" />
+                          Для согласования персональной скидки оформите заказ, и с вами свяжется менеджер для перерасчёта
+                        </div>
+                      ) : hasWholesale ? (
+                        <div className="flex justify-between text-sm text-accent">
+                          <span>Оптовая скидка {discountPct}%</span>
+                          <span>−{fmt(wholesaleDiscount)}</span>
+                        </div>
+                      ) : null}
+
+                      <div className="flex justify-between font-semibold text-base pt-2 border-t border-border">
+                        <span>Итоговая сумма</span>
+                        <span>{fmt(total)}</span>
+                      </div>
+                    </>
+                  ) : (
+                    /* Только итог — нет акций, нет оптовой скидки */
+                    <div className="flex justify-between font-semibold text-base">
+                      <span>Итоговая сумма</span>
+                      <span>{fmt(total)}</span>
                     </div>
                   )}
 
-                  {/* Оптовая скидка или персональное предложение */}
-                  {isPersonal ? (
-                    <div className="bg-accent/5 border border-accent/20 p-3 text-sm text-muted-foreground mt-2">
-                      <Icon name="Info" size={14} className="inline mr-1.5 text-accent" />
-                      Для согласования персональной скидки оформите заказ, и с вами свяжется менеджер для перерасчёта
-                    </div>
-                  ) : discountPct && discountPct > 0 ? (
-                    <div className="flex justify-between text-sm text-accent">
-                      <span>Оптовая скидка {discountPct}%</span>
-                      <span>−{fmt(discountAmount)}</span>
-                    </div>
-                  ) : null}
-
-                  <div className="flex justify-between font-semibold text-base pt-2 border-t border-border">
-                    <span>Итоговая сумма</span>
-                    <span>{fmt(total)}</span>
-                  </div>
-
                   {!canOrder && (
-                    <p className="text-xs text-destructive">
+                    <p className="text-xs text-destructive pt-1">
                       Минимальная сумма заказа — {fmt(MIN_ORDER)}
                     </p>
                   )}
