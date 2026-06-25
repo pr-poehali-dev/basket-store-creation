@@ -52,9 +52,7 @@ def handler(event: dict, context) -> dict:
         shape = col(row, 'форма', 'shape') or 'Круглые'
         if shape not in VALID_SHAPES:
             shape = 'Круглые'
-        size = col(row, 'размер', 'size') or 'Средние'
-        if size not in VALID_SIZES:
-            size = 'Средние'
+        size = col(row, 'размер', 'size') or ''
         try:
             price = int(float(col(row, 'цена', 'price') or 0))
         except:

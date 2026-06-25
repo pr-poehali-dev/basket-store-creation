@@ -27,10 +27,17 @@ interface Card {
   variants: Product[];
 }
 
+// Русские названия -> поле в объекте Product
+// Набор и Размер — оба хранятся в поле size
+const FIELD_MAP: Record<string, string> = {
+  'размер': 'size',
+  'цвет': 'color',
+  'набор': 'size',
+};
+
 const FIELD_LABELS: Record<string, string> = {
   color: 'Цвет',
-  size: 'Размер',
-  набор: 'Набор',
+  size: 'Размер / Набор',
 };
 
 function colorToCss(color: string): string {
@@ -39,13 +46,20 @@ function colorToCss(color: string): string {
 }
 
 // Парсим group_by — какие характеристики варьируются внутри карточки
+// Дедуплицируем (Размер + Набор оба -> size, показываем один раз)
 function parseGroupBy(s: string | null): string[] {
   if (!s) return [];
-  const MAP: Record<string, string> = { 'размер': 'size', 'цвет': 'color', 'набор': 'набор' };
-  return s.split(';').map(f => {
-    const k = f.trim().toLowerCase();
-    return MAP[k] || k;
-  }).filter(Boolean);
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const part of s.split(';')) {
+    const k = part.trim().toLowerCase();
+    const field = FIELD_MAP[k] || k;
+    if (field && !seen.has(field)) {
+      seen.add(field);
+      result.push(field);
+    }
+  }
+  return result;
 }
 
 const ProductPage = () => {
