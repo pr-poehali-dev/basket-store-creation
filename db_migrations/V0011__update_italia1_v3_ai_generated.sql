@@ -1,0 +1,10 @@
+-- ИТАЛИЯ 1 — v3 AI-генерация по точному референсу цветов
+UPDATE products SET image_url = 'https://cdn.poehali.dev/projects/d5ee4f52-1455-4c6a-a1d4-6138f3445871/files/e41f22e5-52d1-4296-86b0-ad0de8716073.jpg' WHERE id = 1344;
+UPDATE products SET image_url = 'https://cdn.poehali.dev/projects/d5ee4f52-1455-4c6a-a1d4-6138f3445871/files/a3612064-318b-4fe4-a29a-43aec6ce86c6.jpg' WHERE id = 1342;
+UPDATE products SET image_url = 'https://cdn.poehali.dev/projects/d5ee4f52-1455-4c6a-a1d4-6138f3445871/files/5086c902-aaca-4a68-91f0-79dfadeeca12.jpg' WHERE id = 1338;
+UPDATE products SET image_url = 'https://cdn.poehali.dev/projects/d5ee4f52-1455-4c6a-a1d4-6138f3445871/files/24b5841a-403d-43e5-8368-3efb4fc25e31.jpg' WHERE id = 1339;
+UPDATE products SET image_url = 'https://cdn.poehali.dev/projects/d5ee4f52-1455-4c6a-a1d4-6138f3445871/files/8a2d414b-94f1-4be6-95be-338a22ad5415.jpg' WHERE id = 1341;
+UPDATE products SET image_url = 'https://cdn.poehali.dev/projects/d5ee4f52-1455-4c6a-a1d4-6138f3445871/files/38d00d6a-46f0-4d0c-bca1-26eef1a3ff03.jpg' WHERE id = 1336;
+UPDATE products SET image_url = 'https://cdn.poehali.dev/projects/d5ee4f52-1455-4c6a-a1d4-6138f3445871/files/abfc4430-4b1b-43f4-846d-d83773781936.jpg' WHERE id = 1340;
+UPDATE products SET image_url = 'https://cdn.poehali.dev/projects/d5ee4f52-1455-4c6a-a1d4-6138f3445871/files/2aa0f12f-b8d4-4b71-83e2-47fe17293c2a.jpg' WHERE id = 1337;
+UPDATE products SET image_url = 'https://cdn.poehali.dev/projects/d5ee4f52-1455-4c6a-a1d4-6138f3445871/files/ab7669ac-0bf9-4d31-930f-b2796427610c.jpg' WHERE id = 1343;
