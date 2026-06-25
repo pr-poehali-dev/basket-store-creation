@@ -243,7 +243,7 @@ const Checkout = () => {
                     type="text"
                     value={form.address}
                     onChange={e => set('address', e.target.value)}
-                    placeholder="Город, улица, дом (или название магазина)"
+                    placeholder="Город, улица, дом"
                     className={inputCls('address')}
                   />
                 </div>

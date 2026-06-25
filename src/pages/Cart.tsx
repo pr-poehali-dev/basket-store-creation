@@ -22,7 +22,23 @@ function fmt(n: number) {
 const Cart = () => {
   const { items, removeItem, updateQty, clearCart } = useCart();
   const [delivery, setDelivery] = useState<'pickup' | 'courier'>('pickup');
+  const [qtyInputs, setQtyInputs] = useState<Record<number, string>>({});
   const navigate = useNavigate();
+
+  const getQtyStr = (id: number, qty: number) => qtyInputs[id] ?? String(qty);
+
+  const handleQtyChange = (id: number, raw: string) => {
+    setQtyInputs(prev => ({ ...prev, [id]: raw }));
+    const v = parseInt(raw, 10);
+    if (!isNaN(v) && v >= 1) updateQty(id, v);
+  };
+
+  const handleQtyBlur = (id: number, qty: number) => {
+    const v = parseInt(qtyInputs[id] ?? '', 10);
+    if (isNaN(v) || v < 1) {
+      setQtyInputs(prev => ({ ...prev, [id]: String(qty) }));
+    }
+  };
 
   // Сумма по базовым ценам (без акций) — для определения порога скидки
   const subtotal = useMemo(
@@ -79,7 +95,7 @@ const Cart = () => {
   // Случай 1: есть акционные товары → всегда показываем разбивку
   // Случай 2: нет акционных, сумма < 60k → только итог
   // Случай 3: нет акционных, сумма >= 60k → сумма без скидки + оптовая скидка + итог
-  const showFullBreakdown = hasPromo || hasWholesale || isPersonal;
+  const showFullBreakdown = hasPromo || (hasWholesale && wholesaleDiscount > 0) || isPersonal;
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -162,12 +178,9 @@ const Cart = () => {
                             >−</button>
                             <input
                               type="number"
-                              min={1}
-                              value={item.qty}
-                              onChange={e => {
-                                const v = parseInt(e.target.value, 10);
-                                if (!isNaN(v) && v >= 1) updateQty(item.id, v);
-                              }}
+                              value={getQtyStr(item.id, item.qty)}
+                              onChange={e => handleQtyChange(item.id, e.target.value)}
+                              onBlur={() => handleQtyBlur(item.id, item.qty)}
                               className="w-12 h-8 border-x border-border text-center text-sm outline-none focus:border-accent bg-background [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             />
                             <button
@@ -229,7 +242,7 @@ const Cart = () => {
                           <Icon name="Info" size={14} className="inline mr-1.5 text-accent" />
                           Для согласования персональной скидки оформите заказ, и с вами свяжется менеджер для перерасчёта
                         </div>
-                      ) : hasWholesale ? (
+                      ) : hasWholesale && wholesaleDiscount > 0 ? (
                         <div className="flex justify-between text-sm text-accent">
                           <span>Оптовая скидка {discountPct}%</span>
                           <span>−{fmt(wholesaleDiscount)}</span>
