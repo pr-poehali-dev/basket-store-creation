@@ -1,4 +1,4 @@
-"""Загрузка товаров из Excel-файла (xlsx/xls). Колонки: name, description, shape, size, color, price, sale_price, image_url, group_id, group_by, split_by."""
+"""Загрузка товаров из Excel-файла. Колонки: название, описание, форма, размер, цвет, цена, цена по акции, фото, группа, группировать по, разделить по, набор."""
 import json
 import os
 import base64
@@ -35,49 +35,53 @@ def handler(event: dict, context) -> dict:
 
     headers = [str(c.value).strip().lower() if c.value else '' for c in next(ws.iter_rows(min_row=1, max_row=1))]
 
-    def col(row, name):
-        if name in headers:
-            v = row[headers.index(name)].value
-            return str(v).strip() if v is not None else ''
+    def col(row, *names):
+        for name in names:
+            if name in headers:
+                v = row[headers.index(name)].value
+                return str(v).strip() if v is not None else ''
         return ''
 
     rows_data = []
     for row in ws.iter_rows(min_row=2):
         if not any(c.value for c in row):
             continue
-        name = col(row, 'name') or col(row, 'название')
+        name = col(row, 'название', 'name')
         if not name:
             continue
-        shape = col(row, 'shape') or col(row, 'форма') or 'Круглые'
+        shape = col(row, 'форма', 'shape') or 'Круглые'
         if shape not in VALID_SHAPES:
             shape = 'Круглые'
-        size = col(row, 'size') or col(row, 'размер') or 'Средние'
+        size = col(row, 'размер', 'size') or 'Средние'
         if size not in VALID_SIZES:
             size = 'Средние'
         try:
-            price = int(float(col(row, 'price') or col(row, 'цена') or 0))
+            price = int(float(col(row, 'цена', 'price') or 0))
         except:
             price = 0
-        sale_price_raw = col(row, 'sale_price') or col(row, 'цена по акции') or col(row, 'акция')
+        sale_price_raw = col(row, 'цена по акции', 'sale_price', 'акция')
         try:
             sale_price = int(float(sale_price_raw)) if sale_price_raw else None
         except:
             sale_price = None
-        group_id = col(row, 'group_id') or col(row, 'группа') or None
-        group_by = col(row, 'group_by') or col(row, 'группировать по') or None
-        split_by = col(row, 'split_by') or col(row, 'разделить по') or None
+        group_id = col(row, 'группа', 'group_id') or None
+        group_by = col(row, 'группировать по', 'group_by') or None
+        split_by = col(row, 'разделить по', 'split_by') or None
+        nabor = col(row, 'набор') or None
+
         rows_data.append({
             'name': name,
-            'description': col(row, 'description') or col(row, 'описание'),
+            'description': col(row, 'описание', 'description'),
             'shape': shape,
             'size': size,
-            'color': col(row, 'color') or col(row, 'цвет'),
+            'color': col(row, 'цвет', 'color'),
             'price': price,
             'sale_price': sale_price,
-            'image_url': col(row, 'image_url') or col(row, 'фото'),
+            'image_url': col(row, 'фото', 'image_url'),
             'group_id': group_id if group_id else None,
             'group_by': group_by if group_by else None,
             'split_by': split_by if split_by else None,
+            'набор': nabor if nabor else None,
         })
 
     conn = get_conn()
@@ -89,10 +93,10 @@ def handler(event: dict, context) -> dict:
     for p in rows_data:
         cur.execute(
             """INSERT INTO products (name, description, shape, size, color, price, sale_price,
-               image_url, group_id, group_by, split_by)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+               image_url, group_id, group_by, split_by, набор)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
             (p['name'], p['description'], p['shape'], p['size'], p['color'], p['price'], p['sale_price'],
-             p['image_url'], p['group_id'], p['group_by'], p['split_by'])
+             p['image_url'], p['group_id'], p['group_by'], p['split_by'], p['набор'])
         )
 
     conn.commit()

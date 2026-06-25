@@ -19,6 +19,7 @@ interface Product {
   group_id: string | null;
   group_by: string | null;
   split_by: string | null;
+  набор: string | null;
 }
 
 interface Card {
@@ -72,9 +73,12 @@ const ProductCard = ({ card }: { card: Card }) => {
         }
       </div>
       <div className="p-5">
-        <div className="flex items-center gap-2 mb-2">
+        <div className="flex items-center flex-wrap gap-2 mb-2">
           <span className="text-[11px] uppercase tracking-wider text-accent border border-accent/40 px-2 py-0.5">{active.shape}</span>
           <span className="text-[11px] uppercase tracking-wider text-muted-foreground">{active.size}</span>
+          {active.набор && (
+            <span className="text-[11px] uppercase tracking-wider text-muted-foreground border border-border px-2 py-0.5">{active.набор}</span>
+          )}
         </div>
         <h3 className="font-display text-xl font-semibold mb-1">{active.name}</h3>
         <p className="text-sm text-muted-foreground mb-3">{active.description}</p>

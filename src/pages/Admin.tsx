@@ -19,9 +19,10 @@ interface Product {
   group_id: string;
   group_by: string;
   split_by: string;
+  набор: string;
 }
 
-const empty = (): Product => ({ name: '', description: '', shape: 'Круглые', size: 'Средние', color: '', price: 0, sale_price: null, image_url: '', group_id: '', group_by: '', split_by: '' });
+const empty = (): Product => ({ name: '', description: '', shape: 'Круглые', size: 'Средние', color: '', price: 0, sale_price: null, image_url: '', group_id: '', group_by: '', split_by: '', набор: '' });
 
 const Admin = () => {
   const [authed, setAuthed] = useState(() => sessionStorage.getItem('admin_ok') === '1');
@@ -226,7 +227,7 @@ const Admin = () => {
                     <td className="px-4 py-3 text-muted-foreground text-xs">{p.group_id || '—'}</td>
                     <td className="px-4 py-3">
                       <div className="flex gap-2">
-                        <Button size="sm" variant="outline" className="rounded-none h-8" onClick={() => setEditing({ ...p, group_id: p.group_id || '', group_by: p.group_by || '', split_by: p.split_by || '' })}>
+                        <Button size="sm" variant="outline" className="rounded-none h-8" onClick={() => setEditing({ ...p, group_id: p.group_id || '', group_by: p.group_by || '', split_by: p.split_by || '', набор: p.набор || '' })}>
                           <Icon name="Pencil" size={14} />
                         </Button>
                         <Button size="sm" variant="outline" className="rounded-none h-8 text-red-500 hover:text-red-600" onClick={() => remove(p.id!)} disabled={deleting === p.id}>
@@ -277,6 +278,12 @@ const Admin = () => {
                     {SIZES.map(s => <option key={s}>{s}</option>)}
                   </select>
                 </div>
+              </div>
+              <div>
+                <label className="text-xs uppercase tracking-wider text-muted-foreground mb-1 block">Набор — необязательно</label>
+                <input value={editing.набор} onChange={e => setEditing({ ...editing, набор: e.target.value })}
+                  placeholder="напр. Набор из 4, Одиночная"
+                  className="w-full border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
