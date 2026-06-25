@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import Icon from '@/components/ui/icon';
 import { Button } from '@/components/ui/button';
+import { useCart } from '@/context/CartContext';
 
 const NAV = [
   { id: 'about', label: 'О компании' },
@@ -14,6 +15,7 @@ const Header = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  const { totalCount } = useCart();
 
   const handleNavClick = (id: string) => {
     setMenuOpen(false);
@@ -48,15 +50,35 @@ const Header = () => {
             </button>
           ))}
         </nav>
-        <Button
-          onClick={() => handleNavClick('contacts')}
-          className="hidden md:inline-flex bg-accent hover:bg-accent/90 text-accent-foreground rounded-none"
-        >
-          Прайс-лист
-        </Button>
-        <button className="md:hidden" onClick={() => setMenuOpen(!menuOpen)}>
-          <Icon name={menuOpen ? 'X' : 'Menu'} size={24} />
-        </button>
+        <div className="hidden md:flex items-center gap-3">
+          <Link to="/cart" className="relative p-2 text-muted-foreground hover:text-accent transition-colors">
+            <Icon name="ShoppingCart" size={22} />
+            {totalCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-accent text-accent-foreground text-[10px] font-bold flex items-center justify-center rounded-full px-1">
+                {totalCount}
+              </span>
+            )}
+          </Link>
+          <Button
+            onClick={() => handleNavClick('contacts')}
+            className="bg-accent hover:bg-accent/90 text-accent-foreground rounded-none"
+          >
+            Прайс-лист
+          </Button>
+        </div>
+        <div className="md:hidden flex items-center gap-2">
+          <Link to="/cart" className="relative p-2 text-muted-foreground hover:text-accent transition-colors">
+            <Icon name="ShoppingCart" size={22} />
+            {totalCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-accent text-accent-foreground text-[10px] font-bold flex items-center justify-center rounded-full px-1">
+                {totalCount}
+              </span>
+            )}
+          </Link>
+          <button onClick={() => setMenuOpen(!menuOpen)}>
+            <Icon name={menuOpen ? 'X' : 'Menu'} size={24} />
+          </button>
+        </div>
       </div>
       {menuOpen && (
         <nav className="md:hidden border-t border-border bg-background px-6 py-4 flex flex-col gap-3">

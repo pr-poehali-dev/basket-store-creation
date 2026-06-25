@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import Header from '@/components/Header';
 import urls from '../../backend/func2url.json';
 import { colorToCss, sortColors } from '@/data/colors';
+import { useCart } from '@/context/CartContext';
 
 interface Product {
   id: number;
@@ -54,6 +55,8 @@ const ProductPage = () => {
   const [activeVariantIdx, setActiveVariantIdx] = useState(0);
   // Количество
   const [qty, setQty] = useState(1);
+  const [addedToCart, setAddedToCart] = useState(false);
+  const { addItem } = useCart();
 
   const changeQty = (delta: number) => setQty(q => Math.max(1, q + delta));
   const handleQtyInput = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -279,8 +282,25 @@ const ProductPage = () => {
 
               {/* Кнопки */}
               <div className="flex flex-col sm:flex-row gap-3 mb-8">
-                <Button onClick={() => setQty(1)} className="flex-1 bg-accent hover:bg-accent/90 text-accent-foreground rounded-none h-12 text-base">
-                  В корзину
+                <Button
+                  onClick={() => {
+                    addItem({
+                      id: active.id,
+                      name: active.name,
+                      price: active.price,
+                      sale_price: active.sale_price,
+                      image_url: active.image_url,
+                      color: active.color,
+                      size: active.size,
+                      is_promo: !!active.sale_price,
+                    }, qty);
+                    setAddedToCart(true);
+                    setTimeout(() => setAddedToCart(false), 2000);
+                  }}
+                  className="flex-1 bg-accent hover:bg-accent/90 text-accent-foreground rounded-none h-12 text-base"
+                >
+                  <Icon name={addedToCart ? 'Check' : 'ShoppingCart'} size={18} className="mr-2" />
+                  {addedToCart ? 'Добавлено!' : 'В корзину'}
                 </Button>
                 <Button variant="outline" className="rounded-none h-12" onClick={() => navigate('/catalog')}>
                   <Icon name="ArrowLeft" size={16} className="mr-2" />
