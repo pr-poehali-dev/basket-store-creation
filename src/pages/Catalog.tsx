@@ -91,7 +91,7 @@ const ProductCard = ({ card, cardIndex }: { card: Card; cardIndex: number }) => 
             <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-2">
               Цвет: {active.color || '—'}
             </p>
-            <div className="flex gap-2 overflow-hidden">
+            <div className="flex gap-1.5 flex-wrap">
               {displayVariants.map((v, i) => {
                 const realIdx = card.variants.indexOf(v);
                 const isActive = realIdx === activeIdx || (activeIdx >= card.variants.length && i === 0);
@@ -100,7 +100,7 @@ const ProductCard = ({ card, cardIndex }: { card: Card; cardIndex: number }) => 
                     key={v.id}
                     title={v.color}
                     onClick={e => { e.stopPropagation(); setActiveIdx(realIdx); }}
-                    className={`w-6 h-6 rounded-full border-2 transition-all ${isActive ? 'border-accent scale-110' : 'border-transparent hover:border-accent/50'}`}
+                    className={`w-5 h-5 rounded-full border-2 transition-all flex-shrink-0 ${isActive ? 'border-accent scale-110' : 'border-transparent hover:border-accent/50'}`}
                     style={{ backgroundColor: colorToCss(v.color) }}
                   />
                 );
