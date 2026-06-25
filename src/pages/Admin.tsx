@@ -31,6 +31,7 @@ const Admin = () => {
 
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
+  const [search, setSearch] = useState('');
   const [editing, setEditing] = useState<Product | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<number | null>(null);
@@ -181,11 +182,27 @@ const Admin = () => {
         </div>
 
         {/* Table */}
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
           <h2 className="font-display text-xl font-semibold">Товары ({products.length})</h2>
-          <Button onClick={() => setEditing(empty())} className="rounded-none bg-accent hover:bg-accent/90 text-accent-foreground">
-            <Icon name="Plus" size={16} className="mr-2" /> Добавить товар
-          </Button>
+          <div className="flex items-center gap-3 w-full sm:w-auto">
+            <div className="relative flex-1 sm:w-64">
+              <Icon name="Search" size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Поиск по названию..."
+                className="w-full border border-border bg-background pl-8 pr-8 py-2 text-sm outline-none focus:border-accent"
+              />
+              {search && (
+                <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-accent">
+                  <Icon name="X" size={13} />
+                </button>
+              )}
+            </div>
+            <Button onClick={() => setEditing(empty())} className="rounded-none bg-accent hover:bg-accent/90 text-accent-foreground whitespace-nowrap">
+              <Icon name="Plus" size={16} className="mr-2" /> Добавить товар
+            </Button>
+          </div>
         </div>
 
         {loading ? (
@@ -209,7 +226,7 @@ const Admin = () => {
                 </tr>
               </thead>
               <tbody>
-                {products.map((p) => (
+                {products.filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase())).map((p) => (
                   <tr key={p.id} className="border-b border-border last:border-0 hover:bg-secondary/20">
                     <td className="px-4 py-3">
                       {p.image_url

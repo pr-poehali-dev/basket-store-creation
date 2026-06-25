@@ -129,12 +129,22 @@ const ProductCard = ({ card, cardIndex }: { card: Card; cardIndex: number }) => 
   );
 };
 
+const SORT_OPTIONS = [
+  { value: 'default',    label: 'По умолчанию' },
+  { value: 'price_asc',  label: 'Цена: по возрастанию' },
+  { value: 'price_desc', label: 'Цена: по убыванию' },
+  { value: 'name_asc',   label: 'Название: А → Я' },
+  { value: 'name_desc',  label: 'Название: Я → А' },
+];
+
 const Catalog = () => {
   const [cards, setCards] = useState<Card[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [shapes, setShapes] = useState<string[]>([]);
   const [sizes, setSizes] = useState<string[]>([]);
   const [maxPrice, setMaxPrice] = useState(900);
+  const [search, setSearch] = useState('');
+  const [sort, setSort] = useState('default');
 
   useEffect(() => {
     fetch(urls['products'])
@@ -153,20 +163,42 @@ const Catalog = () => {
   const allFirstVariants = useMemo(() => cards.map(c => c.variants[0]).filter(Boolean), [cards]);
   const priceMax = allFirstVariants.length ? Math.max(...allFirstVariants.map(p => p.price), 900) : 900;
 
-  const filtered = useMemo(() => cards.filter(card => {
-    const p = card.variants[0];
-    if (!p) return false;
-    return (
-      (shapes.length === 0 || shapes.includes(p.shape)) &&
-      (sizes.length === 0 || sizes.includes(p.size_category)) &&
-      p.price <= maxPrice
-    );
-  }), [cards, shapes, sizes, maxPrice]);
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    let result = cards.filter(card => {
+      const p = card.variants[0];
+      if (!p) return false;
+      const matchesFilters =
+        (shapes.length === 0 || shapes.includes(p.shape)) &&
+        (sizes.length === 0 || sizes.includes(p.size_category)) &&
+        p.price <= maxPrice;
+      const matchesSearch = !q || card.variants.some(v =>
+        v.name.toLowerCase().includes(q) ||
+        (v.description || '').toLowerCase().includes(q)
+      );
+      return matchesFilters && matchesSearch;
+    });
+
+    result = [...result].sort((a, b) => {
+      const pa = a.variants[0];
+      const pb = b.variants[0];
+      if (!pa || !pb) return 0;
+      if (sort === 'price_asc')  return pa.price - pb.price;
+      if (sort === 'price_desc') return pb.price - pa.price;
+      if (sort === 'name_asc')   return pa.name.localeCompare(pb.name, 'ru');
+      if (sort === 'name_desc')  return pb.name.localeCompare(pa.name, 'ru');
+      return 0;
+    });
+
+    return result;
+  }, [cards, shapes, sizes, maxPrice, search, sort]);
 
   const reset = () => {
     setShapes([]);
     setSizes([]);
     setMaxPrice(priceMax);
+    setSearch('');
+    setSort('default');
   };
 
   return (
@@ -240,6 +272,30 @@ const Catalog = () => {
                 </div>
               ) : (
                 <>
+                  {/* Поиск и сортировка */}
+                  <div className="flex flex-col sm:flex-row gap-3 mb-6">
+                    <div className="relative flex-1">
+                      <Icon name="Search" size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                      <input
+                        value={search}
+                        onChange={e => setSearch(e.target.value)}
+                        placeholder="Поиск по названию..."
+                        className="w-full border border-border bg-background pl-9 pr-4 py-2 text-sm outline-none focus:border-accent"
+                      />
+                      {search && (
+                        <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-accent">
+                          <Icon name="X" size={14} />
+                        </button>
+                      )}
+                    </div>
+                    <select
+                      value={sort}
+                      onChange={e => setSort(e.target.value)}
+                      className="border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent cursor-pointer"
+                    >
+                      {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    </select>
+                  </div>
                   <p className="text-sm text-muted-foreground mb-6">Найдено: {filtered.length}</p>
                   {filtered.length === 0 ? (
                     <div className="py-24 text-center text-muted-foreground">
