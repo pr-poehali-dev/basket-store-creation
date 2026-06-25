@@ -219,8 +219,8 @@ const SORT_OPTIONS = [
 function CheckFilter({ label, checked, onChange }: { label: string; checked: boolean; onChange: () => void }) {
   return (
     <label className="flex items-center gap-3 cursor-pointer group">
-      <span className={`w-4 h-4 border flex items-center justify-center transition-colors flex-shrink-0 ${checked ? 'bg-accent border-accent' : 'border-border group-hover:border-accent'}`}>
-        {checked && <Icon name="Check" size={12} className="text-accent-foreground" />}
+      <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors flex-shrink-0 ${checked ? 'bg-accent border-accent' : 'border-border group-hover:border-accent'}`}>
+        {checked && <span className="text-[11px] leading-none">🌿</span>}
       </span>
       <input type="checkbox" className="hidden" checked={checked} onChange={onChange} />
       <span className="text-sm">{label}</span>
@@ -390,7 +390,7 @@ const Catalog = () => {
                       onChange={e => setMinInput(e.target.value)}
                       onBlur={applyMinInput}
                       onKeyDown={e => e.key === 'Enter' && applyMinInput()}
-                      className="w-full border border-border bg-background px-2 py-1.5 text-sm outline-none focus:border-accent text-center [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      className="w-full border border-border bg-background px-2 py-1.5 text-sm outline-none focus:border-accent text-center rounded-2xl [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     />
                   </div>
                   <span className="text-muted-foreground mt-4">—</span>
@@ -402,7 +402,7 @@ const Catalog = () => {
                       onChange={e => setMaxInput(e.target.value)}
                       onBlur={applyMaxInput}
                       onKeyDown={e => e.key === 'Enter' && applyMaxInput()}
-                      className="w-full border border-border bg-background px-2 py-1.5 text-sm outline-none focus:border-accent text-center [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      className="w-full border border-border bg-background px-2 py-1.5 text-sm outline-none focus:border-accent text-center rounded-2xl [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     />
                   </div>
                 </div>
