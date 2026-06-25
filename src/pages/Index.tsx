@@ -1,12 +1,10 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import Icon from '@/components/ui/icon';
 import { Button } from '@/components/ui/button';
-import { Slider } from '@/components/ui/slider';
-import { products, MATERIALS, SIZES, type Product } from '@/data/products';
 
 const NAV = [
   { id: 'home', label: 'Главная' },
-  { id: 'catalog', label: 'Каталог' },
   { id: 'about', label: 'О компании' },
   { id: 'wholesale', label: 'Оптовикам' },
   { id: 'delivery', label: 'Доставка' },
@@ -18,30 +16,7 @@ const scrollTo = (id: string) => {
 };
 
 const Index = () => {
-  const [materials, setMaterials] = useState<string[]>([]);
-  const [sizes, setSizes] = useState<string[]>([]);
-  const [maxPrice, setMaxPrice] = useState(900);
   const [menuOpen, setMenuOpen] = useState(false);
-
-  const toggle = (arr: string[], set: (v: string[]) => void, val: string) =>
-    set(arr.includes(val) ? arr.filter((x) => x !== val) : [...arr, val]);
-
-  const filtered = useMemo(
-    () =>
-      products.filter(
-        (p) =>
-          (materials.length === 0 || materials.includes(p.material)) &&
-          (sizes.length === 0 || sizes.includes(p.size)) &&
-          p.price <= maxPrice
-      ),
-    [materials, sizes, maxPrice]
-  );
-
-  const reset = () => {
-    setMaterials([]);
-    setSizes([]);
-    setMaxPrice(900);
-  };
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -53,6 +28,9 @@ const Index = () => {
             <span className="font-display text-2xl font-semibold tracking-wide">FABRICA</span>
           </button>
           <nav className="hidden md:flex items-center gap-8">
+            <Link to="/catalog" className="text-sm text-muted-foreground hover:text-accent transition-colors">
+              Каталог
+            </Link>
             {NAV.map((n) => (
               <button
                 key={n.id}
@@ -72,6 +50,9 @@ const Index = () => {
         </div>
         {menuOpen && (
           <nav className="md:hidden border-t border-border bg-background px-6 py-4 flex flex-col gap-3">
+            <Link to="/catalog" onClick={() => setMenuOpen(false)} className="text-left text-sm text-muted-foreground hover:text-accent">
+              Каталог
+            </Link>
             {NAV.map((n) => (
               <button
                 key={n.id}
@@ -100,9 +81,11 @@ const Index = () => {
               Собственное производство полного цикла. Поставки для розничных сетей, маркетплейсов и HoReCa по всей России.
             </p>
             <div className="flex flex-wrap gap-4">
-              <Button onClick={() => scrollTo('catalog')} className="bg-primary hover:bg-primary/90 rounded-none px-8 h-12">
-                Смотреть каталог
-              </Button>
+              <Link to="/catalog">
+                <Button className="bg-primary hover:bg-primary/90 rounded-none px-8 h-12">
+                  Смотреть каталог
+                </Button>
+              </Link>
               <Button onClick={() => scrollTo('wholesale')} variant="outline" className="rounded-none px-8 h-12 border-primary">
                 Условия опта
               </Button>
@@ -137,113 +120,7 @@ const Index = () => {
         </div>
       </section>
 
-      {/* Catalog */}
-      <section id="catalog" className="py-24 px-6">
-        <div className="container mx-auto">
-          <div className="mb-12 max-w-xl">
-            <p className="text-accent text-sm tracking-[0.3em] uppercase mb-3">Продукция</p>
-            <h2 className="font-display text-5xl font-semibold">Каталог корзин</h2>
-          </div>
 
-          <div className="grid lg:grid-cols-[280px_1fr] gap-10">
-            {/* Filters */}
-            <aside className="space-y-8 lg:sticky lg:top-24 self-start">
-              <div className="flex items-center justify-between">
-                <h3 className="font-display text-2xl">Фильтры</h3>
-                <button onClick={reset} className="text-xs text-muted-foreground hover:text-accent">
-                  Сбросить
-                </button>
-              </div>
-
-              <div>
-                <p className="text-sm font-medium mb-3 uppercase tracking-wider text-muted-foreground">Материал</p>
-                <div className="space-y-2">
-                  {MATERIALS.map((m) => (
-                    <label key={m} className="flex items-center gap-3 cursor-pointer group">
-                      <span
-                        className={`w-4 h-4 border flex items-center justify-center transition-colors ${
-                          materials.includes(m) ? 'bg-accent border-accent' : 'border-border group-hover:border-accent'
-                        }`}
-                      >
-                        {materials.includes(m) && <Icon name="Check" size={12} className="text-accent-foreground" />}
-                      </span>
-                      <input type="checkbox" className="hidden" checked={materials.includes(m)} onChange={() => toggle(materials, setMaterials, m)} />
-                      <span className="text-sm">{m}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <p className="text-sm font-medium mb-3 uppercase tracking-wider text-muted-foreground">Размер</p>
-                <div className="space-y-2">
-                  {SIZES.map((s) => (
-                    <label key={s} className="flex items-center gap-3 cursor-pointer group">
-                      <span
-                        className={`w-4 h-4 border flex items-center justify-center transition-colors ${
-                          sizes.includes(s) ? 'bg-accent border-accent' : 'border-border group-hover:border-accent'
-                        }`}
-                      >
-                        {sizes.includes(s) && <Icon name="Check" size={12} className="text-accent-foreground" />}
-                      </span>
-                      <input type="checkbox" className="hidden" checked={sizes.includes(s)} onChange={() => toggle(sizes, setSizes, s)} />
-                      <span className="text-sm">{s}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <p className="text-sm font-medium mb-4 uppercase tracking-wider text-muted-foreground">
-                  Цена за шт. до {maxPrice} ₽
-                </p>
-                <Slider value={[maxPrice]} onValueChange={(v) => setMaxPrice(v[0])} min={250} max={900} step={10} />
-              </div>
-            </aside>
-
-            {/* Grid */}
-            <div>
-              <p className="text-sm text-muted-foreground mb-6">Найдено: {filtered.length}</p>
-              {filtered.length === 0 ? (
-                <div className="py-24 text-center text-muted-foreground">
-                  <Icon name="SearchX" size={40} className="mx-auto mb-4 opacity-40" />
-                  По выбранным фильтрам ничего не найдено
-                </div>
-              ) : (
-                <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-6">
-                  {filtered.map((p: Product) => (
-                    <article key={p.id} className="group bg-card border border-border hover-lift">
-                      <div className="overflow-hidden aspect-square">
-                        <img
-                          src={p.image}
-                          alt={p.name}
-                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                        />
-                      </div>
-                      <div className="p-5">
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="text-[11px] uppercase tracking-wider text-accent border border-accent/40 px-2 py-0.5">{p.material}</span>
-                          <span className="text-[11px] uppercase tracking-wider text-muted-foreground">{p.size}</span>
-                        </div>
-                        <h3 className="font-display text-xl font-semibold mb-1">{p.name}</h3>
-                        <p className="text-sm text-muted-foreground mb-4">{p.desc}</p>
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium">
-                            {p.price} ₽<span className="text-xs text-muted-foreground"> / шт</span>
-                          </span>
-                          <Button size="sm" variant="ghost" className="rounded-none text-accent hover:text-accent hover:bg-accent/10">
-                            В заявку <Icon name="ArrowRight" size={14} className="ml-1" />
-                          </Button>
-                        </div>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </section>
 
       {/* About */}
       <section id="about" className="py-24 px-6 bg-secondary/40">
