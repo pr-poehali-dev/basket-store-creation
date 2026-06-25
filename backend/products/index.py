@@ -13,6 +13,7 @@ CORS = {
 FIELD_MAP = {
     'размер': 'size',
     'цвет': 'color',
+    'набор': 'набор',
 }
 
 def parse_fields(s):
@@ -34,6 +35,7 @@ def row_to_dict(r):
         'id': r[0], 'name': r[1], 'description': r[2], 'shape': r[3],
         'size': r[4], 'color': r[5], 'price': r[6], 'sale_price': r[7],
         'image_url': r[8], 'group_id': r[9], 'group_by': r[10], 'split_by': r[11],
+        'набор': r[12],
     }
 
 def build_cards(rows):
@@ -90,16 +92,17 @@ def handler(event: dict, context) -> dict:
             raw = params.get('raw') == '1'
             cur.execute("""
                 SELECT id, name, description, shape, size, color, price, sale_price,
-                       image_url, group_id, group_by, split_by
+                       image_url, group_id, group_by, split_by, набор
                 FROM products ORDER BY id
             """)
             rows = [row_to_dict(r) for r in cur.fetchall()]
 
             if raw:
-                return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'products': rows})}
+                return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'products': rows}, ensure_ascii=False)}
 
             cards = build_cards(rows)
-            return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'cards': cards, 'products': rows})}
+            # Для каталога возвращаем только cards (без дублирования в products)
+            return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'cards': cards}, ensure_ascii=False)}
 
         elif method == 'POST':
             sale_price = body.get('sale_price') or None
