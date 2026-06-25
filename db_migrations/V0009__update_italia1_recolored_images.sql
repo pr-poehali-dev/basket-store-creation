@@ -1,0 +1,10 @@
+-- Обновляем фото ИТАЛИЯ 1 с реальной перекраской оригинального фото
+UPDATE products SET image_url = 'https://cdn.poehali.dev/projects/d5ee4f52-1455-4c6a-a1d4-6138f3445871/bucket/products/italia1_white.jpg' WHERE id = 1344;
+UPDATE products SET image_url = 'https://cdn.poehali.dev/projects/d5ee4f52-1455-4c6a-a1d4-6138f3445871/bucket/products/italia1_milk.jpg' WHERE id = 1342;
+UPDATE products SET image_url = 'https://cdn.poehali.dev/projects/d5ee4f52-1455-4c6a-a1d4-6138f3445871/bucket/products/italia1_gray.jpg' WHERE id = 1338;
+UPDATE products SET image_url = 'https://cdn.poehali.dev/projects/d5ee4f52-1455-4c6a-a1d4-6138f3445871/bucket/products/italia1_pink.jpg' WHERE id = 1339;
+UPDATE products SET image_url = 'https://cdn.poehali.dev/projects/d5ee4f52-1455-4c6a-a1d4-6138f3445871/bucket/products/italia1_olive.jpg' WHERE id = 1341;
+UPDATE products SET image_url = 'https://cdn.poehali.dev/projects/d5ee4f52-1455-4c6a-a1d4-6138f3445871/bucket/products/italia1_choco.jpg' WHERE id = 1336;
+UPDATE products SET image_url = 'https://cdn.poehali.dev/projects/d5ee4f52-1455-4c6a-a1d4-6138f3445871/bucket/products/italia1_peach.jpg' WHERE id = 1340;
+UPDATE products SET image_url = 'https://cdn.poehali.dev/projects/d5ee4f52-1455-4c6a-a1d4-6138f3445871/bucket/products/italia1_violet.jpg' WHERE id = 1337;
+UPDATE products SET image_url = 'https://cdn.poehali.dev/projects/d5ee4f52-1455-4c6a-a1d4-6138f3445871/bucket/products/italia1_cappuccino.jpg' WHERE id = 1343;
