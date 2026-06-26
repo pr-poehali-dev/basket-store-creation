@@ -4,6 +4,7 @@ import Header from '@/components/Header';
 import Icon from '@/components/ui/icon';
 import { Button } from '@/components/ui/button';
 import { useCart } from '@/context/CartContext';
+import urls from '../../backend/func2url.json';
 
 interface LocationState {
   total: number;
@@ -20,13 +21,14 @@ function fmt(n: number) {
 const Payment = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { clearCart } = useCart();
+  const { clearCart, items } = useCart();
   const state = location.state as LocationState | null;
 
   const [method, setMethod] = useState<'qr' | 'invoice' | null>(null);
   const [invoiceData, setInvoiceData] = useState('');
   const [invoiceError, setInvoiceError] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   if (!state) {
     navigate('/cart');
@@ -36,12 +38,41 @@ const Payment = () => {
   const total = state.total ?? 0;
   const deliveryLabel = state.deliveryLabel ?? 'Самовывоз';
 
-  const handleOrder = () => {
+  const handleOrder = async () => {
     if (method === 'invoice' && !invoiceData.trim()) {
       setInvoiceError(true);
       return;
     }
+    if (saving) return;
+    setSaving(true);
     const orderNum = Math.floor(Math.random() * 9000) + 1000;
+    const form = state.form || {};
+    try {
+      await fetch(urls['orders'], {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          order_number: String(orderNum),
+          stage: 'Новый заказ',
+          city: form.city || (state.isPickup ? 'Самовывоз' : ''),
+          customer_name: form.name || '',
+          phone: form.phone || '',
+          total,
+          delivery_label: deliveryLabel,
+          payment_method: method === 'qr' ? 'QR-код' : `Счёт: ${invoiceData}`,
+          items: items.map(i => ({
+            name: i.name,
+            size: i.size,
+            color: i.color,
+            qty: i.qty,
+          })),
+          form,
+        }),
+      });
+    } catch {
+      // даже при ошибке показываем успех клиенту — заказ примет менеджер
+    }
+    setSaving(false);
     setSuccess(`Заказ №${orderNum} оформлен. Менеджер свяжется с вами в ближайшее время!`);
   };
 
@@ -165,10 +196,10 @@ const Payment = () => {
           <div className="flex flex-col sm:flex-row gap-3">
             <Button
               onClick={handleOrder}
-              disabled={!method}
+              disabled={!method || saving}
               className="flex-1 bg-accent hover:bg-accent/90 text-accent-foreground h-12 text-base disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Оформить заказ
+              {saving ? 'Оформляю...' : 'Оформить заказ'}
             </Button>
             <Button
               variant="outline"

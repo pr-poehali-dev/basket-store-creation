@@ -1,0 +1,35 @@
+{
+  "tests": [
+    {
+      "name": "OPTIONS preflight",
+      "method": "OPTIONS",
+      "path": "/",
+      "expectedStatus": 200
+    },
+    {
+      "name": "GET orders list",
+      "method": "GET",
+      "path": "/",
+      "expectedStatus": 200,
+      "expectedBody": {"orders": "array"},
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Create order",
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "order_number": "9999",
+        "city": "Москва",
+        "customer_name": "Тест",
+        "phone": "+70000000000",
+        "total": 12345,
+        "items": [{"name": "Корзина", "size": "Средние", "color": "белый", "qty": 3}],
+        "form": {}
+      },
+      "expectedStatus": 200,
+      "expectedBody": {"order_number": "9999"},
+      "bodyMatcher": "partial"
+    }
+  ]
+}
