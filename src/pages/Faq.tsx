@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import Header from '@/components/Header';
+import Footer from '@/components/Footer';
 import Icon from '@/components/ui/icon';
 
 const FAQS = [
@@ -161,6 +162,7 @@ const Faq = () => {
           </div>
         </div>
       </main>
+      <Footer />
     </div>
   );
 };

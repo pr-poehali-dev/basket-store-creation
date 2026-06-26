@@ -1,4 +1,5 @@
 import Header from '@/components/Header';
+import Footer from '@/components/Footer';
 import Icon from '@/components/ui/icon';
 
 const ADVANTAGES = [
@@ -115,6 +116,7 @@ const Contacts = () => {
 
         </div>
       </main>
+      <Footer />
     </div>
   );
 };

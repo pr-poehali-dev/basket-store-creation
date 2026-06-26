@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Header from '@/components/Header';
+import Footer from '@/components/Footer';
 import Icon from '@/components/ui/icon';
 import { Button } from '@/components/ui/button';
 import { useCart } from '@/context/CartContext';
@@ -324,6 +325,7 @@ const Cart = () => {
           )}
         </div>
       </main>
+      <Footer />
     </div>
   );
 };

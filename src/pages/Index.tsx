@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import Icon from '@/components/ui/icon';
 import { Button } from '@/components/ui/button';
 import Header from '@/components/Header';
+import Footer from '@/components/Footer';
 
 const scrollTo = (id: string) => {
   document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
@@ -179,19 +180,7 @@ const Index = () => {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="border-t border-border py-10 px-6">
-        <div className="container mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <Icon name="Wheat" className="text-accent" size={22} />
-            <div className="flex flex-col" style={{gap: '1px', lineHeight: 1}}>
-              <span className="font-semibold tracking-widest text-base">ФАБРИКА</span>
-              <span className="text-xs tracking-[0.2em] text-muted-foreground">FABRICA</span>
-            </div>
-          </div>
-          <p className="text-sm text-muted-foreground">© 2015–2026 FABRICA. Все права защищены.</p>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 };

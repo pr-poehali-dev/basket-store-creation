@@ -1,4 +1,5 @@
 import Header from '@/components/Header';
+import Footer from '@/components/Footer';
 
 const STEPS = [
   {
@@ -93,6 +94,7 @@ const HowItWorks = () => {
 
         </div>
       </main>
+      <Footer />
     </div>
   );
 };

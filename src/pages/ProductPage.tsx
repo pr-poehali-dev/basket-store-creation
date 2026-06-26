@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import Icon from '@/components/ui/icon';
 import { Button } from '@/components/ui/button';
 import Header from '@/components/Header';
+import Footer from '@/components/Footer';
 import urls from '../../backend/func2url.json';
 import { colorToCss, sortColors } from '@/data/colors';
 import { useCart } from '@/context/CartContext';
@@ -327,6 +328,7 @@ const ProductPage = () => {
           </div>
         </div>
       </main>
+      <Footer />
     </div>
   );
 };

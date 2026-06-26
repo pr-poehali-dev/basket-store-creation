@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import Header from '@/components/Header';
+import Footer from '@/components/Footer';
 import Icon from '@/components/ui/icon';
 import { Button } from '@/components/ui/button';
 import { useCart } from '@/context/CartContext';
@@ -213,6 +214,7 @@ const Payment = () => {
 
         </div>
       </main>
+      <Footer />
     </div>
   );
 };

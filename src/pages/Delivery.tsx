@@ -1,4 +1,5 @@
 import Header from '@/components/Header';
+import Footer from '@/components/Footer';
 import Icon from '@/components/ui/icon';
 
 const DELIVERY_OPTIONS = [
@@ -94,6 +95,7 @@ const Delivery = () => {
 
         </div>
       </main>
+      <Footer />
     </div>
   );
 };

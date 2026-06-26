@@ -6,6 +6,7 @@ import { Slider } from '@/components/ui/slider';
 import { SHAPES, SIZES } from '@/data/products';
 import { colorToCss, sortColors } from '@/data/colors';
 import Header from '@/components/Header';
+import Footer from '@/components/Footer';
 import { useCart } from '@/context/CartContext';
 import urls from '../../backend/func2url.json';
 
@@ -476,6 +477,7 @@ const Catalog = () => {
           </div>
         </div>
       </main>
+      <Footer />
     </div>
   );
 };
