@@ -109,12 +109,14 @@ const Cart = () => {
           </div>
 
           {/* Прогресс */}
-          <div className="flex items-center gap-2 text-sm mb-10">
+          <div className="flex items-center gap-2 text-sm mb-10 flex-wrap">
             <span className="font-medium text-foreground">Корзина</span>
             <Icon name="ChevronRight" size={14} className="text-muted-foreground" />
-            <span className="text-muted-foreground">Оформление</span>
+            <span className="text-muted-foreground">Данные для доставки</span>
             <Icon name="ChevronRight" size={14} className="text-muted-foreground" />
-            <span className="text-muted-foreground">Подтверждение</span>
+            <span className="text-muted-foreground">Способ оплаты</span>
+            <Icon name="ChevronRight" size={14} className="text-muted-foreground" />
+            <span className="text-muted-foreground">Оформление</span>
           </div>
 
           {items.length === 0 ? (

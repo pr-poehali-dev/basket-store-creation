@@ -6,16 +6,9 @@ const FAQS = [
   {
     question: 'Как производится оплата?',
     answer: (
-      <div className="space-y-3 text-sm text-muted-foreground">
-        <div>
-          <p className="font-semibold text-foreground">На сайте</p>
-          <p>У нас подключен интернет-эквайринг от Т-Банка. С ним можно оплачивать картой или через Систему быстрых платежей</p>
-        </div>
-        <div>
-          <p className="font-semibold text-foreground">По счету</p>
-          <p>Также работаем с клиентами по счету. Выставляем на юр/физ лицо</p>
-        </div>
-      </div>
+      <p className="text-sm text-muted-foreground leading-relaxed">
+        Оплата производится по счету как для физических, так и для юридических лиц. Также для удобства доступна оплата по QR-коду
+      </p>
     ),
   },
   {
