@@ -3,6 +3,8 @@ import AdminLayout from '@/components/admin/AdminLayout';
 import AdminOrders from '@/components/admin/AdminOrders';
 import AdminProducts from '@/components/admin/AdminProducts';
 import AdminProduction from '@/components/admin/AdminProduction';
+import AdminPainting from '@/components/admin/AdminPainting';
+import AdminCalendar from '@/components/admin/AdminCalendar';
 import AdminPlaceholder from '@/components/admin/AdminPlaceholder';
 
 const Admin = () => (
@@ -11,9 +13,9 @@ const Admin = () => (
       <Route index element={<AdminOrders />} />
       <Route path="orders" element={<AdminOrders />} />
       <Route path="products" element={<AdminProducts />} />
-      <Route path="calendar" element={<AdminPlaceholder title="Календарь" />} />
+      <Route path="calendar" element={<AdminCalendar />} />
       <Route path="production" element={<AdminProduction />} />
-      <Route path="painting" element={<AdminPlaceholder title="Малярка" />} />
+      <Route path="painting" element={<AdminPainting />} />
       <Route path="clients" element={<AdminPlaceholder title="База клиентов" />} />
       <Route path="income" element={<AdminPlaceholder title="Поступления" />} />
       <Route path="*" element={<Navigate to="/admin/orders" replace />} />

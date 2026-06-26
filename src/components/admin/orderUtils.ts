@@ -1,8 +1,10 @@
 export const STAGES = ['Новый заказ', 'Согласование', 'Оплата', 'Плетение',
-  'Малярка', 'Упаковка', 'Доставка', 'Отправили'];
+  'Малярка', 'Упаковка', 'Доставка', 'Закрытые'];
 
-// Индекс этапа "Малярка" — до него действует индикатор сроков
-export const PAINTING_INDEX = STAGES.indexOf('Малярка');
+export const WEAVING_INDEX   = STAGES.indexOf('Плетение');
+export const PAINTING_INDEX  = STAGES.indexOf('Малярка');
+export const PACKING_INDEX   = STAGES.indexOf('Упаковка');
+export const CLOSED_STAGE    = 'Закрытые';
 
 export interface OrderItem {
   name: string;
@@ -22,8 +24,13 @@ export interface Order {
   created_at: string | null;
   responsible: string;
   due_date: string;
+  due_weaving: string;
+  due_painting: string;
   delivery_type: string;
   produced: Record<string, number>;
+  painted: Record<string, number>;
+  is_archived: boolean;
+  is_trashed: boolean;
 }
 
 export interface Position {
@@ -33,7 +40,6 @@ export interface Position {
   colors: { color: string; qty: number }[];
 }
 
-// Группировка: позиция = название + размер (цвета — варианты внутри)
 export function groupPositions(items: OrderItem[]): Position[] {
   const map = new Map<string, Position>();
   for (const it of items) {
@@ -57,22 +63,32 @@ export function fmtDate(iso: string | null): string {
   return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
+export function fmtDueDate(due: string): string {
+  if (!due) return '';
+  const d = new Date(due + 'T00:00:00');
+  return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
+}
+
+export function fmtDateShort(due: string): string {
+  if (!due) return '';
+  const d = new Date(due + 'T00:00:00');
+  return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
 export function fmtMoney(n: number): string {
   return n.toLocaleString('ru-RU') + ' руб';
 }
 
-// Ответственные и их пастельные цвета
 export const RESPONSIBLES: { name: string; bg: string; text: string }[] = [
-  { name: 'Валера',   bg: '#cfe3f0', text: '#2c5773' }, // нежно-голубой
-  { name: 'Кристина', bg: '#d4e8d0', text: '#3f6b3a' }, // нежно-зелёный
-  { name: 'Таня',     bg: '#f0d6df', text: '#834759' }, // нежно-розовый
+  { name: 'Валера',   bg: '#cfe3f0', text: '#2c5773' },
+  { name: 'Кристина', bg: '#d4e8d0', text: '#3f6b3a' },
+  { name: 'Таня',     bg: '#f0d6df', text: '#834759' },
 ];
 
 export function responsibleStyle(name: string) {
   return RESPONSIBLES.find(r => r.name === name);
 }
 
-// Типы доставки
 export const DELIVERY_TYPES: Record<string, string> = {
   'тк': 'ТК',
   'ати': 'АТИ',
@@ -85,10 +101,6 @@ export const DELIVERY_LABELS: Record<string, string> = {
   'смв': 'Самовывоз',
 };
 
-// За сколько дней до срока включается режим "горим"
-export const BURN_DAYS = 2;
-
-// Сколько дней осталось до due_date (может быть отрицательным)
 export function daysUntil(due: string): number | null {
   if (!due) return null;
   const d = new Date(due + 'T00:00:00');
@@ -97,17 +109,53 @@ export function daysUntil(due: string): number | null {
   return Math.round((d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 }
 
-// Горим ли по срокам: до "Малярки" и осталось <= BURN_DAYS дней
-export function isBurning(order: Order): boolean {
-  if (!order.due_date) return false;
+// Статус дедлайна для карточки:
+// 'burn-weaving'  — сегодня или просрочен дедлайн плетения, заказ ещё до Малярки
+// 'burn-painting' — сегодня или просрочен дедлайн покраски, заказ ещё до Упаковки
+// 'warn-weaving'  — 1 день до дедлайна плетения (до Малярки)
+// 'warn-painting' — 1 день до дедлайна покраски (до Упаковки)
+// null — всё в норме
+export type DeadlineStatus =
+  | 'burn-weaving'
+  | 'burn-painting'
+  | 'warn-weaving'
+  | 'warn-painting'
+  | null;
+
+export function getDeadlineStatus(order: Order): DeadlineStatus {
   const stageIdx = STAGES.indexOf(order.stage);
-  if (stageIdx >= PAINTING_INDEX) return false;
-  const left = daysUntil(order.due_date);
-  return left !== null && left <= BURN_DAYS;
+
+  if (order.due_weaving && stageIdx >= WEAVING_INDEX && stageIdx < PAINTING_INDEX) {
+    const left = daysUntil(order.due_weaving);
+    if (left !== null && left <= 0) return 'burn-weaving';
+    if (left !== null && left === 1) return 'warn-weaving';
+  }
+
+  if (order.due_painting && stageIdx >= WEAVING_INDEX && stageIdx < PACKING_INDEX) {
+    const left = daysUntil(order.due_painting);
+    if (left !== null && left <= 0) return 'burn-painting';
+    if (left !== null && left === 1) return 'warn-painting';
+  }
+
+  return null;
 }
 
-export function fmtDueDate(due: string): string {
-  if (!due) return '';
-  const d = new Date(due + 'T00:00:00');
-  return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
+// Процент плетения для заказа (из produced)
+export function weavingPct(order: Order): number {
+  const positions = groupPositions(order.items);
+  const totalQty = positions.reduce((s, p) => s + p.total, 0);
+  if (totalQty === 0) return 0;
+  const totalDone = positions.reduce((s, p) =>
+    s + Math.min((order.produced || {})[p.key] || 0, p.total), 0);
+  return Math.round((totalDone / totalQty) * 100);
+}
+
+// Процент покраски (из painted по ключам позиций)
+export function paintingPct(order: Order): number {
+  const positions = groupPositions(order.items);
+  const totalQty = positions.reduce((s, p) => s + p.total, 0);
+  if (totalQty === 0) return 0;
+  const totalPainted = positions.reduce((s, p) =>
+    s + Math.min((order.painted || {})[p.key] || 0, p.total), 0);
+  return Math.round((totalPainted / totalQty) * 100);
 }

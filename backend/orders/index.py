@@ -1,7 +1,7 @@
 """
 API заказов для канбан-доски админки FABRICA.
 GET — список всех заказов; POST — создать заказ (из оформления на сайте);
-PUT — обновить этап/порядок заказа (перетаскивание на канбане).
+PUT — обновить этап/порядок/поля заказа; DELETE — физическое удаление из БД.
 """
 import os
 import json
@@ -41,7 +41,8 @@ def handler(event: dict, context) -> dict:
                 cur.execute(
                     "SELECT id, order_number, stage, city, customer_name, phone, "
                     "total, delivery_label, payment_method, items, form, sort_order, "
-                    "created_at, responsible, due_date, delivery_type, produced "
+                    "created_at, responsible, due_date, delivery_type, produced, "
+                    "due_weaving, due_painting, is_archived, is_trashed, painted "
                     "FROM orders ORDER BY sort_order ASC, created_at DESC"
                 )
                 rows = cur.fetchall()
@@ -65,6 +66,11 @@ def handler(event: dict, context) -> dict:
                     'due_date': r['due_date'].isoformat() if r['due_date'] else '',
                     'delivery_type': r['delivery_type'] or '',
                     'produced': r['produced'] or {},
+                    'due_weaving': r['due_weaving'].isoformat() if r['due_weaving'] else '',
+                    'due_painting': r['due_painting'].isoformat() if r['due_painting'] else '',
+                    'is_archived': bool(r['is_archived']),
+                    'is_trashed': bool(r['is_trashed']),
+                    'painted': r['painted'] or {},
                 })
             return {'statusCode': 200, 'headers': cors_headers(),
                     'body': json.dumps({'orders': orders})}
@@ -114,12 +120,27 @@ def handler(event: dict, context) -> dict:
             if 'due_date' in body:
                 fields.append('due_date = %s')
                 values.append(body['due_date'] or None)
+            if 'due_weaving' in body:
+                fields.append('due_weaving = %s')
+                values.append(body['due_weaving'] or None)
+            if 'due_painting' in body:
+                fields.append('due_painting = %s')
+                values.append(body['due_painting'] or None)
             if 'delivery_type' in body:
                 fields.append('delivery_type = %s')
                 values.append(body['delivery_type'] or None)
             if 'produced' in body:
                 fields.append('produced = %s')
                 values.append(json.dumps(body['produced'], ensure_ascii=False))
+            if 'painted' in body:
+                fields.append('painted = %s')
+                values.append(json.dumps(body['painted'], ensure_ascii=False))
+            if 'is_archived' in body:
+                fields.append('is_archived = %s')
+                values.append(bool(body['is_archived']))
+            if 'is_trashed' in body:
+                fields.append('is_trashed = %s')
+                values.append(bool(body['is_trashed']))
             if not fields:
                 return {'statusCode': 400, 'headers': cors_headers(),
                         'body': json.dumps({'error': 'nothing to update'})}
@@ -133,7 +154,7 @@ def handler(event: dict, context) -> dict:
         if method == 'DELETE':
             order_id = int(event.get('queryStringParameters', {}).get('id'))
             with conn.cursor() as cur:
-                cur.execute("DELETE FROM orders WHERE id = %s", (order_id,))
+                cur.execute("UPDATE orders SET is_trashed = TRUE, updated_at = NOW() WHERE id = %s", (order_id,))
             return {'statusCode': 200, 'headers': cors_headers(),
                     'body': json.dumps({'ok': True})}
 
