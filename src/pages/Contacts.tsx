@@ -2,6 +2,12 @@ import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import Icon from '@/components/ui/icon';
 
+const SOCIALS = [
+  { name: 'ВКонтакте', text: 'ВК', href: 'https://www.vk.com/fabrica_korzin', handle: 'fabrica_korzin' },
+  { name: 'Telegram', icon: 'Send', href: 'https://t.me/fabrica_saratov', handle: 'fabrica_saratov' },
+  { name: 'Instagram', icon: 'Instagram', href: 'https://www.instagram.com/fabrica_saratov', handle: 'fabrica_saratov' },
+];
+
 const ADVANTAGES = [
   { num: 1, icon: 'Sprout', title: 'Без посредников', desc: 'Выращиваем, подготавливаем материал и плетём корзины самостоятельно' },
   { num: 2, icon: 'Infinity', title: 'Неограниченный выбор', desc: 'Не нужно выбирать из наличия — закажите столько, сколько нужно именно вам' },
@@ -69,6 +75,32 @@ const Contacts = () => {
                 <p className="text-3xl font-bold mb-3">С 2015 года</p>
                 <p className="text-base opacity-80 leading-relaxed">Делаем корзины из натуральной ивовой лозы для оптовых покупателей по всей России</p>
               </div>
+            </div>
+          </div>
+
+          {/* Наши соцсети */}
+          <div className="mb-24">
+            <h2 className="text-4xl font-bold mb-12">Наши соцсети</h2>
+            <div className="grid md:grid-cols-3 gap-6">
+              {SOCIALS.map(s => (
+                <a
+                  key={s.name}
+                  href={s.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="border border-border rounded-3xl p-8 flex items-center gap-4 hover:border-accent transition-colors group"
+                >
+                  <div className="w-12 h-12 rounded-full bg-accent/15 flex items-center justify-center flex-shrink-0 group-hover:bg-accent/25 transition-colors">
+                    {s.text
+                      ? <span className="text-accent font-semibold">{s.text}</span>
+                      : <Icon name={s.icon!} size={20} className="text-accent" />}
+                  </div>
+                  <div>
+                    <p className="font-semibold group-hover:text-accent transition-colors">{s.name}</p>
+                    <p className="text-muted-foreground text-sm mt-0.5">@{s.handle}</p>
+                  </div>
+                </a>
+              ))}
             </div>
           </div>
 
