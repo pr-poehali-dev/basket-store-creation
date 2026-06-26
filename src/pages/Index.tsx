@@ -160,7 +160,7 @@ const Index = () => {
                 { icon: 'Phone', t: '+7 (927) 120-00-07' },
                 { icon: 'Mail', t: 'fabrica.64@yandex.ru' },
                 { icon: 'MapPin', t: 'г. Саратов, ул. Зенитная, д. 25' },
-                { icon: 'Clock', t: 'Пн–Пт 10:00–19:00' },
+                { icon: 'Clock', t: 'Пн–Пт 10:00–18:00' },
               ].map((c) => (
                 <div key={c.t} className="flex items-center gap-3">
                   <Icon name={c.icon} className="text-accent" size={20} />

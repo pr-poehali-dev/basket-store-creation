@@ -89,7 +89,7 @@ const Contacts = () => {
                   <Icon name="Clock" size={18} className="text-accent" />
                 </div>
                 <p className="text-xs uppercase tracking-wider text-muted-foreground mb-2">Время работы</p>
-                <p className="font-semibold">Пн–Пт: 10:00–19:00</p>
+                <p className="font-semibold">Пн–Пт: 10:00–18:00</p>
                 <p className="text-muted-foreground text-sm mt-1">Сб–Вс: выходной</p>
               </div>
               <div className="border border-border rounded-3xl p-8">
@@ -104,13 +104,6 @@ const Contacts = () => {
                   8 (927) 120-00-07
                 </a>
               </div>
-            </div>
-
-            {/* Подпись */}
-            <div className="border-t border-border pt-12 text-center">
-              <p className="text-2xl font-bold tracking-wide">ФАБРИКА</p>
-              <p className="text-sm tracking-[0.2em] text-muted-foreground">FABRICA</p>
-              <p className="text-sm text-muted-foreground mt-3">est. 2015–2026</p>
             </div>
           </div>
 
