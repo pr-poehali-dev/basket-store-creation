@@ -48,6 +48,15 @@ const Payment = () => {
     setSaving(true);
     const orderNum = Math.floor(Math.random() * 9000) + 1000;
     const form = state.form || {};
+
+    // Тип доставки: смв (самовывоз), тк (транспортная), ати (частный перевозчик)
+    let deliveryType = 'ати';
+    if (state.isPickup) deliveryType = 'смв';
+    else if (/транспортн/i.test(deliveryLabel)) deliveryType = 'тк';
+
+    // При самовывозе город — всегда Саратов
+    const city = state.isPickup ? 'Саратов' : (form.city || '');
+
     try {
       await fetch(urls['orders'], {
         method: 'POST',
@@ -55,11 +64,12 @@ const Payment = () => {
         body: JSON.stringify({
           order_number: String(orderNum),
           stage: 'Новый заказ',
-          city: form.city || (state.isPickup ? 'Самовывоз' : ''),
+          city,
           customer_name: form.name || '',
           phone: form.phone || '',
           total,
           delivery_label: deliveryLabel,
+          delivery_type: deliveryType,
           payment_method: method === 'qr' ? 'QR-код' : `Счёт: ${invoiceData}`,
           items: items.map(i => ({
             name: i.name,

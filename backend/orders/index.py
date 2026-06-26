@@ -41,7 +41,8 @@ def handler(event: dict, context) -> dict:
                 cur.execute(
                     "SELECT id, order_number, stage, city, customer_name, phone, "
                     "total, delivery_label, payment_method, items, form, sort_order, "
-                    "created_at FROM orders ORDER BY sort_order ASC, created_at DESC"
+                    "created_at, responsible, due_date, delivery_type, produced "
+                    "FROM orders ORDER BY sort_order ASC, created_at DESC"
                 )
                 rows = cur.fetchall()
             orders = []
@@ -60,6 +61,10 @@ def handler(event: dict, context) -> dict:
                     'form': r['form'] or {},
                     'sort_order': r['sort_order'],
                     'created_at': r['created_at'].isoformat() if r['created_at'] else None,
+                    'responsible': r['responsible'] or '',
+                    'due_date': r['due_date'].isoformat() if r['due_date'] else '',
+                    'delivery_type': r['delivery_type'] or '',
+                    'produced': r['produced'] or {},
                 })
             return {'statusCode': 200, 'headers': cors_headers(),
                     'body': json.dumps({'orders': orders})}
@@ -77,16 +82,17 @@ def handler(event: dict, context) -> dict:
             total = int(body.get('total', 0) or 0)
             delivery_label = body.get('delivery_label', '')
             payment_method = body.get('payment_method', '')
+            delivery_type = body.get('delivery_type', '')
             items = json.dumps(body.get('items', []), ensure_ascii=False)
             form = json.dumps(body.get('form', {}), ensure_ascii=False)
 
             with conn.cursor() as cur:
                 cur.execute(
                     "INSERT INTO orders (order_number, stage, city, customer_name, phone, "
-                    "total, delivery_label, payment_method, items, form) "
-                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id",
+                    "total, delivery_label, payment_method, delivery_type, items, form) "
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id",
                     (order_number, stage, city, customer_name, phone, total,
-                     delivery_label, payment_method, items, form)
+                     delivery_label, payment_method, delivery_type, items, form)
                 )
                 new_id = cur.fetchone()[0]
             return {'statusCode': 200, 'headers': cors_headers(),
@@ -102,6 +108,18 @@ def handler(event: dict, context) -> dict:
             if 'sort_order' in body:
                 fields.append('sort_order = %s')
                 values.append(int(body['sort_order']))
+            if 'responsible' in body:
+                fields.append('responsible = %s')
+                values.append(body['responsible'] or None)
+            if 'due_date' in body:
+                fields.append('due_date = %s')
+                values.append(body['due_date'] or None)
+            if 'delivery_type' in body:
+                fields.append('delivery_type = %s')
+                values.append(body['delivery_type'] or None)
+            if 'produced' in body:
+                fields.append('produced = %s')
+                values.append(json.dumps(body['produced'], ensure_ascii=False))
             if not fields:
                 return {'statusCode': 400, 'headers': cors_headers(),
                         'body': json.dumps({'error': 'nothing to update'})}
