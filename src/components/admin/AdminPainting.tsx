@@ -1,6 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import urls from '../../../backend/func2url.json';
-import { Order, OrderItem, fmtDate, fmtMoney, fmtDateShort, STAGES } from './orderUtils';
+import { Order, OrderItem, fmtDate, fmtMoney, fmtDateShort, STAGES, CLOSED_STAGE } from './orderUtils';
+
+function nextStage(current: string): string | null {
+  const work = STAGES.filter(s => s !== CLOSED_STAGE);
+  const idx = work.indexOf(current);
+  if (idx === -1 || idx >= work.length - 1) return null;
+  return work[idx + 1];
+}
 
 const PAINT_COLORS: { name: string; hex: string }[] = [
   { name: 'белый',      hex: '#F5F5F0' },
@@ -41,12 +48,20 @@ function groupByColor(items: OrderItem[]): Map<string, { posKey: string; posTitl
 
 type PosRow = { posKey: string; posTitle: string; qty: number };
 
-const PaintingCard = ({ order, colorFilter, onUpdatePainted }: {
+const PaintingCard = ({ order, colorFilter, onUpdatePainted, onUpdateStage }: {
   order: Order;
   colorFilter: string | null;
   onUpdatePainted: (id: number, painted: Record<string, number>) => void;
+  onUpdateStage: (id: number, stage: string) => void;
 }) => {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(!!colorFilter);
+  const prevFilter = useRef(colorFilter);
+  useEffect(() => {
+    if (colorFilter !== prevFilter.current) {
+      if (colorFilter) setExpanded(true);
+      prevFilter.current = colorFilter;
+    }
+  }, [colorFilter]);
   const byColor  = groupByColor(order.items);
   const painted  = order.painted || {};
   const produced = order.produced || {};
@@ -139,6 +154,21 @@ const PaintingCard = ({ order, colorFilter, onUpdatePainted }: {
         </div>
       </div>
 
+      {/* Кнопка следующей стадии */}
+      {(() => {
+        const next = nextStage(order.stage);
+        return next ? (
+          <div className="px-4 pb-3" onClick={e => e.stopPropagation()}>
+            <button
+              onClick={() => onUpdateStage(order.id, next)}
+              className="w-full text-xs font-semibold py-2 rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground transition-colors"
+            >
+              → {next}
+            </button>
+          </div>
+        ) : null;
+      })()}
+
       {/* Развёрнутые таблицы по цветам */}
       {expanded && (
         <div className="border-t border-primary/20 space-y-0" onClick={e => e.stopPropagation()}>
@@ -188,8 +218,11 @@ const PaintingCard = ({ order, colorFilter, onUpdatePainted }: {
                           <td className="px-2 py-1.5 text-center text-primary/60 border border-primary/10">{woven}</td>
                           <td className="px-1 py-1 text-center border border-primary/10">
                             <input
-                              type="number" min={0} max={pos.qty} value={paintedVal}
-                              onChange={e => setPainted(pos.posKey, parseInt(e.target.value, 10) || 0, pos.qty)}
+                              type="number" min={0} max={pos.qty}
+                              defaultValue={paintedVal}
+                              key={`${pos.posKey}-${paintedVal}`}
+                              onBlur={e => setPainted(pos.posKey, parseInt(e.target.value, 10) || 0, pos.qty)}
+                              onKeyDown={e => e.key === 'Enter' && setPainted(pos.posKey, parseInt((e.target as HTMLInputElement).value, 10) || 0, pos.qty)}
                               className="w-14 text-center border border-primary/30 rounded px-1 py-0.5 bg-background outline-none focus:border-accent [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             />
                           </td>
@@ -243,8 +276,25 @@ const AdminPainting = () => {
     });
   };
 
+  const updateStage = async (id: number, stage: string) => {
+    setOrders(prev => prev.map(o => o.id === id ? { ...o, stage } : o));
+    await fetch(urls['orders'], {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, stage }),
+    });
+  };
+
   const allOrders   = orders.filter(o => PAINTING_STAGES.includes(o.stage) && !o.is_archived && !o.is_trashed);
-  const readyOrders = orders.filter(o => ONLY_PAINTING_STAGE.includes(o.stage) && !o.is_archived && !o.is_trashed);
+  // Сплетены 100% — плетение завершено (wPct=100) на любом этапе от Плетения и далее
+  const readyOrders = allOrders.filter(o => {
+    const positions = o.items.reduce((m: Map<string,number>, it) => {
+      const k = `${it.name}__${it.size}`; m.set(k, (m.get(k)||0)+it.qty); return m;
+    }, new Map());
+    const totalQty  = Array.from(positions.values()).reduce((s,v)=>s+v, 0);
+    const totalDone = Array.from(positions.entries()).reduce((s,[k,v])=>s+Math.min((o.produced||{})[k]||0, v), 0);
+    return totalQty > 0 && totalDone >= totalQty;
+  });
   const visibleOrders = showMode === 'all' ? allOrders : readyOrders;
 
   return (
@@ -304,6 +354,7 @@ const AdminPainting = () => {
               order={order}
               colorFilter={colorFilter}
               onUpdatePainted={updatePainted}
+              onUpdateStage={updateStage}
             />
           ))}
         </div>

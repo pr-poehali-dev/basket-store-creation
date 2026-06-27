@@ -231,7 +231,7 @@ const RequestForm = ({ auth, onSave, onClose }: {
 };
 
 // ── Основной блок задач ───────────────────────────────────────────────────────
-const AdminTasksBlock = ({ auth }: { auth: AuthData }) => {
+const AdminTasksBlock = ({ auth, fullPage }: { auth: AuthData; fullPage?: boolean }) => {
   const [tasks, setTasks]       = useState<Task[]>([]);
   const [requests, setRequests] = useState<TaskRequest[]>([]);
   const [staff, setStaff]       = useState<StaffOption[]>([]);
@@ -316,6 +316,91 @@ const AdminTasksBlock = ({ auth }: { auth: AuthData }) => {
   const donePct = visibleTasks.length
     ? Math.round(visibleTasks.filter(t => t.status === 'done').length / visibleTasks.length * 100)
     : 0;
+
+  if (fullPage) {
+    return (
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <h1 className="font-display text-2xl font-semibold text-primary">Задачи</h1>
+          <div className="flex gap-2">
+            <button onClick={() => setTab('my')} className={`text-sm px-4 py-1.5 rounded-xl border font-medium transition-colors ${tab==='my'?'bg-primary text-white border-primary':'border-primary/40 text-primary hover:border-primary'}`}>
+              Мои {myTasks.length > 0 && `(${myTasks.length})`}
+            </button>
+            {(isAdmin||isManager) && <button onClick={() => setTab('all')} className={`text-sm px-4 py-1.5 rounded-xl border font-medium transition-colors ${tab==='all'?'bg-primary text-white border-primary':'border-primary/40 text-primary hover:border-primary'}`}>
+              Все {allTasks.length > 0 && `(${allTasks.length})`}
+            </button>}
+            <button onClick={() => setTab('requests')} className={`text-sm px-4 py-1.5 rounded-xl border font-medium transition-colors relative ${tab==='requests'?'bg-primary text-white border-primary':'border-primary/40 text-primary hover:border-primary'}`}>
+              Заявки {pendingReqs.length > 0 && <span className="ml-1 inline-flex items-center justify-center w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-bold">{pendingReqs.length}</span>}
+            </button>
+            {canCreateTask && <button onClick={() => setShowTaskForm(true)} className="text-sm px-4 py-1.5 rounded-xl bg-accent text-accent-foreground font-medium hover:bg-accent/90 transition-colors">+ Задача</button>}
+            {isEmployee && <button onClick={() => setShowReqForm(true)} className="text-sm px-4 py-1.5 rounded-xl border border-primary/40 text-primary hover:border-primary transition-colors">Заявка</button>}
+          </div>
+        </div>
+
+        {tab !== 'requests' ? (
+          visibleTasks.length === 0 ? <p className="text-muted-foreground">Задач нет</p> : (
+            <div className="space-y-2">
+              {visibleTasks.map(task => (
+                <div key={task.id} className={`bg-card border border-primary/30 rounded-2xl px-4 py-3 ${task.status==='done'?'opacity-60':''}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${PRIORITY_COLOR[task.priority]}`}>{PRIORITY_LABEL[task.priority]}</span>
+                        {task.due_date && <span className="text-xs text-primary/60">{fmtDate(task.due_date)}</span>}
+                        <span className="text-xs text-primary/50">{task.assignee_name||'Все'} · от {task.assigned_by_name}</span>
+                      </div>
+                      <div className="font-semibold text-primary">{task.title}</div>
+                      {task.description && <p className="text-sm text-primary/70 mt-0.5">{task.description}</p>}
+                    </div>
+                    <select value={task.status} onChange={e => updateTaskStatus(task.id, e.target.value as TaskStatus)}
+                      className="text-xs border border-primary/30 rounded-lg px-2 py-1 bg-background outline-none text-primary flex-shrink-0">
+                      {(Object.keys(STATUS_LABEL) as TaskStatus[]).map(s => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
+                    </select>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        ) : (
+          requests.length === 0 ? <p className="text-muted-foreground">Заявок нет</p> : (
+            <div className="space-y-2">
+              {requests.map(req => (
+                <div key={req.id} className="bg-card border border-primary/30 rounded-2xl px-4 py-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-semibold text-primary">{REQ_TYPE_LABEL[req.request_type]}</span>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${req.status==='pending'?'bg-yellow-50 text-yellow-700':req.status==='approved'?'bg-green-50 text-green-700':'bg-red-50 text-red-600'}`}>{REQ_STATUS_LABEL[req.status]}</span>
+                      </div>
+                      {(isAdmin||isManager) && <div className="text-sm text-primary/70 mb-1">{req.staff_name}</div>}
+                      {(req.date_from||req.date_to) && <div className="text-sm text-primary mb-1">{req.date_from&&fmtDate(req.date_from)}{req.date_to&&req.date_to!==req.date_from&&` — ${fmtDate(req.date_to)}`}</div>}
+                      {req.comment && <p className="text-sm text-primary/70">{req.comment}</p>}
+                      {req.review_comment && <p className="text-xs text-primary/50 italic mt-1">{req.reviewed_by}: {req.review_comment}</p>}
+                    </div>
+                    {canApprove && req.status==='pending' && (
+                      reviewId===req.id ? (
+                        <div className="space-y-1 flex-shrink-0 w-48">
+                          <input value={reviewComment} onChange={e=>setReviewComment(e.target.value)} placeholder="Комментарий" className="w-full text-xs border border-primary/30 rounded-lg px-2 py-1 outline-none"/>
+                          <div className="flex gap-1">
+                            <button onClick={()=>reviewRequest(req.id,'approved')} className="flex-1 text-xs bg-green-500 text-white rounded-lg py-1">Одобрить</button>
+                            <button onClick={()=>reviewRequest(req.id,'rejected')} className="flex-1 text-xs bg-red-400 text-white rounded-lg py-1">Отклонить</button>
+                            <button onClick={()=>setReviewId(null)} className="text-xs text-primary/60 px-1">✕</button>
+                          </div>
+                        </div>
+                      ) : <button onClick={()=>setReviewId(req.id)} className="text-sm text-primary/60 hover:text-primary underline flex-shrink-0">Рассмотреть →</button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        )}
+
+        {showTaskForm && <TaskForm auth={auth} staff={staff} onSave={createTask} onClose={()=>setShowTaskForm(false)}/>}
+        {showReqForm && <RequestForm auth={auth} onSave={createRequest} onClose={()=>setShowReqForm(false)}/>}
+      </div>
+    );
+  }
 
   return (
     <div className={`${BLOCK_BG} border-b ${BLOCK_BORDER}`}>

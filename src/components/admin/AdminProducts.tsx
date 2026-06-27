@@ -41,6 +41,8 @@ interface Product {
   price: number;
   sale_price: number | null;
   image_url: string;
+  images: string[];
+  video_url: string;
   group_id: string;
   group_by: string;
   split_by: string;
@@ -52,7 +54,7 @@ interface Product {
 
 const empty = (): Product => ({
   sku: '', name: '', description: '', shape: 'Круглые', size: 'Средние',
-  color: '', price: 0, sale_price: null, image_url: '',
+  color: '', price: 0, sale_price: null, image_url: '', images: [], video_url: '',
   group_id: '', group_by: '', split_by: '',
   labels: '', priority: null, weave_type: '', handles_count: '',
 });
@@ -83,8 +85,9 @@ const AdminProducts = () => {
   });
   const [colsOpen, setColsOpen] = useState(false);
 
-  const fileRef = useRef<HTMLInputElement>(null);
-  const imgRef = useRef<HTMLInputElement>(null);
+  const fileRef   = useRef<HTMLInputElement>(null);
+  const imgRef    = useRef<HTMLInputElement>(null);
+  const extraImgRef = useRef<HTMLInputElement>(null);
 
   const toggleCol = (key: string) => {
     const next = visibleCols.includes(key)
@@ -149,20 +152,46 @@ const AdminProducts = () => {
     URL.revokeObjectURL(url);
   };
 
+  const uploadImage = async (file: File): Promise<string | null> => {
+    const ext = file.name.split('.').pop() || 'jpg';
+    return new Promise(resolve => {
+      const reader = new FileReader();
+      reader.onload = async (ev) => {
+        const b64 = btoa(String.fromCharCode(...new Uint8Array(ev.target?.result as ArrayBuffer)));
+        const res = await fetch(urls['upload-image'], { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ file: b64, ext }) });
+        const data = await res.json();
+        resolve(data.url || null);
+      };
+      reader.readAsArrayBuffer(file);
+    });
+  };
+
   const handleImg = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !editing) return;
     setImgUploading(true);
-    const ext = file.name.split('.').pop() || 'jpg';
-    const reader = new FileReader();
-    reader.onload = async (ev) => {
-      const b64 = btoa(String.fromCharCode(...new Uint8Array(ev.target?.result as ArrayBuffer)));
-      const res = await fetch(urls['upload-image'], { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ file: b64, ext }) });
-      const data = await res.json();
-      setImgUploading(false);
-      if (data.url) setEditing(prev => prev ? { ...prev, image_url: data.url } : prev);
-    };
-    reader.readAsArrayBuffer(file);
+    const url = await uploadImage(file);
+    setImgUploading(false);
+    if (url) setEditing(prev => prev ? {
+      ...prev,
+      image_url: url,
+      images: [url, ...(prev.images || []).filter(u => u !== prev.image_url)],
+    } : prev);
+    e.target.value = '';
+  };
+
+  const handleExtraImg = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length || !editing) return;
+    setImgUploading(true);
+    const urls_arr: string[] = [];
+    for (const file of files) {
+      const url = await uploadImage(file);
+      if (url) urls_arr.push(url);
+    }
+    setImgUploading(false);
+    setEditing(prev => prev ? { ...prev, images: [...(prev.images || []), ...urls_arr] } : prev);
+    e.target.value = '';
   };
 
   const toggleLabel = (val: string) => {
@@ -316,6 +345,7 @@ const AdminProducts = () => {
                           ...p, sku: p.sku || '', group_id: p.group_id || '', group_by: p.group_by || '',
                           split_by: p.split_by || '', labels: p.labels || '',
                           weave_type: p.weave_type || '', handles_count: p.handles_count || '',
+                          images: p.images || [], video_url: p.video_url || '',
                         })}>
                           <Icon name="Pencil" size={14} />
                         </Button>
@@ -453,20 +483,76 @@ const AdminProducts = () => {
                 </div>
               </div>
 
-              <div>
-                <label className={labelCls}>Фото</label>
-                <div className="flex gap-3 items-start">
-                  {editing.image_url && <img src={editing.image_url} className="w-16 h-16 object-cover border border-border rounded-md" />}
-                  <div className="flex-1">
-                    <input value={editing.image_url} onChange={e => setEditing({ ...editing, image_url: e.target.value })}
-                      placeholder="URL фото или загрузите файл" className={inputCls + ' mb-2'} />
-                    <Button size="sm" variant="outline" className="rounded-lg" onClick={() => imgRef.current?.click()} disabled={imgUploading}>
-                      <Icon name="Upload" size={14} className="mr-1" />
-                      {imgUploading ? 'Загружаю...' : 'Загрузить фото'}
-                    </Button>
-                    <input ref={imgRef} type="file" accept="image/*" className="hidden" onChange={handleImg} />
+              {/* ФОТО — несколько */}
+              <div className="border-t border-border pt-4">
+                <label className={labelCls}>Фото (можно несколько)</label>
+
+                {/* Галерея всех фото */}
+                {(editing.images || []).length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {(editing.images || []).map((url, idx) => (
+                      <div key={idx} className="relative group">
+                        <img src={url} className={`w-16 h-16 object-cover rounded-md border-2 cursor-pointer ${idx === 0 ? 'border-accent' : 'border-border'}`}
+                          title={idx === 0 ? 'Главное фото' : 'Нажмите чтобы сделать главным'}
+                          onClick={() => setEditing(prev => prev ? { ...prev, image_url: url, images: [url, ...(prev.images||[]).filter((_,i)=>i!==idx)] } : prev)}
+                        />
+                        {idx === 0 && <span className="absolute -top-1 -left-1 bg-accent text-white text-[8px] px-1 rounded font-bold">ГЛАВНОЕ</span>}
+                        <button
+                          className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full text-[10px] hidden group-hover:flex items-center justify-center"
+                          onClick={() => setEditing(prev => {
+                            if (!prev) return prev;
+                            const imgs = (prev.images||[]).filter((_,i)=>i!==idx);
+                            return { ...prev, images: imgs, image_url: imgs[0] || '' };
+                          })}
+                        >✕</button>
+                      </div>
+                    ))}
                   </div>
+                )}
+
+                {/* Основное фото — URL или загрузка */}
+                <div className="flex gap-2 mb-2 items-center">
+                  <input value={editing.image_url} onChange={e => {
+                    const url = e.target.value;
+                    setEditing(prev => prev ? {
+                      ...prev, image_url: url,
+                      images: url ? [url, ...(prev.images||[]).slice(1)] : (prev.images||[]).slice(1),
+                    } : prev);
+                  }} placeholder="URL главного фото" className={inputCls + ' flex-1'} />
                 </div>
+
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" className="rounded-lg" onClick={() => imgRef.current?.click()} disabled={imgUploading}>
+                    <Icon name="Upload" size={14} className="mr-1" />
+                    {imgUploading ? 'Загружаю...' : 'Главное фото'}
+                  </Button>
+                  <Button size="sm" variant="outline" className="rounded-lg" onClick={() => extraImgRef.current?.click()} disabled={imgUploading}>
+                    <Icon name="Plus" size={14} className="mr-1" />
+                    Ещё фото
+                  </Button>
+                </div>
+                <input ref={imgRef} type="file" accept="image/*" className="hidden" onChange={handleImg} />
+                <input ref={extraImgRef} type="file" accept="image/*" multiple className="hidden" onChange={handleExtraImg} />
+                <p className="text-xs text-muted-foreground mt-1">Нажмите на фото чтобы сделать его главным. Первое фото показывается в каталоге.</p>
+              </div>
+
+              {/* ВИДЕО */}
+              <div>
+                <label className={labelCls}>Видео (URL YouTube или прямая ссылка)</label>
+                <input value={editing.video_url || ''} onChange={e => setEditing({ ...editing, video_url: e.target.value })}
+                  placeholder="https://youtube.com/watch?v=... или прямая ссылка на mp4"
+                  className={inputCls} />
+                {editing.video_url && (
+                  <div className="mt-2">
+                    {editing.video_url.includes('youtube') || editing.video_url.includes('youtu.be') ? (
+                      <a href={editing.video_url} target="_blank" rel="noreferrer" className="text-xs text-blue-500 hover:underline">
+                        Открыть видео на YouTube ↗
+                      </a>
+                    ) : (
+                      <video src={editing.video_url} controls className="w-full max-h-32 rounded-md border border-border" />
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 

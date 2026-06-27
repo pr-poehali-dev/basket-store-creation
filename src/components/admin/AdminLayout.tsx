@@ -6,10 +6,34 @@ import urls from '../../../backend/func2url.json';
 import AdminTasksBlock from './AdminTasksBlock';
 import AdminStaffCabinet from './AdminStaffCabinet';
 
+// Хук для подсчёта непросмотренных задач (обновляется каждые 60 сек)
+function useTaskBadge(isAdmin: boolean) {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const [taskRes, reqRes] = await Promise.all([
+          fetch(urls['tasks']),
+          fetch(`${urls['tasks']}?type=requests`),
+        ]);
+        const [taskData, reqData] = await Promise.all([taskRes.json(), reqRes.json()]);
+        const pending = (taskData.tasks || []).filter((t: { status: string }) => t.status === 'pending').length;
+        const pendingReqs = (reqData.requests || []).filter((r: { status: string }) => r.status === 'pending').length;
+        setCount(isAdmin ? pending + pendingReqs : pending);
+      } catch { /* ignore */ }
+    };
+    load();
+    const t = setInterval(load, 60000);
+    return () => clearInterval(t);
+  }, [isAdmin]);
+  return count;
+}
+
 // Структура меню: блоки с разделителями
 const NAV_BLOCKS = [
   {
     items: [
+      { label: 'Задачи',       path: '/admin/tasks',      key: 'tasks'       },
       { label: 'Заказы',       path: '/admin/orders',     key: 'orders'      },
       { label: 'Календарь',    path: '/admin/calendar',   key: 'calendar'    },
       { label: 'Производство', path: '/admin/production', key: 'production'  },
@@ -49,6 +73,7 @@ interface AuthData {
 const AdminLayout = ({ children }: { children: ReactNode }) => {
   const navigate  = useNavigate();
   const location  = useLocation();
+  const taskBadge = useTaskBadge(true);
 
   const [authed, setAuthed] = useState<AuthData | null>(() => {
     const raw = sessionStorage.getItem('admin_auth');
@@ -200,13 +225,18 @@ const AdminLayout = ({ children }: { children: ReactNode }) => {
                         key={item.path}
                         onClick={() => navigate(item.path)}
                         className={[
-                          'w-full text-center font-semibold py-2 rounded-xl border transition-colors text-sm',
+                          'w-full text-center font-semibold py-2 rounded-xl border transition-colors text-sm relative',
                           active
                             ? 'bg-accent text-primary border-accent'
                             : 'bg-background text-primary border-primary/40 hover:border-primary',
                         ].join(' ')}
                       >
                         {item.label}
+                        {item.key === 'tasks' && taskBadge > 0 && (
+                          <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                            {taskBadge > 99 ? '99+' : taskBadge}
+                          </span>
+                        )}
                       </button>
                     );
                   })}

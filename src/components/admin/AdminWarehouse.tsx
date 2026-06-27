@@ -20,18 +20,23 @@ interface LogEntry {
   created_at: string;
 }
 
+// Имена каталога из products
+interface CatalogProduct {
+  id: number;
+  name: string;
+  size?: string;
+}
+
 const OP_LABELS: Record<string, string> = {
   income_staff: 'Приход от сотрудников',
   add:          'Ручное добавление',
   defect:       'Брак',
-  write_off:    'Списание в заказ',
 };
 
 const OP_COLORS: Record<string, string> = {
   income_staff: 'text-[#6b7c3a]',
   add:          'text-blue-600',
   defect:       'text-red-500',
-  write_off:    'text-orange-500',
 };
 
 function fmtDt(iso: string): string {
@@ -41,17 +46,19 @@ function fmtDt(iso: string): string {
 }
 
 const AdminWarehouse = () => {
-  const [items, setItems]     = useState<WarehouseItem[]>([]);
-  const [log, setLog]         = useState<LogEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch]   = useState('');
-  const [showLog, setShowLog] = useState(false);
-  const [logItem, setLogItem] = useState<string | null>(null);
+  const [items, setItems]         = useState<WarehouseItem[]>([]);
+  const [allNames, setAllNames]   = useState<string[]>([]); // все имена из products
+  const [log, setLog]             = useState<LogEntry[]>([]);
+  const [loading, setLoading]     = useState(true);
+  const [search, setSearch]       = useState('');
+  const [showOnlyStock, setShowOnlyStock] = useState(false); // фильтр: только >0
+  const [showLog, setShowLog]     = useState(false);
+  const [logItem, setLogItem]     = useState<string | null>(null);
 
   // Форма операции
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({
-    catalog_name: '', operation: 'add' as 'add' | 'defect' | 'write_off',
+    catalog_name: '', operation: 'add' as 'add' | 'defect',
     qty_full: 0, qty_no_handle: 0, comment: '',
   });
   const [saving, setSaving] = useState(false);
@@ -59,9 +66,28 @@ const AdminWarehouse = () => {
   const loadItems = async () => {
     setLoading(true);
     try {
-      const res  = await fetch(`${urls['reports']}?type=warehouse`);
-      const data = await res.json();
-      setItems(data.items || []);
+      const [whRes, prodRes] = await Promise.all([
+        fetch(`${urls['reports']}?type=warehouse`),
+        fetch(`${urls['products']}?raw=1`),
+      ]);
+      const [whData, prodData] = await Promise.all([whRes.json(), prodRes.json()]);
+      const warehouseItems: WarehouseItem[] = whData.items || [];
+      setItems(warehouseItems);
+
+      // Собираем все уникальные имена из каталога
+      const products: CatalogProduct[] = prodData.products || [];
+      const existingNames = new Set(warehouseItems.map(i => i.catalog_name));
+      const catalogNames = Array.from(new Set(
+        products.map((p: CatalogProduct) => p.size ? `${p.name} (${p.size})` : p.name)
+      )).sort();
+
+      // Добавляем позиции из каталога которых нет на складе — с qty=0
+      const missing: WarehouseItem[] = catalogNames
+        .filter(n => !existingNames.has(n))
+        .map((n, i) => ({ id: -(i + 1), catalog_name: n, qty_full: 0, qty_no_handle: 0, updated_at: '' }));
+
+      setItems([...warehouseItems, ...missing].sort((a, b) => a.catalog_name.localeCompare(b.catalog_name, 'ru')));
+      setAllNames(catalogNames);
     } catch { /* fallback */ }
     setLoading(false);
   };
@@ -100,19 +126,23 @@ const AdminWarehouse = () => {
     setSaving(false);
   };
 
-  const filtered = items.filter(i =>
-    i.catalog_name.toLowerCase().includes(search.toLowerCase())
-  );
+  // Фильтрация
+  const filtered = items.filter(i => {
+    const matchSearch = i.catalog_name.toLowerCase().includes(search.toLowerCase());
+    const matchStock  = !showOnlyStock || (i.qty_full + i.qty_no_handle) > 0;
+    return matchSearch && matchStock;
+  });
 
-  const totalFull     = items.reduce((s, i) => s + i.qty_full, 0);
-  const totalNoHandle = items.reduce((s, i) => s + i.qty_no_handle, 0);
+  const totalFull     = items.filter(i => i.id > 0).reduce((s, i) => s + i.qty_full, 0);
+  const totalNoHandle = items.filter(i => i.id > 0).reduce((s, i) => s + i.qty_no_handle, 0);
+  const posWithStock  = items.filter(i => (i.qty_full + i.qty_no_handle) > 0).length;
 
   return (
     <div className="p-6 max-w-4xl">
       <h1 className="font-display text-2xl font-semibold text-primary mb-1">Склад</h1>
 
       {/* Сводка */}
-      <div className="flex gap-4 mb-5">
+      <div className="flex gap-4 mb-5 flex-wrap">
         <div className="bg-card border border-primary/30 rounded-2xl px-5 py-3">
           <div className="text-xs text-muted-foreground">Готовых корзин</div>
           <div className="text-2xl font-bold text-primary">{totalFull}</div>
@@ -122,32 +152,47 @@ const AdminWarehouse = () => {
           <div className="text-2xl font-bold text-primary">{totalNoHandle}</div>
         </div>
         <div className="bg-card border border-primary/30 rounded-2xl px-5 py-3">
-          <div className="text-xs text-muted-foreground">Позиций</div>
-          <div className="text-2xl font-bold text-primary">{items.length}</div>
+          <div className="text-xs text-muted-foreground">Позиций в наличии</div>
+          <div className="text-2xl font-bold text-primary">{posWithStock}</div>
         </div>
       </div>
 
       {/* Тулбар */}
-      <div className="flex gap-3 mb-4 flex-wrap">
+      <div className="flex gap-3 mb-4 flex-wrap items-center">
         <input value={search} onChange={e => setSearch(e.target.value)}
           placeholder="Поиск по названию..."
           className="border border-primary/30 rounded-xl px-3 py-2 text-sm outline-none focus:border-accent flex-1 min-w-[200px]" />
+
+        {/* Фильтр */}
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowOnlyStock(false)}
+            className={`px-3 py-2 rounded-xl border text-sm font-medium transition-colors ${!showOnlyStock ? 'bg-primary text-white border-primary' : 'border-primary/40 text-primary hover:border-primary'}`}
+          >
+            Все позиции
+          </button>
+          <button
+            onClick={() => setShowOnlyStock(true)}
+            className={`px-3 py-2 rounded-xl border text-sm font-medium transition-colors ${showOnlyStock ? 'bg-primary text-white border-primary' : 'border-primary/40 text-primary hover:border-primary'}`}
+          >
+            В наличии
+          </button>
+        </div>
+
         <button onClick={() => { setForm({ catalog_name: '', operation: 'add', qty_full: 0, qty_no_handle: 0, comment: '' }); setShowForm(true); }}
           className="px-4 py-2 rounded-xl bg-accent text-accent-foreground text-sm font-semibold hover:bg-accent/90 transition-colors">
-          + Добавить / Списать
+          + Добавить / Брак
         </button>
         <button onClick={() => openLog()}
           className="px-4 py-2 rounded-xl border border-primary/40 text-primary text-sm hover:border-primary transition-colors">
-          История движений
+          История
         </button>
       </div>
 
       {loading ? (
         <p className="text-muted-foreground">Загружаю...</p>
       ) : filtered.length === 0 ? (
-        <p className="text-muted-foreground">
-          {search ? 'Ничего не найдено' : 'Склад пуст. Данные появятся когда сотрудники отправят отчёты.'}
-        </p>
+        <p className="text-muted-foreground">{search ? 'Ничего не найдено' : 'Нет позиций.'}</p>
       ) : (
         <div className="border border-primary/30 rounded-2xl overflow-hidden">
           <table className="w-full text-sm border-collapse">
@@ -162,25 +207,31 @@ const AdminWarehouse = () => {
               </tr>
             </thead>
             <tbody>
-              {filtered.map(item => (
-                <tr key={item.id} className="border-b border-primary/10 last:border-0 hover:bg-primary/3">
-                  <td className="px-4 py-3 text-primary font-medium">{item.catalog_name}</td>
-                  <td className="px-4 py-3 text-right font-bold text-primary">{item.qty_full}</td>
-                  <td className="px-4 py-3 text-right text-primary/70">{item.qty_no_handle}</td>
-                  <td className="px-4 py-3 text-right font-bold" style={{ color: '#6b7c3a' }}>
-                    {item.qty_full + item.qty_no_handle}
-                  </td>
-                  <td className="px-4 py-3 text-center text-xs text-muted-foreground">
-                    {item.updated_at ? new Date(item.updated_at).toLocaleDateString('ru-RU') : '—'}
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    <button onClick={() => openLog(item.catalog_name)}
-                      className="text-xs text-primary/50 hover:text-primary underline">
-                      История
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {filtered.map((item, idx) => {
+                const total = item.qty_full + item.qty_no_handle;
+                return (
+                  <tr key={item.id > 0 ? item.id : `virtual-${idx}`}
+                    className={`border-b border-primary/10 last:border-0 hover:bg-primary/3 ${total === 0 ? 'opacity-50' : ''}`}>
+                    <td className="px-4 py-2.5 text-primary font-medium">{item.catalog_name}</td>
+                    <td className="px-4 py-2.5 text-right font-bold text-primary">{item.qty_full}</td>
+                    <td className="px-4 py-2.5 text-right text-primary/70">{item.qty_no_handle}</td>
+                    <td className="px-4 py-2.5 text-right font-bold" style={{ color: total > 0 ? '#6b7c3a' : undefined }}>
+                      {total}
+                    </td>
+                    <td className="px-4 py-2.5 text-center text-xs text-muted-foreground">
+                      {item.updated_at ? new Date(item.updated_at).toLocaleDateString('ru-RU') : '—'}
+                    </td>
+                    <td className="px-4 py-2.5 text-center">
+                      {item.id > 0 && (
+                        <button onClick={() => openLog(item.catalog_name)}
+                          className="text-xs text-primary/50 hover:text-primary underline">
+                          История
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -196,21 +247,20 @@ const AdminWarehouse = () => {
                 <label className="text-xs text-muted-foreground block mb-1">Наименование *</label>
                 <input value={form.catalog_name}
                   onChange={e => setForm(f => ({...f, catalog_name: e.target.value}))}
-                  list="warehouse-names"
-                  placeholder="Название корзины как в каталоге"
+                  list="warehouse-catalog-names"
+                  placeholder="Выберите или введите название"
                   className="w-full border border-primary/30 rounded-xl px-3 py-2 text-sm outline-none focus:border-accent" />
-                <datalist id="warehouse-names">
-                  {items.map(i => <option key={i.id} value={i.catalog_name} />)}
+                <datalist id="warehouse-catalog-names">
+                  {allNames.map(n => <option key={n} value={n} />)}
                 </datalist>
               </div>
               <div>
                 <label className="text-xs text-muted-foreground block mb-1">Операция</label>
                 <select value={form.operation}
-                  onChange={e => setForm(f => ({...f, operation: e.target.value as typeof form.operation}))}
+                  onChange={e => setForm(f => ({...f, operation: e.target.value as 'add' | 'defect'}))}
                   className="w-full border border-primary/30 rounded-xl px-3 py-2 text-sm outline-none focus:border-accent">
                   <option value="add">➕ Ручное добавление</option>
                   <option value="defect">⚠️ Брак</option>
-                  <option value="write_off">📦 Списание в заказ</option>
                 </select>
               </div>
               <div className="flex gap-2">

@@ -8,6 +8,7 @@ import AdminCalendar from '@/components/admin/AdminCalendar';
 import AdminAccess from '@/components/admin/AdminAccess';
 import AdminHandbook from '@/components/admin/AdminHandbook';
 import AdminWarehouse from '@/components/admin/AdminWarehouse';
+import AdminTasks from '@/components/admin/AdminTasks';
 import { AdminStaffCabinetPage } from '@/components/admin/AdminStaffCabinet';
 import AdminPlaceholder from '@/components/admin/AdminPlaceholder';
 
@@ -15,6 +16,7 @@ const Admin = () => (
   <AdminLayout>
     <Routes>
       <Route index element={<AdminOrders />} />
+      <Route path="tasks"        element={<AdminTasks />} />
       <Route path="orders"       element={<AdminOrders />} />
       <Route path="calendar"     element={<AdminCalendar />} />
       <Route path="production"   element={<AdminProduction />} />

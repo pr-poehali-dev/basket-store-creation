@@ -6,6 +6,54 @@ import {
   getDeadlineStatus, weavingPct, paintingPct,
 } from './orderUtils';
 
+// Следующий этап по порядку
+function nextStage(current: string): string | null {
+  const workStages = STAGES.filter(s => s !== CLOSED_STAGE);
+  const idx = workStages.indexOf(current);
+  if (idx === -1 || idx >= workStages.length - 1) return null;
+  return workStages[idx + 1];
+}
+
+// Автозадачи: при сохранении обязательных полей создаём задачи нужным группам
+async function createAutoTasks(order: Order, field: 'due_date' | 'due_weaving' | 'due_painting') {
+  try {
+    // Загружаем всех сотрудников
+    const res = await fetch(urls['staff']);
+    const data = await res.json();
+    const staff: { id: number; full_name: string; group_name: string; is_active: boolean }[] = data.staff || [];
+
+    let targetGroup = '';
+    let taskTitle = '';
+    if (field === 'due_date') {
+      targetGroup = 'Администрация';
+      taskTitle = `Срок готовности заказа: ${order.city} ${order.customer_name}`;
+    } else if (field === 'due_weaving') {
+      targetGroup = 'Руководители отделов плетения';
+      taskTitle = `Срок плетения: ${order.city} ${order.customer_name}`;
+    } else if (field === 'due_painting') {
+      targetGroup = 'Маляр';
+      taskTitle = `Срок окраски: ${order.city} ${order.customer_name}`;
+    }
+
+    const targets = staff.filter(s => s.group_name === targetGroup && s.is_active);
+    for (const s of targets) {
+      await fetch(urls['tasks'], {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'task',
+          title: taskTitle,
+          description: `Заказ #${order.order_number} · ${fmtMoney(order.total)}`,
+          assigned_to: s.id,
+          assigned_by_name: 'Система',
+          priority: 'high',
+          due_date: field === 'due_date' ? order.due_date : field === 'due_weaving' ? order.due_weaving : order.due_painting,
+        }),
+      });
+    }
+  } catch { /* не критично */ }
+}
+
 // Карточка заказа
 const OrderCard = ({ order, onDragStart, onUpdate }: {
   order: Order;
@@ -23,8 +71,15 @@ const OrderCard = ({ order, onDragStart, onUpdate }: {
   const wPct = weavingPct(order);
   const pPct = paintingPct(order);
   const showProgress = ['Плетение', 'Малярка', 'Упаковка', 'Доставка'].includes(order.stage);
+  const next = nextStage(order.stage);
 
-  // Цвет фона верхней части карточки
+  // Проверка заполненности обязательных полей для перехода
+  const canMoveNext = (() => {
+    if (order.stage === 'Согласование') return !!order.due_date;
+    if (order.stage === 'Плетение') return !!order.due_weaving && !!order.due_painting;
+    return true;
+  })();
+
   const headerBg =
     dlStatus === 'burn-weaving' || dlStatus === 'burn-painting'
       ? 'bg-red-500/15 border-red-400/60'
@@ -39,18 +94,31 @@ const OrderCard = ({ order, onDragStart, onUpdate }: {
       ? 'hover:border-yellow-500'
       : 'hover:border-primary';
 
+  const handleUpdate = async (patch: Partial<Order>) => {
+    onUpdate(order.id, patch);
+    // Автозадачи при установке обязательных полей
+    if (patch.due_date && !order.due_date) {
+      await createAutoTasks({ ...order, ...patch }, 'due_date');
+    }
+    if (patch.due_weaving && !order.due_weaving) {
+      await createAutoTasks({ ...order, ...patch }, 'due_weaving');
+    }
+    if (patch.due_painting && !order.due_painting) {
+      await createAutoTasks({ ...order, ...patch }, 'due_painting');
+    }
+  };
+
   return (
     <div
       draggable
       onDragStart={() => onDragStart(order.id)}
       className="rounded-2xl border cursor-pointer select-none overflow-hidden transition-colors"
     >
-      {/* ВЕРХНЯЯ часть — окрашивается при дедлайне */}
+      {/* ВЕРХНЯЯ часть */}
       <div
         className={`p-3 ${headerBg} ${hoverBorder} transition-colors`}
         onClick={() => setExpanded(v => !v)}
       >
-        {/* Плашка горим/предупреждение */}
         {(dlStatus === 'burn-weaving' || dlStatus === 'burn-painting') && (
           <div className="mb-2 -mx-1 -mt-1">
             <span className="block text-center text-[11px] font-bold text-white bg-red-500 rounded-md py-1 px-2 animate-pulse">
@@ -66,21 +134,16 @@ const OrderCard = ({ order, onDragStart, onUpdate }: {
           </div>
         )}
 
-        {/* Плашки: доставка + ответственный + дата готовности */}
         <div className="flex flex-wrap items-center gap-1.5 mb-2">
           {order.delivery_type && DELIVERY_TYPES[order.delivery_type] && (
-            <span
-              title={DELIVERY_LABELS[order.delivery_type]}
-              className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-muted text-muted-foreground border border-border"
-            >
+            <span title={DELIVERY_LABELS[order.delivery_type]}
+              className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-muted text-muted-foreground border border-border">
               {DELIVERY_TYPES[order.delivery_type]}
             </span>
           )}
           {respStyle && (
-            <span
-              className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
-              style={{ backgroundColor: respStyle.bg, color: respStyle.text }}
-            >
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+              style={{ backgroundColor: respStyle.bg, color: respStyle.text }}>
               {respStyle.name}
             </span>
           )}
@@ -91,16 +154,11 @@ const OrderCard = ({ order, onDragStart, onUpdate }: {
           )}
         </div>
 
-        {/* Шапка */}
-        <div className="text-[11px] text-primary/70 mb-1">
-          #{order.order_number} {fmtDate(order.created_at)}
-        </div>
         <div className="font-bold text-primary leading-tight break-words">
           {order.city} {order.customer_name}
         </div>
         <div className="font-bold text-primary">{fmtMoney(order.total)}</div>
 
-        {/* Прогресс плетения и покраски (с Плетения и далее) */}
         {showProgress && (
           <div className="mt-2 space-y-1.5">
             <div>
@@ -109,10 +167,7 @@ const OrderCard = ({ order, onDragStart, onUpdate }: {
                 <span className="font-semibold" style={{color:'#6b7c3a'}}>{wPct}%</span>
               </div>
               <div className="h-1.5 rounded-full bg-primary/10 overflow-hidden">
-                <div
-                  className="h-full rounded-full transition-all"
-                  style={{ width: `${wPct}%`, backgroundColor: '#8a9a5a' }}
-                />
+                <div className="h-full rounded-full transition-all" style={{ width: `${wPct}%`, backgroundColor: '#8a9a5a' }} />
               </div>
             </div>
             <div>
@@ -121,82 +176,76 @@ const OrderCard = ({ order, onDragStart, onUpdate }: {
                 <span className="font-semibold" style={{color:'#6b7c3a'}}>{pPct}%</span>
               </div>
               <div className="h-1.5 rounded-full bg-primary/10 overflow-hidden">
-                <div
-                  className="h-full rounded-full transition-all"
-                  style={{ width: `${pPct}%`, backgroundColor: '#8a9a5a' }}
-                />
+                <div className="h-full rounded-full transition-all" style={{ width: `${pPct}%`, backgroundColor: '#8a9a5a' }} />
               </div>
             </div>
           </div>
         )}
       </div>
 
-      {/* НИЖНЯЯ часть — не окрашивается, раскрывается по клику */}
+      {/* НИЖНЯЯ часть */}
       {expanded && (
-        <div
-          className="bg-card border-t border-primary/20 p-3 space-y-3"
-          onClick={e => e.stopPropagation()}
-        >
-          {/* На этапе Согласование: ответственный + дата готовности */}
+        <div className="bg-card border-t border-primary/20 p-3 space-y-3" onClick={e => e.stopPropagation()}>
+
+          {/* Согласование: ответственный + дата готовности (обязательно) */}
           {isApproval && (
             <div className="space-y-2">
               <div>
                 <label className="text-[10px] uppercase tracking-wider text-primary/60 block mb-1">Ответственный</label>
-                <select
-                  value={order.responsible || ''}
-                  onChange={e => onUpdate(order.id, { responsible: e.target.value })}
-                  className="w-full text-xs border border-primary/30 rounded-md px-2 py-1 bg-background outline-none focus:border-accent"
-                >
+                <select value={order.responsible || ''}
+                  onChange={e => handleUpdate({ responsible: e.target.value })}
+                  className="w-full text-xs border border-primary/30 rounded-md px-2 py-1 bg-background outline-none focus:border-accent">
                   <option value="">— не выбран —</option>
                   {RESPONSIBLES.map(r => <option key={r.name} value={r.name}>{r.name}</option>)}
                 </select>
               </div>
               <div>
-                <label className="text-[10px] uppercase tracking-wider text-primary/60 block mb-1">Дата готовности</label>
-                <input
-                  type="date"
-                  value={order.due_date || ''}
-                  onChange={e => onUpdate(order.id, { due_date: e.target.value })}
-                  className="w-full text-xs border border-primary/30 rounded-md px-2 py-1 bg-background outline-none focus:border-accent"
+                <label className="text-[10px] uppercase tracking-wider text-primary/60 block mb-1">
+                  Дата готовности <span className="text-red-400">*</span>
+                </label>
+                <input type="date" value={order.due_date || ''}
+                  onChange={e => handleUpdate({ due_date: e.target.value })}
+                  className={`w-full text-xs border rounded-md px-2 py-1 bg-background outline-none focus:border-accent ${!order.due_date ? 'border-red-400' : 'border-primary/30'}`}
                 />
+                {!order.due_date && <p className="text-[10px] text-red-400 mt-0.5">Обязательное поле для перехода</p>}
               </div>
             </div>
           )}
 
-          {/* На этапе Плетение: дедлайн плетения и покраски */}
+          {/* Плетение: сроки плетения и покраски (обязательно) */}
           {isWeaving && (
             <div className="space-y-2">
               <div>
-                <label className="text-[10px] uppercase tracking-wider text-primary/60 block mb-1">Срок плетения</label>
-                <input
-                  type="date"
-                  value={order.due_weaving || ''}
-                  onChange={e => onUpdate(order.id, { due_weaving: e.target.value })}
-                  className="w-full text-xs border border-primary/30 rounded-md px-2 py-1 bg-background outline-none focus:border-accent"
+                <label className="text-[10px] uppercase tracking-wider text-primary/60 block mb-1">
+                  Срок плетения <span className="text-red-400">*</span>
+                </label>
+                <input type="date" value={order.due_weaving || ''}
+                  onChange={e => handleUpdate({ due_weaving: e.target.value })}
+                  className={`w-full text-xs border rounded-md px-2 py-1 bg-background outline-none focus:border-accent ${!order.due_weaving ? 'border-red-400' : 'border-primary/30'}`}
                 />
+                {!order.due_weaving && <p className="text-[10px] text-red-400 mt-0.5">Обязательное поле</p>}
               </div>
               <div>
-                <label className="text-[10px] uppercase tracking-wider text-primary/60 block mb-1">Срок покраски</label>
-                <input
-                  type="date"
-                  value={order.due_painting || ''}
-                  onChange={e => onUpdate(order.id, { due_painting: e.target.value })}
-                  className="w-full text-xs border border-primary/30 rounded-md px-2 py-1 bg-background outline-none focus:border-accent"
+                <label className="text-[10px] uppercase tracking-wider text-primary/60 block mb-1">
+                  Срок окраски <span className="text-red-400">*</span>
+                </label>
+                <input type="date" value={order.due_painting || ''}
+                  onChange={e => handleUpdate({ due_painting: e.target.value })}
+                  className={`w-full text-xs border rounded-md px-2 py-1 bg-background outline-none focus:border-accent ${!order.due_painting ? 'border-red-400' : 'border-primary/30'}`}
                 />
+                {!order.due_painting && <p className="text-[10px] text-red-400 mt-0.5">Обязательное поле</p>}
               </div>
             </div>
           )}
 
-          {/* Позиции (раскрытие цветов) */}
+          {/* Позиции */}
           {positions.length > 0 && (
             <div>
-              <button
-                onClick={() => setShowColors(v => !v)}
-                className="text-[11px] text-primary/70 hover:text-primary mb-2"
-              >
+              <button onClick={() => setShowColors(v => !v)} className="text-[11px] text-primary/70 hover:text-primary mb-2">
                 {showColors ? 'скрыть цвета' : 'открыть цвета'}
               </button>
-              <div className="border border-primary/30 rounded-md overflow-hidden">
+              {/* Без внешней окантовки, только внутренние границы */}
+              <div>
                 {positions.map(pos => (
                   <div key={pos.key}>
                     <div className="flex justify-between items-center gap-2 px-2 py-1 bg-primary/5 border-b border-primary/20">
@@ -215,34 +264,44 @@ const OrderCard = ({ order, onDragStart, onUpdate }: {
             </div>
           )}
 
-          {/* Кнопки архивирования/восстановления/удаления */}
+          {/* Кнопка следующей стадии */}
+          {next && !isClosed && !order.is_trashed && (
+            <div>
+              {canMoveNext ? (
+                <button
+                  onClick={() => onUpdate(order.id, { stage: next })}
+                  className="w-full text-xs font-semibold py-2 rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground transition-colors"
+                >
+                  → {next}
+                </button>
+              ) : (
+                <div className="w-full text-xs text-center py-2 rounded-xl bg-red-50 border border-red-200 text-red-500">
+                  Заполните обязательные поля для перехода
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Архив / удаление */}
           <div className="flex gap-2 pt-1 border-t border-primary/10">
             {isClosed ? (
-              <button
-                onClick={() => onUpdate(order.id, { stage: 'Новый заказ', is_archived: false })}
-                className="text-[11px] text-primary/70 hover:text-primary underline"
-              >
+              <button onClick={() => onUpdate(order.id, { stage: 'Новый заказ', is_archived: false })}
+                className="text-[11px] text-primary/70 hover:text-primary underline">
                 Вернуть в работу
               </button>
             ) : order.is_trashed ? (
-              <button
-                onClick={() => onUpdate(order.id, { is_trashed: false })}
-                className="text-[11px] text-primary/70 hover:text-primary underline"
-              >
+              <button onClick={() => onUpdate(order.id, { is_trashed: false })}
+                className="text-[11px] text-primary/70 hover:text-primary underline">
                 Восстановить
               </button>
             ) : (
               <>
-                <button
-                  onClick={() => onUpdate(order.id, { stage: CLOSED_STAGE, is_archived: true })}
-                  className="text-[11px] text-primary/70 hover:text-primary underline"
-                >
+                <button onClick={() => onUpdate(order.id, { stage: CLOSED_STAGE, is_archived: true })}
+                  className="text-[11px] text-primary/70 hover:text-primary underline">
                   В архив
                 </button>
-                <button
-                  onClick={() => onUpdate(order.id, { is_trashed: true })}
-                  className="text-[11px] text-red-400 hover:text-red-600 underline"
-                >
+                <button onClick={() => onUpdate(order.id, { is_trashed: true })}
+                  className="text-[11px] text-red-400 hover:text-red-600 underline">
                   Удалить
                 </button>
               </>
@@ -254,7 +313,6 @@ const OrderCard = ({ order, onDragStart, onUpdate }: {
   );
 };
 
-// Колонка архива (раскрывается/скрывается)
 const ArchiveColumn = ({ orders, onDragStart, onUpdate }: {
   orders: Order[];
   onDragStart: (id: number) => void;
@@ -263,10 +321,8 @@ const ArchiveColumn = ({ orders, onDragStart, onUpdate }: {
   const [open, setOpen] = useState(false);
   return (
     <div className="w-64 flex-shrink-0 px-2 border-l border-primary/30">
-      <button
-        onClick={() => setOpen(v => !v)}
-        className="w-full text-center font-semibold text-primary text-sm pb-3 mb-3 border-b border-primary/30 flex items-center justify-center gap-1"
-      >
+      <button onClick={() => setOpen(v => !v)}
+        className="w-full text-center font-semibold text-primary text-sm pb-3 mb-3 border-b border-primary/30 flex items-center justify-center gap-1">
         Закрытые {orders.length > 0 && <span className="text-xs bg-primary/10 rounded-full px-1.5">{orders.length}</span>}
         <span className="text-primary/50 text-xs">{open ? '▲' : '▼'}</span>
       </button>
@@ -274,17 +330,13 @@ const ArchiveColumn = ({ orders, onDragStart, onUpdate }: {
         <div className="space-y-3 min-h-[40px]">
           {orders.length === 0
             ? <p className="text-xs text-muted-foreground text-center">Нет закрытых заказов</p>
-            : orders.map(order => (
-              <OrderCard key={order.id} order={order} onDragStart={onDragStart} onUpdate={onUpdate} />
-            ))
-          }
+            : orders.map(order => <OrderCard key={order.id} order={order} onDragStart={onDragStart} onUpdate={onUpdate} />)}
         </div>
       )}
     </div>
   );
 };
 
-// Колонка удалённых
 const TrashColumn = ({ orders, onDragStart, onUpdate }: {
   orders: Order[];
   onDragStart: (id: number) => void;
@@ -293,10 +345,8 @@ const TrashColumn = ({ orders, onDragStart, onUpdate }: {
   const [open, setOpen] = useState(false);
   return (
     <div className="w-64 flex-shrink-0 px-2 border-l border-primary/30">
-      <button
-        onClick={() => setOpen(v => !v)}
-        className="w-full text-center font-semibold text-red-400 text-sm pb-3 mb-3 border-b border-red-300/30 flex items-center justify-center gap-1"
-      >
+      <button onClick={() => setOpen(v => !v)}
+        className="w-full text-center font-semibold text-red-400 text-sm pb-3 mb-3 border-b border-red-300/30 flex items-center justify-center gap-1">
         Удалённые {orders.length > 0 && <span className="text-xs bg-red-400/10 rounded-full px-1.5">{orders.length}</span>}
         <span className="text-red-300 text-xs">{open ? '▲' : '▼'}</span>
       </button>
@@ -304,17 +354,13 @@ const TrashColumn = ({ orders, onDragStart, onUpdate }: {
         <div className="space-y-3 min-h-[40px]">
           {orders.length === 0
             ? <p className="text-xs text-muted-foreground text-center">Нет удалённых заказов</p>
-            : orders.map(order => (
-              <OrderCard key={order.id} order={order} onDragStart={onDragStart} onUpdate={onUpdate} />
-            ))
-          }
+            : orders.map(order => <OrderCard key={order.id} order={order} onDragStart={onDragStart} onUpdate={onUpdate} />)}
         </div>
       )}
     </div>
   );
 };
 
-// Основной компонент
 const AdminOrders = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -340,20 +386,27 @@ const AdminOrders = () => {
 
   const handleDrop = (stage: string) => {
     if (dragId !== null) {
+      const order = orders.find(o => o.id === dragId);
+      if (!order) return;
       const isArchive = stage === CLOSED_STAGE;
+      // Проверяем обязательные поля при перетаскивании
+      if (stage === 'Плетение' && (!order.due_date)) {
+        alert('Заполните дату готовности перед переводом в Плетение');
+        return;
+      }
+      if (stage === 'Малярка' && (!order.due_weaving || !order.due_painting)) {
+        alert('Заполните срок плетения и срок окраски перед переводом в Малярку');
+        return;
+      }
       patchOrder(dragId, { stage, is_archived: isArchive });
       setDragId(null);
     }
   };
 
-  // Рабочие этапы (без "Закрытые")
   const workStages = STAGES.filter(s => s !== CLOSED_STAGE);
-  // Активные заказы (не в архиве, не удалены)
-  const activeOrders = orders.filter(o => !o.is_archived && !o.is_trashed);
-  // Закрытые
+  const activeOrders   = orders.filter(o => !o.is_archived && !o.is_trashed);
   const archivedOrders = orders.filter(o => o.is_archived && !o.is_trashed);
-  // Удалённые
-  const trashedOrders = orders.filter(o => o.is_trashed);
+  const trashedOrders  = orders.filter(o => o.is_trashed);
 
   return (
     <div className="p-6">
@@ -363,53 +416,25 @@ const AdminOrders = () => {
         <p className="text-muted-foreground">Загружаю...</p>
       ) : (
         <div className="flex gap-0 min-w-max">
-          {/* Рабочие колонки */}
           {workStages.map((stage, idx) => {
             const stageOrders = activeOrders.filter(o => o.stage === stage);
             return (
-              <div
-                key={stage}
-                onDragOver={e => e.preventDefault()}
-                onDrop={() => handleDrop(stage)}
-                className={`w-64 flex-shrink-0 px-2 ${idx > 0 ? 'border-l border-primary/30' : ''}`}
-              >
+              <div key={stage} onDragOver={e => e.preventDefault()} onDrop={() => handleDrop(stage)}
+                className={`w-64 flex-shrink-0 px-2 ${idx > 0 ? 'border-l border-primary/30' : ''}`}>
                 <h2 className="text-center font-semibold text-primary text-sm pb-3 mb-3 border-b border-primary/30">
                   {stage}
                 </h2>
                 <div className="space-y-3 min-h-[200px]">
                   {stageOrders.map(order => (
-                    <OrderCard
-                      key={order.id}
-                      order={order}
-                      onDragStart={setDragId}
-                      onUpdate={patchOrder}
-                    />
+                    <OrderCard key={order.id} order={order} onDragStart={setDragId} onUpdate={patchOrder} />
                   ))}
                 </div>
               </div>
             );
           })}
-
-          {/* Архив */}
-          <ArchiveColumn
-            orders={archivedOrders}
-            onDragStart={setDragId}
-            onUpdate={patchOrder}
-          />
-
-          {/* Удалённые */}
-          <TrashColumn
-            orders={trashedOrders}
-            onDragStart={setDragId}
-            onUpdate={patchOrder}
-          />
+          <ArchiveColumn orders={archivedOrders} onDragStart={setDragId} onUpdate={patchOrder} />
+          <TrashColumn   orders={trashedOrders}  onDragStart={setDragId} onUpdate={patchOrder} />
         </div>
-      )}
-
-      {!loading && orders.length === 0 && (
-        <p className="text-muted-foreground mt-4">
-          Заказов пока нет. Они появятся здесь автоматически после оформления на сайте.
-        </p>
       )}
     </div>
   );

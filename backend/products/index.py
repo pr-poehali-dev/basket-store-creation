@@ -29,13 +29,23 @@ def get_conn():
     return psycopg2.connect(os.environ['DATABASE_URL'], options=f"-c search_path={os.environ['MAIN_DB_SCHEMA']}")
 
 def row_to_dict(r):
+    images = r[19] if r[19] else []
+    if isinstance(images, str):
+        try: images = json.loads(images)
+        except: images = []
+    # Первое фото берём из images[0] или из image_url для обратной совместимости
+    image_url = r[8] or ''
+    if images and not image_url:
+        image_url = images[0]
     return {
         'id': r[0], 'name': r[1], 'description': r[2], 'shape': r[3],
         'size': r[4], 'color': r[5], 'price': r[6], 'sale_price': r[7],
-        'image_url': r[8], 'group_id': r[9], 'group_by': r[10], 'split_by': r[11],
+        'image_url': image_url, 'group_id': r[9], 'group_by': r[10], 'split_by': r[11],
         'набор': r[12], 'size_category': r[13],
         'labels': r[14], 'priority': r[15], 'weave_type': r[16], 'handles_count': r[17],
         'sku': r[18],
+        'images': images,
+        'video_url': r[20] or '',
     }
 
 def build_cards(rows):
@@ -84,7 +94,8 @@ def handler(event: dict, context) -> dict:
             cur.execute("""
                 SELECT id, name, description, shape, size, color, price, sale_price,
                        image_url, group_id, group_by, split_by, набор, size_category,
-                       labels, priority, weave_type, handles_count, sku
+                       labels, priority, weave_type, handles_count, sku,
+                       images, video_url
                 FROM products ORDER BY priority NULLS LAST, id
             """)
             rows = [row_to_dict(r) for r in cur.fetchall()]
@@ -99,16 +110,19 @@ def handler(event: dict, context) -> dict:
             sale_price = body.get('sale_price') or None
             priority = body.get('priority') or None
             sku = body.get('sku') or None
+            images = body.get('images', [])
+            image_url = body.get('image_url') or (images[0] if images else '')
             cur.execute(
                 """INSERT INTO products (name, description, shape, size, color, price, sale_price,
-                   image_url, group_id, group_by, split_by, labels, priority, weave_type, handles_count, sku)
-                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+                   image_url, group_id, group_by, split_by, labels, priority, weave_type, handles_count, sku, images, video_url)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
                 (body.get('name',''), body.get('description',''), body.get('shape','Круглые'),
                  body.get('size','Средние'), body.get('color',''), body.get('price',0), sale_price,
-                 body.get('image_url',''), body.get('group_id') or None,
+                 image_url, body.get('group_id') or None,
                  body.get('group_by') or None, body.get('split_by') or None,
                  body.get('labels') or None, priority,
-                 body.get('weave_type') or None, body.get('handles_count') or None, sku)
+                 body.get('weave_type') or None, body.get('handles_count') or None, sku,
+                 json.dumps(images, ensure_ascii=False), body.get('video_url') or '')
             )
             new_id = cur.fetchone()[0]
             conn.commit()
@@ -119,17 +133,20 @@ def handler(event: dict, context) -> dict:
             sale_price = body.get('sale_price') or None
             priority = body.get('priority') or None
             sku = body.get('sku') or None
+            images = body.get('images', [])
+            image_url = body.get('image_url') or (images[0] if images else '')
             cur.execute(
                 """UPDATE products SET name=%s, description=%s, shape=%s, size=%s, color=%s,
                    price=%s, sale_price=%s, image_url=%s, group_id=%s, group_by=%s, split_by=%s,
                    labels=%s, priority=%s, weave_type=%s, handles_count=%s, sku=%s,
-                   updated_at=NOW() WHERE id=%s""",
+                   images=%s, video_url=%s, updated_at=NOW() WHERE id=%s""",
                 (body.get('name',''), body.get('description',''), body.get('shape','Круглые'),
                  body.get('size','Средние'), body.get('color',''), body.get('price',0), sale_price,
-                 body.get('image_url',''), body.get('group_id') or None,
+                 image_url, body.get('group_id') or None,
                  body.get('group_by') or None, body.get('split_by') or None,
                  body.get('labels') or None, priority,
-                 body.get('weave_type') or None, body.get('handles_count') or None, sku, pid)
+                 body.get('weave_type') or None, body.get('handles_count') or None, sku,
+                 json.dumps(images, ensure_ascii=False), body.get('video_url') or '', pid)
             )
             conn.commit()
             return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'ok': True})}

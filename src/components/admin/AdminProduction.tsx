@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import urls from '../../../backend/func2url.json';
-import { Order, groupPositions, fmtDate, fmtMoney, fmtDateShort, STAGES } from './orderUtils';
+import { Order, groupPositions, fmtDate, fmtMoney, fmtDateShort, STAGES, CLOSED_STAGE } from './orderUtils';
 
 const PROD_STAGES = STAGES.slice(STAGES.indexOf('Плетение'));
 const OLIVE = '#6b7c3a';
@@ -10,9 +10,17 @@ function pct(done: number, qty: number): number {
   return Math.round((done / qty) * 100);
 }
 
-const ProductionCard = ({ order, onUpdateProduced }: {
+function nextStage(current: string): string | null {
+  const work = STAGES.filter(s => s !== CLOSED_STAGE);
+  const idx = work.indexOf(current);
+  if (idx === -1 || idx >= work.length - 1) return null;
+  return work[idx + 1];
+}
+
+const ProductionCard = ({ order, onUpdateProduced, onUpdateStage }: {
   order: Order;
   onUpdateProduced: (id: number, produced: Record<string, number>) => void;
+  onUpdateStage: (id: number, stage: string) => void;
 }) => {
   const [expanded, setExpanded] = useState(false);
   const positions = groupPositions(order.items);
@@ -106,8 +114,11 @@ const ProductionCard = ({ order, onUpdateProduced }: {
                     <td className="px-2 py-1.5 text-center text-primary font-bold border border-primary/10">{pos.total}</td>
                     <td className="px-1 py-1 text-center border border-primary/10">
                       <input
-                        type="number" min={0} max={pos.total} value={done}
-                        onChange={e => setDone(pos.key, parseInt(e.target.value, 10) || 0, pos.total)}
+                        type="number" min={0} max={pos.total}
+                        defaultValue={done}
+                        key={`${pos.key}-${done}`}
+                        onBlur={e => setDone(pos.key, parseInt(e.target.value, 10) || 0, pos.total)}
+                        onKeyDown={e => e.key === 'Enter' && setDone(pos.key, parseInt((e.target as HTMLInputElement).value, 10) || 0, pos.total)}
                         className="w-14 text-center border border-primary/30 rounded px-1 py-0.5 bg-background outline-none focus:border-accent [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
                     </td>
@@ -129,6 +140,21 @@ const ProductionCard = ({ order, onUpdateProduced }: {
           </table>
         </div>
       )}
+
+      {/* Кнопка следующей стадии */}
+      {(() => {
+        const next = nextStage(order.stage);
+        return next ? (
+          <div className="px-4 pb-4" onClick={e => e.stopPropagation()}>
+            <button
+              onClick={() => onUpdateStage(order.id, next)}
+              className="w-full text-xs font-semibold py-2 rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground transition-colors"
+            >
+              → {next}
+            </button>
+          </div>
+        ) : null;
+      })()}
     </div>
   );
 };
@@ -155,6 +181,15 @@ const AdminProduction = () => {
     });
   };
 
+  const updateStage = async (id: number, stage: string) => {
+    setOrders(prev => prev.map(o => o.id === id ? { ...o, stage } : o));
+    await fetch(urls['orders'], {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, stage }),
+    });
+  };
+
   const prodOrders = orders.filter(o =>
     PROD_STAGES.includes(o.stage) && !o.is_archived && !o.is_trashed
   );
@@ -171,7 +206,7 @@ const AdminProduction = () => {
       ) : (
         <div className="space-y-5 max-w-4xl">
           {prodOrders.map(order => (
-            <ProductionCard key={order.id} order={order} onUpdateProduced={updateProduced} />
+            <ProductionCard key={order.id} order={order} onUpdateProduced={updateProduced} onUpdateStage={updateStage} />
           ))}
         </div>
       )}

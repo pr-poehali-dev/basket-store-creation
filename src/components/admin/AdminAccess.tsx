@@ -4,6 +4,7 @@ import urls from '../../../backend/func2url.json';
 // Все страницы с метками
 const ALL_PAGES = [
   { key: 'cabinet',     label: '👤 Личный кабинет (сотрудник)' },
+  { key: 'tasks',       label: 'Задачи' },
   { key: 'orders',      label: 'Заказы' },
   { key: 'calendar',    label: 'Календарь' },
   { key: 'production',  label: 'Производство' },
@@ -18,7 +19,7 @@ const ALL_PAGES = [
   { key: 'access',      label: 'Права доступа' },
 ];
 
-const GROUPS = ['Администрация', 'Руководители отделов', 'Сотрудники'];
+const GROUPS = ['Администрация', 'Руководители отделов плетения', 'Маляр', 'Сотрудники'];
 
 interface StaffMember {
   id: number;
@@ -31,6 +32,13 @@ interface StaffMember {
 }
 
 const EMPTY_FORM = { full_name: '', login: '', password: '', role: 'employee', group_name: 'Сотрудники', pages: [] as string[] };
+// Группы которые соответствуют ролям для автозадач
+export const GROUP_NAMES = {
+  ADMIN: 'Администрация',
+  WEAVING_LEAD: 'Руководители отделов плетения',
+  PAINTER: 'Маляр',
+  EMPLOYEE: 'Сотрудники',
+};
 
 const AdminAccess = () => {
   const [staff, setStaff]     = useState<StaffMember[]>([]);

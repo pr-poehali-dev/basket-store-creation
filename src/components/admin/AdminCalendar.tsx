@@ -96,7 +96,6 @@ const LinearView = ({ orders }: { orders: Order[] }) => {
             <div key={order.id} className="flex border-b border-primary/10 hover:bg-primary/5 transition-colors" style={{height: ROW_H}}>
               {/* Подпись */}
               <div style={{width: LABEL_W, minWidth: LABEL_W}} className="flex-shrink-0 px-3 py-2 border-r border-primary/20 flex flex-col justify-center">
-                <div className="text-[10px] text-primary/60">#{order.order_number}</div>
                 <div className="text-xs font-bold text-primary leading-tight">
                   {order.city} {order.customer_name}
                 </div>
@@ -206,35 +205,42 @@ const MonthView = ({ orders }: { orders: Order[] }) => {
             return (
               <div
                 key={i}
-                className={`min-h-[100px] border-r border-b border-primary/10 last:border-r-0 p-1.5 ${
+                className={`min-h-[130px] border-r border-b border-primary/10 last:border-r-0 p-1.5 ${
                   !d ? 'bg-primary/3' : isToday ? 'bg-accent/10' : isWeekend ? 'bg-primary/3' : 'bg-background'
                 }`}
               >
                 {d && (
                   <>
-                    <div className={`text-xs font-semibold mb-1 ${isToday ? 'text-accent font-bold' : isWeekend ? 'text-primary/40' : 'text-primary/70'}`}>
+                    <div className={`text-sm font-bold mb-1 ${isToday ? 'text-accent' : isWeekend ? 'text-primary/40' : 'text-primary/70'}`}>
                       {d.getDate()}
                     </div>
                     <div className="space-y-0.5">
                       {dayOrders.map(({ order, color, start, end }) => {
                         const isFirst = isoDate(d) === isoDate(start);
                         const isLast  = isoDate(d) === isoDate(end);
+                        // Показываем название на первом дне И на каждом понедельнике внутри диапазона
+                        const isMonday = d.getDay() === 1;
+                        const showLabel = isFirst || isMonday;
                         return (
                           <div
                             key={order.id}
                             title={`${order.city} ${order.customer_name} — ${fmtMoney(order.total)}`}
-                            className="text-[10px] leading-tight px-1 py-0.5 truncate"
+                            className="text-[10px] leading-tight px-1 py-0.5 overflow-hidden"
                             style={{
                               backgroundColor: color + '33',
-                              borderLeft:  isFirst ? `3px solid ${color}` : 'none',
+                              borderLeft:  isFirst ? `3px solid ${color}` : '1px solid ' + color + '44',
                               borderRight: isLast  ? `3px solid ${color}` : 'none',
-                              borderTop:    '1px solid ' + color + '66',
-                              borderBottom: '1px solid ' + color + '66',
+                              borderTop:    '1px solid ' + color + '55',
+                              borderBottom: '1px solid ' + color + '55',
                               color: '#3a2a1a',
                               borderRadius: isFirst && isLast ? 4 : isFirst ? '4px 0 0 4px' : isLast ? '0 4px 4px 0' : 0,
+                              minHeight: 18,
                             }}
                           >
-                            {isFirst ? `${order.city} ${order.customer_name}` : ''}
+                            {showLabel
+                              ? <span className="font-semibold truncate block">{order.city} {order.customer_name}</span>
+                              : <span className="opacity-0 select-none">·</span>
+                            }
                           </div>
                         );
                       })}
@@ -254,7 +260,7 @@ const MonthView = ({ orders }: { orders: Order[] }) => {
 const AdminCalendar = () => {
   const [orders, setOrders]   = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<'linear' | 'month'>('linear');
+  const [view, setView] = useState<'linear' | 'month'>('month');
 
   const load = async () => {
     const res  = await fetch(urls['orders']);
@@ -278,20 +284,20 @@ const AdminCalendar = () => {
       {/* Переключатель вида */}
       <div className="flex gap-2 mb-6">
         <button
-          onClick={() => setView('linear')}
-          className={`px-4 py-1.5 rounded-xl border text-sm font-medium transition-colors ${
-            view === 'linear' ? 'bg-primary text-white border-primary' : 'border-primary/40 text-primary hover:border-primary'
-          }`}
-        >
-          Линейный
-        </button>
-        <button
           onClick={() => setView('month')}
           className={`px-4 py-1.5 rounded-xl border text-sm font-medium transition-colors ${
             view === 'month' ? 'bg-primary text-white border-primary' : 'border-primary/40 text-primary hover:border-primary'
           }`}
         >
           По месяцам
+        </button>
+        <button
+          onClick={() => setView('linear')}
+          className={`px-4 py-1.5 rounded-xl border text-sm font-medium transition-colors ${
+            view === 'linear' ? 'bg-primary text-white border-primary' : 'border-primary/40 text-primary hover:border-primary'
+          }`}
+        >
+          Линейный (Ганнт)
         </button>
       </div>
 
