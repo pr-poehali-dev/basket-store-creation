@@ -1,9 +1,10 @@
-import { useState, ReactNode } from 'react';
+import { useState, useEffect, ReactNode } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import Icon from '@/components/ui/icon';
 import urls from '../../../backend/func2url.json';
 import AdminTasksBlock from './AdminTasksBlock';
+import AdminStaffCabinet from './AdminStaffCabinet';
 
 // Структура меню: блоки с разделителями
 const NAV_BLOCKS = [
@@ -90,6 +91,16 @@ const AdminLayout = ({ children }: { children: ReactNode }) => {
     setLogin(''); setPassword('');
   };
 
+  // Сотрудник — есть staff_id, не admin, есть доступ к кабинету
+  const isEmployee = !authed?.is_admin && !!authed?.staff_id && (authed?.pages || []).includes('cabinet');
+
+  // Редирект сотрудника в кабинет при первом входе
+  useEffect(() => {
+    if (isEmployee && location.pathname === '/admin') {
+      navigate('/admin/cabinet', { replace: true });
+    }
+  }, [isEmployee, location.pathname, navigate]);
+
   if (!authed) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center px-6">
@@ -128,6 +139,45 @@ const AdminLayout = ({ children }: { children: ReactNode }) => {
     if (authed.is_admin) return true;
     return authed.pages.includes(key);
   };
+
+  // Сотрудник — есть staff_id, не admin, есть доступ к кабинету
+  const isEmployee = !authed.is_admin && !!authed.staff_id && authed.pages.includes('cabinet');
+
+  // Личный кабинет сотрудника — отдельный layout
+  if (isEmployee) {
+    return (
+      <div className="min-h-screen bg-background text-foreground flex">
+        <aside className="w-48 flex-shrink-0 border-r border-border min-h-screen px-3 py-6 flex flex-col gap-2">
+          <div className="flex items-center gap-2 px-2 mb-4">
+            <Icon name="Wheat" className="text-accent" size={20} />
+            <span className="font-display text-lg font-semibold text-primary">FABRICA</span>
+          </div>
+          <div className="flex flex-col gap-1.5 flex-1">
+            {[
+              { path: '/admin/cabinet', label: 'Мой кабинет' },
+            ].map(item => (
+              <button key={item.path} onClick={() => navigate(item.path)}
+                className={['w-full text-center font-semibold py-2 rounded-xl border transition-colors text-sm',
+                  isActive(item.path) ? 'bg-accent text-primary border-accent' : 'bg-background text-primary border-primary/40 hover:border-primary'
+                ].join(' ')}>
+                {item.label}
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-col gap-1.5 px-1 pt-4 border-t border-primary/15">
+            {authed.full_name && <p className="text-xs text-muted-foreground truncate">{authed.full_name}</p>}
+            <button onClick={doLogout} className="text-sm text-muted-foreground hover:text-accent text-left">Выйти</button>
+          </div>
+        </aside>
+        <main className="flex-1 min-w-0 overflow-x-auto flex flex-col">
+          <AdminTasksBlock auth={authed} />
+          <div className="flex-1">
+            <AdminStaffCabinet auth={authed} />
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background text-foreground flex">

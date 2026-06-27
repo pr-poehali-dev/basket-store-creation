@@ -3,6 +3,7 @@ import urls from '../../../backend/func2url.json';
 
 // Все страницы с метками
 const ALL_PAGES = [
+  { key: 'cabinet',     label: '👤 Личный кабинет (сотрудник)' },
   { key: 'orders',      label: 'Заказы' },
   { key: 'calendar',    label: 'Календарь' },
   { key: 'production',  label: 'Производство' },

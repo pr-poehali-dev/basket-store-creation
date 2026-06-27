@@ -7,6 +7,8 @@ import AdminPainting from '@/components/admin/AdminPainting';
 import AdminCalendar from '@/components/admin/AdminCalendar';
 import AdminAccess from '@/components/admin/AdminAccess';
 import AdminHandbook from '@/components/admin/AdminHandbook';
+import AdminWarehouse from '@/components/admin/AdminWarehouse';
+import { AdminStaffCabinetPage } from '@/components/admin/AdminStaffCabinet';
 import AdminPlaceholder from '@/components/admin/AdminPlaceholder';
 
 const Admin = () => (
@@ -17,7 +19,7 @@ const Admin = () => (
       <Route path="calendar"     element={<AdminCalendar />} />
       <Route path="production"   element={<AdminProduction />} />
       <Route path="painting"     element={<AdminPainting />} />
-      <Route path="warehouse"    element={<AdminPlaceholder title="Склад" />} />
+      <Route path="warehouse"    element={<AdminWarehouse />} />
       <Route path="income"       element={<AdminPlaceholder title="Поступления" />} />
       <Route path="clients"      element={<AdminPlaceholder title="База клиентов" />} />
       <Route path="products"     element={<AdminProducts />} />
@@ -25,6 +27,7 @@ const Admin = () => (
       <Route path="staff-report" element={<AdminPlaceholder title="Сводка по сотрудникам" />} />
       <Route path="handbook"     element={<AdminHandbook />} />
       <Route path="access"       element={<AdminAccess />} />
+      <Route path="cabinet"      element={<AdminStaffCabinetPage />} />
       <Route path="*"            element={<Navigate to="/admin/orders" replace />} />
     </Routes>
   </AdminLayout>
