@@ -4,34 +4,88 @@ import { Button } from '@/components/ui/button';
 import Icon from '@/components/ui/icon';
 import urls from '../../../backend/func2url.json';
 
-const NAV = [
-  { label: 'Заказы',        path: '/admin/orders' },
-  { label: 'Календарь',     path: '/admin/calendar' },
-  { label: 'Производство',  path: '/admin/production' },
-  { label: 'Малярка',       path: '/admin/painting' },
-  { label: 'База клиентов', path: '/admin/clients' },
-  { label: 'Поступления',   path: '/admin/income' },
-  { label: 'Товары',        path: '/admin/products' },
+// Структура меню: блоки с разделителями
+const NAV_BLOCKS = [
+  {
+    items: [
+      { label: 'Заказы',       path: '/admin/orders',     key: 'orders'      },
+      { label: 'Календарь',    path: '/admin/calendar',   key: 'calendar'    },
+      { label: 'Производство', path: '/admin/production', key: 'production'  },
+      { label: 'Малярка',      path: '/admin/painting',   key: 'painting'    },
+      { label: 'Склад',        path: '/admin/warehouse',  key: 'warehouse'   },
+    ],
+  },
+  {
+    items: [
+      { label: 'Поступления',    path: '/admin/income',   key: 'income'   },
+      { label: 'База клиентов',  path: '/admin/clients',  key: 'clients'  },
+      { label: 'Товары',         path: '/admin/products', key: 'products' },
+    ],
+  },
+  {
+    items: [
+      { label: 'Зарплата',               path: '/admin/salary',       key: 'salary'       },
+      { label: 'Сводка по сотрудникам',  path: '/admin/staff-report', key: 'staff-report' },
+      { label: 'Справочник',             path: '/admin/handbook',     key: 'handbook'     },
+    ],
+  },
+  {
+    items: [
+      { label: 'Права доступа', path: '/admin/access', key: 'access' },
+    ],
+  },
 ];
 
+interface AuthData {
+  is_admin: boolean;
+  staff_id?: number;
+  full_name?: string;
+  pages: string[];
+}
+
 const AdminLayout = ({ children }: { children: ReactNode }) => {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const [authed, setAuthed] = useState(() => sessionStorage.getItem('admin_ok') === '1');
+  const navigate  = useNavigate();
+  const location  = useLocation();
+
+  const [authed, setAuthed] = useState<AuthData | null>(() => {
+    const raw = sessionStorage.getItem('admin_auth');
+    if (!raw) return null;
+    try { return JSON.parse(raw) as AuthData; } catch { return null; }
+  });
+
+  const [login,    setLogin]    = useState('');
   const [password, setPassword] = useState('');
-  const [authError, setAuthError] = useState('');
+  const [authError, setAuthError]     = useState('');
   const [authLoading, setAuthLoading] = useState(false);
 
-  const login = async () => {
+  const doLogin = async () => {
     setAuthLoading(true); setAuthError('');
-    const res = await fetch(urls['admin-auth'], {
+    const body: Record<string, string> = { password };
+    if (login.trim()) body.login = login.trim();
+    const res  = await fetch(urls['admin-auth'], {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password }),
+      body: JSON.stringify(body),
     });
     const data = await res.json();
     setAuthLoading(false);
-    if (data.ok) { sessionStorage.setItem('admin_ok', '1'); setAuthed(true); }
-    else setAuthError('Неверный пароль');
+    if (data.ok) {
+      const authData: AuthData = {
+        is_admin:  !!data.is_admin,
+        staff_id:  data.staff_id,
+        full_name: data.full_name,
+        pages:     data.pages || [],
+      };
+      sessionStorage.setItem('admin_auth', JSON.stringify(authData));
+      setAuthed(authData);
+    } else {
+      setAuthError(data.error || 'Неверный логин или пароль');
+    }
+  };
+
+  const doLogout = () => {
+    sessionStorage.removeItem('admin_auth');
+    setAuthed(null);
+    setLogin(''); setPassword('');
   };
 
   if (!authed) {
@@ -43,11 +97,20 @@ const AdminLayout = ({ children }: { children: ReactNode }) => {
             <span className="font-display text-2xl font-semibold">FABRICA</span>
           </div>
           <h1 className="font-display text-3xl font-semibold mb-6">Вход в админку</h1>
-          <input type="password" placeholder="Пароль" value={password}
-            onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === 'Enter' && login()}
-            className="w-full border border-border bg-background px-4 py-3 text-sm mb-3 outline-none focus:border-accent rounded-xl" />
+          <input
+            type="text" placeholder="Логин (оставьте пустым для admin)"
+            value={login} onChange={e => setLogin(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && doLogin()}
+            className="w-full border border-border bg-background px-4 py-3 text-sm mb-3 outline-none focus:border-accent rounded-xl"
+          />
+          <input
+            type="password" placeholder="Пароль"
+            value={password} onChange={e => setPassword(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && doLogin()}
+            className="w-full border border-border bg-background px-4 py-3 text-sm mb-3 outline-none focus:border-accent rounded-xl"
+          />
           {authError && <p className="text-red-500 text-sm mb-3">{authError}</p>}
-          <Button onClick={login} disabled={authLoading} className="w-full bg-accent hover:bg-accent/90 text-accent-foreground h-11 rounded-xl">
+          <Button onClick={doLogin} disabled={authLoading} className="w-full bg-accent hover:bg-accent/90 text-accent-foreground h-11 rounded-xl">
             {authLoading ? 'Проверяю...' : 'Войти'}
           </Button>
         </div>
@@ -58,39 +121,59 @@ const AdminLayout = ({ children }: { children: ReactNode }) => {
   const isActive = (path: string) =>
     location.pathname === path || (path === '/admin/orders' && location.pathname === '/admin');
 
+  // Определяем видимость пункта меню
+  const canSee = (key: string): boolean => {
+    if (authed.is_admin) return true;
+    return authed.pages.includes(key);
+  };
+
   return (
     <div className="min-h-screen bg-background text-foreground flex">
       {/* Левое меню */}
-      <aside className="w-56 flex-shrink-0 border-r border-border min-h-screen px-4 py-6 flex flex-col gap-6">
-        <div className="flex items-center gap-2 px-2">
+      <aside className="w-56 flex-shrink-0 border-r border-border min-h-screen px-4 py-6 flex flex-col gap-2">
+        <div className="flex items-center gap-2 px-2 mb-4">
           <Icon name="Wheat" className="text-accent" size={22} />
           <span className="font-display text-xl font-semibold text-primary">FABRICA</span>
         </div>
 
-        <nav className="flex flex-col gap-3">
-          {NAV.map(item => {
-            const active = isActive(item.path);
+        <nav className="flex flex-col gap-0 flex-1">
+          {NAV_BLOCKS.map((block, bi) => {
+            const visibleItems = block.items.filter(item => canSee(item.key));
+            if (visibleItems.length === 0) return null;
             return (
-              <button
-                key={item.path}
-                onClick={() => navigate(item.path)}
-                className={[
-                  'w-full text-center font-semibold py-2.5 rounded-xl border transition-colors',
-                  active
-                    ? 'bg-accent text-primary border-accent'
-                    : 'bg-background text-primary border-primary/40 hover:border-primary',
-                ].join(' ')}
-              >
-                {item.label}
-              </button>
+              <div key={bi}>
+                {bi > 0 && <div className="border-t border-primary/15 my-2" />}
+                <div className="flex flex-col gap-1.5">
+                  {visibleItems.map(item => {
+                    const active = isActive(item.path);
+                    return (
+                      <button
+                        key={item.path}
+                        onClick={() => navigate(item.path)}
+                        className={[
+                          'w-full text-center font-semibold py-2 rounded-xl border transition-colors text-sm',
+                          active
+                            ? 'bg-accent text-primary border-accent'
+                            : 'bg-background text-primary border-primary/40 hover:border-primary',
+                        ].join(' ')}
+                      >
+                        {item.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             );
           })}
         </nav>
 
-        <div className="mt-auto flex flex-col gap-2 px-1">
+        <div className="flex flex-col gap-1.5 px-1 pt-4 border-t border-primary/15">
+          {authed.full_name && (
+            <p className="text-xs text-muted-foreground truncate">{authed.full_name}</p>
+          )}
           <a href="/" className="text-sm text-muted-foreground hover:text-accent">На сайт</a>
           <button
-            onClick={() => { sessionStorage.removeItem('admin_ok'); setAuthed(false); }}
+            onClick={doLogout}
             className="text-sm text-muted-foreground hover:text-accent text-left"
           >
             Выйти

@@ -106,24 +106,24 @@ const OrderCard = ({ order, onDragStart, onUpdate }: {
             <div>
               <div className="flex justify-between text-[10px] text-primary/70 mb-0.5">
                 <span>Сплетено</span>
-                <span className="font-semibold text-green-700">{wPct}%</span>
+                <span className="font-semibold" style={{color:'#6b7c3a'}}>{wPct}%</span>
               </div>
               <div className="h-1.5 rounded-full bg-primary/10 overflow-hidden">
                 <div
-                  className="h-full rounded-full bg-green-500/70 transition-all"
-                  style={{ width: `${wPct}%` }}
+                  className="h-full rounded-full transition-all"
+                  style={{ width: `${wPct}%`, backgroundColor: '#8a9a5a' }}
                 />
               </div>
             </div>
             <div>
               <div className="flex justify-between text-[10px] text-primary/70 mb-0.5">
                 <span>Покрашено</span>
-                <span className="font-semibold text-green-700">{pPct}%</span>
+                <span className="font-semibold" style={{color:'#6b7c3a'}}>{pPct}%</span>
               </div>
               <div className="h-1.5 rounded-full bg-primary/10 overflow-hidden">
                 <div
-                  className="h-full rounded-full bg-green-500/70 transition-all"
-                  style={{ width: `${pPct}%` }}
+                  className="h-full rounded-full transition-all"
+                  style={{ width: `${pPct}%`, backgroundColor: '#8a9a5a' }}
                 />
               </div>
             </div>
