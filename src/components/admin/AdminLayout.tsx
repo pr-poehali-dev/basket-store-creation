@@ -140,9 +140,6 @@ const AdminLayout = ({ children }: { children: ReactNode }) => {
     return authed.pages.includes(key);
   };
 
-  // Сотрудник — есть staff_id, не admin, есть доступ к кабинету
-  const isEmployee = !authed.is_admin && !!authed.staff_id && authed.pages.includes('cabinet');
-
   // Личный кабинет сотрудника — отдельный layout
   if (isEmployee) {
     return (
