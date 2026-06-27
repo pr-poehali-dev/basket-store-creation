@@ -1,0 +1,18 @@
+{
+  "tests": [
+    {
+      "name": "OPTIONS preflight",
+      "method": "OPTIONS",
+      "path": "/",
+      "expectedStatus": 200
+    },
+    {
+      "name": "GET positions",
+      "method": "GET",
+      "path": "/?type=positions",
+      "expectedStatus": 200,
+      "expectedBody": {"positions": []},
+      "bodyMatcher": "partial"
+    }
+  ]
+}

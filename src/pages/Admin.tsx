@@ -6,6 +6,7 @@ import AdminProduction from '@/components/admin/AdminProduction';
 import AdminPainting from '@/components/admin/AdminPainting';
 import AdminCalendar from '@/components/admin/AdminCalendar';
 import AdminAccess from '@/components/admin/AdminAccess';
+import AdminHandbook from '@/components/admin/AdminHandbook';
 import AdminPlaceholder from '@/components/admin/AdminPlaceholder';
 
 const Admin = () => (
@@ -22,7 +23,7 @@ const Admin = () => (
       <Route path="products"     element={<AdminProducts />} />
       <Route path="salary"       element={<AdminPlaceholder title="Зарплата" />} />
       <Route path="staff-report" element={<AdminPlaceholder title="Сводка по сотрудникам" />} />
-      <Route path="handbook"     element={<AdminPlaceholder title="Справочник" />} />
+      <Route path="handbook"     element={<AdminHandbook />} />
       <Route path="access"       element={<AdminAccess />} />
       <Route path="*"            element={<Navigate to="/admin/orders" replace />} />
     </Routes>
