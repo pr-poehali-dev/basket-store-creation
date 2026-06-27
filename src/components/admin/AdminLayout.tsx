@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import Icon from '@/components/ui/icon';
 import urls from '../../../backend/func2url.json';
+import AdminTasksBlock from './AdminTasksBlock';
 
 // Структура меню: блоки с разделителями
 const NAV_BLOCKS = [
@@ -41,6 +42,7 @@ interface AuthData {
   staff_id?: number;
   full_name?: string;
   pages: string[];
+  role?: string;
 }
 
 const AdminLayout = ({ children }: { children: ReactNode }) => {
@@ -182,8 +184,11 @@ const AdminLayout = ({ children }: { children: ReactNode }) => {
       </aside>
 
       {/* Контент */}
-      <main className="flex-1 min-w-0 overflow-x-auto">
-        {children}
+      <main className="flex-1 min-w-0 overflow-x-auto flex flex-col">
+        <AdminTasksBlock auth={authed} />
+        <div className="flex-1">
+          {children}
+        </div>
       </main>
     </div>
   );
