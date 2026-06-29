@@ -35,7 +35,6 @@ const NAV_BLOCKS = [
     items: [
       { label: 'Задачи',       path: '/admin/tasks',      key: 'tasks'       },
       { label: 'Заказы',       path: '/admin/orders',     key: 'orders'      },
-      { label: 'Календарь',    path: '/admin/calendar',   key: 'calendar'    },
       { label: 'Производство', path: '/admin/production', key: 'production'  },
       { label: 'Малярка',      path: '/admin/painting',   key: 'painting'    },
       { label: 'Склад',        path: '/admin/warehouse',  key: 'warehouse'   },
@@ -216,7 +215,7 @@ const AdminLayout = ({ children }: { children: ReactNode }) => {
             if (visibleItems.length === 0) return null;
             return (
               <div key={bi}>
-                {bi > 0 && <div className="border-t border-primary/15 my-2" />}
+                {bi > 0 && <div className="border-t-2 border-primary/25 my-3" />}
                 <div className="flex flex-col gap-1.5">
                   {visibleItems.map(item => {
                     const active = isActive(item.path);
@@ -263,7 +262,7 @@ const AdminLayout = ({ children }: { children: ReactNode }) => {
       {/* Контент */}
       <main className="flex-1 min-w-0 overflow-x-auto flex flex-col">
         <AdminTasksBlock auth={authed} />
-        <div className="flex-1">
+        <div className="flex-1 border-t-2 border-primary/20">
           {children}
         </div>
       </main>

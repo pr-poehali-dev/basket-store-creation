@@ -1,6 +1,7 @@
-export const STAGES = ['Новый заказ', 'Согласование', 'Оплата', 'Плетение',
+export const STAGES = ['Новый заказ', 'Согласование', 'Оплата', 'В очереди на плетение', 'Плетение',
   'Малярка', 'Упаковка', 'Доставка', 'Закрытые'];
 
+export const QUEUE_INDEX     = STAGES.indexOf('В очереди на плетение');
 export const WEAVING_INDEX   = STAGES.indexOf('Плетение');
 export const PAINTING_INDEX  = STAGES.indexOf('Малярка');
 export const PACKING_INDEX   = STAGES.indexOf('Упаковка');
@@ -19,7 +20,10 @@ export interface Order {
   stage: string;
   city: string;
   customer_name: string;
+  customer_phone: string;
+  customer_email: string;
   total: number;
+  discount: number;
   items: OrderItem[];
   created_at: string | null;
   responsible: string;
@@ -27,6 +31,9 @@ export interface Order {
   due_weaving: string;
   due_painting: string;
   delivery_type: string;
+  delivery_address: string;
+  comment: string;
+  notes: string;
   produced: Record<string, number>;
   painted: Record<string, number>;
   is_archived: boolean;
@@ -125,13 +132,13 @@ export type DeadlineStatus =
 export function getDeadlineStatus(order: Order): DeadlineStatus {
   const stageIdx = STAGES.indexOf(order.stage);
 
-  if (order.due_weaving && stageIdx >= WEAVING_INDEX && stageIdx < PAINTING_INDEX) {
+  if (order.due_weaving && stageIdx >= QUEUE_INDEX && stageIdx < PAINTING_INDEX) {
     const left = daysUntil(order.due_weaving);
     if (left !== null && left <= 0) return 'burn-weaving';
     if (left !== null && left === 1) return 'warn-weaving';
   }
 
-  if (order.due_painting && stageIdx >= WEAVING_INDEX && stageIdx < PACKING_INDEX) {
+  if (order.due_painting && stageIdx >= QUEUE_INDEX && stageIdx < PACKING_INDEX) {
     const left = daysUntil(order.due_painting);
     if (left !== null && left <= 0) return 'burn-painting';
     if (left !== null && left === 1) return 'warn-painting';

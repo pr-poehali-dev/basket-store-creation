@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import AdminTasksBlock from './AdminTasksBlock';
 
 // Читаем auth из sessionStorage
@@ -14,7 +14,7 @@ const AdminTasks = () => {
   const [auth] = useState(getAuth);
 
   return (
-    <div className="p-6 max-w-4xl">
+    <div className="p-6 max-w-5xl">
       <AdminTasksBlock auth={auth} fullPage />
     </div>
   );

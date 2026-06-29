@@ -33,7 +33,6 @@ def row_to_dict(r):
     if isinstance(images, str):
         try: images = json.loads(images)
         except: images = []
-    # Первое фото берём из images[0] или из image_url для обратной совместимости
     image_url = r[8] or ''
     if images and not image_url:
         image_url = images[0]
@@ -46,6 +45,7 @@ def row_to_dict(r):
         'sku': r[18],
         'images': images,
         'video_url': r[20] or '',
+        'cost': int(r[21]) if r[21] else 0,
     }
 
 def build_cards(rows):
@@ -95,7 +95,7 @@ def handler(event: dict, context) -> dict:
                 SELECT id, name, description, shape, size, color, price, sale_price,
                        image_url, group_id, group_by, split_by, набор, size_category,
                        labels, priority, weave_type, handles_count, sku,
-                       images, video_url
+                       images, video_url, cost
                 FROM products ORDER BY priority NULLS LAST, id
             """)
             rows = [row_to_dict(r) for r in cur.fetchall()]
@@ -110,14 +110,15 @@ def handler(event: dict, context) -> dict:
             sale_price = body.get('sale_price') or None
             priority = body.get('priority') or None
             sku = body.get('sku') or None
+            cost = int(body.get('cost') or 0)
             images = body.get('images', [])
             image_url = body.get('image_url') or (images[0] if images else '')
             cur.execute(
-                """INSERT INTO products (name, description, shape, size, color, price, sale_price,
+                """INSERT INTO products (name, description, shape, size, color, price, sale_price, cost,
                    image_url, group_id, group_by, split_by, labels, priority, weave_type, handles_count, sku, images, video_url)
-                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
                 (body.get('name',''), body.get('description',''), body.get('shape','Круглые'),
-                 body.get('size','Средние'), body.get('color',''), body.get('price',0), sale_price,
+                 body.get('size','Средние'), body.get('color',''), body.get('price',0), sale_price, cost,
                  image_url, body.get('group_id') or None,
                  body.get('group_by') or None, body.get('split_by') or None,
                  body.get('labels') or None, priority,
@@ -133,15 +134,16 @@ def handler(event: dict, context) -> dict:
             sale_price = body.get('sale_price') or None
             priority = body.get('priority') or None
             sku = body.get('sku') or None
+            cost = int(body.get('cost') or 0)
             images = body.get('images', [])
             image_url = body.get('image_url') or (images[0] if images else '')
             cur.execute(
                 """UPDATE products SET name=%s, description=%s, shape=%s, size=%s, color=%s,
-                   price=%s, sale_price=%s, image_url=%s, group_id=%s, group_by=%s, split_by=%s,
+                   price=%s, sale_price=%s, cost=%s, image_url=%s, group_id=%s, group_by=%s, split_by=%s,
                    labels=%s, priority=%s, weave_type=%s, handles_count=%s, sku=%s,
                    images=%s, video_url=%s, updated_at=NOW() WHERE id=%s""",
                 (body.get('name',''), body.get('description',''), body.get('shape','Круглые'),
-                 body.get('size','Средние'), body.get('color',''), body.get('price',0), sale_price,
+                 body.get('size','Средние'), body.get('color',''), body.get('price',0), sale_price, cost,
                  image_url, body.get('group_id') or None,
                  body.get('group_by') or None, body.get('split_by') or None,
                  body.get('labels') or None, priority,

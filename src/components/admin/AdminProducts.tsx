@@ -40,6 +40,7 @@ interface Product {
   color: string;
   price: number;
   sale_price: number | null;
+  cost: number;
   image_url: string;
   images: string[];
   video_url: string;
@@ -54,7 +55,7 @@ interface Product {
 
 const empty = (): Product => ({
   sku: '', name: '', description: '', shape: 'Круглые', size: 'Средние',
-  color: '', price: 0, sale_price: null, image_url: '', images: [], video_url: '',
+  color: '', price: 0, sale_price: null, cost: 0, image_url: '', images: [], video_url: '',
   group_id: '', group_by: '', split_by: '',
   labels: '', priority: null, weave_type: '', handles_count: '',
 });
@@ -418,10 +419,17 @@ const AdminProducts = () => {
                 </div>
               </div>
 
-              <div>
-                <label className={labelCls}>Цена по акции (₽) — необязательно</label>
-                <input type="number" value={editing.sale_price ?? ''} onChange={e => setEditing({ ...editing, sale_price: e.target.value ? +e.target.value : null })}
-                  placeholder="Оставьте пустым если акции нет" className={inputCls} />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className={labelCls}>Цена по акции (₽)</label>
+                  <input type="number" value={editing.sale_price ?? ''} onChange={e => setEditing({ ...editing, sale_price: e.target.value ? +e.target.value : null })}
+                    placeholder="Пусто = нет акции" className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>Затраты / себестоимость (₽)</label>
+                  <input type="number" value={editing.cost ?? 0} onChange={e => setEditing({ ...editing, cost: +e.target.value })}
+                    placeholder="0" className={inputCls} />
+                </div>
               </div>
 
               <div className="border-t border-border pt-4">
