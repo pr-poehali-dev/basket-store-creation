@@ -34,7 +34,6 @@ function generateOrderPDF(order: Order) {
   const form = order.form || {};
   const posGroups = buildPosGroups(order.items);
 
-  const totalFullPrice = posGroups.reduce((s, g) => s, 0); // нет цены в order.items — берём из total
   const totalDiscount  = Math.round(order.total * disc);
   const totalAfterDisc = order.total - totalDiscount;
 
@@ -43,21 +42,25 @@ function generateOrderPDF(order: Order) {
     ? new Date(order.created_at).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })
     : '—';
 
-  // Строки таблицы: для каждой позиции — строка-шапка (серая) + строки цветов
+  // Среднее значение цены на одну единицу из общей суммы
+  const totalQtyAll = order.items.reduce((s, i) => s + i.qty, 0);
+  const avgUnitPrice = totalQtyAll > 0 ? Math.round(order.total / totalQtyAll) : 0;
+
+  // Строки таблицы: позиция → общее + цвета
   const tableRows = posGroups.map(g => {
+    const unitPrice  = avgUnitPrice;
+    const groupSum   = unitPrice * g.total;
     const colorRows = g.colors.map(c => `
       <tr class="color-row">
-        <td class="indent">${c.color}</td>
-        <td class="num">${c.qty}</td>
-        <td class="num grey">—</td>
-        <td class="num grey">—</td>
+        <td class="indent" colspan="2">${c.color} — ${c.qty} шт</td>
+        <td></td><td></td><td></td>
       </tr>`).join('');
     return `
       <tr class="pos-row">
-        <td class="bold">${g.title}</td>
-        <td class="num bold">${g.total}</td>
-        <td class="num">${disc>0?'<span class="strike">'+order.total+'</span>':''}</td>
-        <td class="num bold">${disc>0?fmtMoney(Math.round(order.total*(1-disc)/order.items.reduce((s,i)=>s+i.qty,0)*g.total)):''}</td>
+        <td>${g.title}</td>
+        <td class="num">${g.total}</td>
+        <td class="num">${unitPrice > 0 ? unitPrice.toLocaleString('ru-RU') + ' ₽' : '—'}</td>
+        <td class="num bold">${groupSum > 0 ? groupSum.toLocaleString('ru-RU') + ' ₽' : '—'}</td>
       </tr>${colorRows}`;
   }).join('');
 
@@ -69,61 +72,59 @@ function generateOrderPDF(order: Order) {
 <style>
   @page { size: A4 portrait; margin: 20mm 15mm; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Arial', sans-serif; font-size: 12px; color: #1a1a1a; }
+  body { font-family: Arial, sans-serif; font-size: 12px; color: #1a1a1a; }
 
-  .header { display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #8a9a5a; padding-bottom: 12px; margin-bottom: 16px; }
-  .logo { font-size: 22px; font-weight: bold; letter-spacing: 3px; color: #5a6a2a; }
-  .logo-sub { font-size: 10px; color: #888; margin-top: 2px; letter-spacing: 1px; }
-  .order-num { font-size: 14px; font-weight: bold; text-align: right; }
-  .order-date { font-size: 11px; color: #666; text-align: right; }
+  .header { display: flex; justify-content: space-between; border-bottom: 2px solid #5a3e28; padding-bottom: 10px; margin-bottom: 16px; }
+  .company { font-size: 18px; font-weight: bold; letter-spacing: 2px; color: #1a1a1a; }
+  .company-sub { font-size: 10px; color: #666; margin-top: 2px; }
+  .order-info { text-align: right; }
+  .order-num { font-size: 15px; font-weight: bold; }
+  .order-date { font-size: 11px; color: #555; margin-top: 2px; }
 
   .section { margin-bottom: 14px; }
-  .section-title { font-size: 10px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.08em; color: #8a9a5a; border-bottom: 1px solid #d4e0b4; padding-bottom: 3px; margin-bottom: 8px; }
+  .section-title { font-size: 10px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.07em; color: #5a3e28; border-bottom: 1px solid #c8a882; padding-bottom: 3px; margin-bottom: 8px; }
 
   .grid2 { display: grid; grid-template-columns: 120px 1fr; gap: 3px 12px; font-size: 11px; }
   .lbl { color: #666; }
 
   table { width: 100%; border-collapse: collapse; font-size: 11px; }
-  th { background: #f0f4e8; text-align: left; padding: 6px 8px; border: 1px solid #d4e0b4; font-size: 11px; }
+  th { background: #f5f0eb; text-align: left; padding: 6px 8px; border: 1px solid #c8a882; font-size: 11px; }
   th.num, td.num { text-align: right; }
-  td { padding: 5px 8px; border: 1px solid #e8eedc; vertical-align: top; }
-  .pos-row td { background: #fafcf7; font-weight: 600; border-top: 1px solid #c8d8b0; }
-  .color-row td { background: #fff; color: #444; padding-left: 20px; }
-  .color-row td.indent { padding-left: 20px; color: #555; font-style: italic; }
-  .grey { color: #aaa; }
-  .strike { text-decoration: line-through; color: #aaa; font-weight: normal; }
+  td { padding: 5px 8px; border: 1px solid #e0d0c0; vertical-align: top; }
+  .pos-row td { background: #faf7f4; font-weight: 600; border-top: 1px solid #c8a882; }
+  .color-row td { background: #fff; color: #555; font-style: italic; font-size: 10px; border-color: #ede0d0; }
+  .color-row td.indent { padding-left: 18px; }
   .bold { font-weight: 700; }
 
-  .totals { margin-top: 12px; border-top: 2px solid #8a9a5a; padding-top: 10px; }
-  .totals-grid { display: grid; grid-template-columns: 1fr auto; gap: 4px 24px; max-width: 300px; margin-left: auto; font-size: 12px; }
-  .totals-grid .lbl { color: #666; }
+  .totals { margin-top: 14px; border-top: 2px solid #5a3e28; padding-top: 10px; }
+  .totals-grid { display: grid; grid-template-columns: 1fr auto; gap: 4px 24px; max-width: 280px; margin-left: auto; font-size: 12px; }
+  .totals-grid .lbl { color: #555; }
   .totals-grid .val { text-align: right; }
-  .totals-grid .final { font-size: 14px; font-weight: 800; color: #5a6a2a; }
-  .totals-grid .discount-val { color: #c05; }
+  .totals-grid .final { font-size: 14px; font-weight: 800; color: #1a1a1a; }
+  .totals-grid .disc-lbl { color: #888; }
+  .totals-grid .disc-val { text-align: right; color: #888; }
 
-  .footer { margin-top: 24px; font-size: 10px; color: #aaa; border-top: 1px solid #eee; padding-top: 8px; text-align: center; }
-  .sign-block { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 28px; font-size: 11px; }
-  .sign-line { border-bottom: 1px solid #ccc; margin-top: 24px; margin-bottom: 4px; }
+  .sign-block { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 32px; font-size: 11px; color: #555; }
+  .sign-line { border-bottom: 1px solid #bbb; margin-top: 22px; margin-bottom: 4px; }
+  .footer { margin-top: 20px; font-size: 10px; color: #aaa; border-top: 1px solid #ddd; padding-top: 6px; text-align: center; }
 </style>
 </head>
 <body>
 
-<!-- Шапка -->
 <div class="header">
   <div>
-    <div class="logo">🌿 FABRICA</div>
-    <div class="logo-sub">Производство плетёных изделий</div>
+    <div class="company">FABRICA</div>
+    <div class="company-sub">Производство плетёных изделий</div>
   </div>
-  <div>
+  <div class="order-info">
     <div class="order-num">Заказ №${order.order_number}</div>
     <div class="order-date">Дата заказа: ${orderDate}</div>
-    <div class="order-date">Дата документа: ${dateStr}</div>
+    <div class="order-date">Документ: ${dateStr}</div>
   </div>
 </div>
 
-<!-- Клиент -->
 <div class="section">
-  <div class="section-title">Данные клиента</div>
+  <div class="section-title">Клиент</div>
   <div class="grid2">
     <div class="lbl">Имя</div><div>${order.customer_name || '—'}</div>
     <div class="lbl">Телефон</div><div>${order.customer_phone || form.phone || '—'}</div>
@@ -133,72 +134,64 @@ function generateOrderPDF(order: Order) {
   </div>
 </div>
 
-<!-- Доставка -->
 ${order.delivery_address || form.address || order.delivery_type ? `
 <div class="section">
   <div class="section-title">Доставка</div>
   <div class="grid2">
     ${order.delivery_address || form.address ? `<div class="lbl">Адрес</div><div>${order.delivery_address || form.address}</div>` : ''}
     ${order.delivery_type ? `<div class="lbl">Способ</div><div>${DELIVERY_LABELS[order.delivery_type] || order.delivery_type}</div>` : ''}
-    ${form.delivery_days ? `<div class="lbl">Дни</div><div>${form.delivery_days}</div>` : ''}
-    ${form.delivery_time ? `<div class="lbl">Время</div><div>${form.delivery_time}</div>` : ''}
   </div>
 </div>` : ''}
 
-<!-- Состав заказа -->
 <div class="section">
   <div class="section-title">Состав заказа</div>
   <table>
     <thead>
       <tr>
-        <th>Позиция / Цвет</th>
-        <th class="num" style="width:60px">Кол-во</th>
-        <th class="num" style="width:90px">Цена</th>
-        <th class="num" style="width:90px">${order.discount > 0 ? 'Со скидкой' : 'Цена'}</th>
+        <th>Позиция</th>
+        <th class="num" style="width:55px">Кол-во</th>
+        <th class="num" style="width:80px">Цена / шт</th>
+        <th class="num" style="width:90px">Сумма</th>
       </tr>
     </thead>
-    <tbody>
-      ${tableRows}
-    </tbody>
+    <tbody>${tableRows}</tbody>
   </table>
 
-  <!-- Итого -->
   <div class="totals">
     <div class="totals-grid">
-      <div class="lbl">Всего позиций</div>
-      <div class="val">${order.items.reduce((s,i)=>s+i.qty,0)} шт</div>
-      <div class="lbl">Сумма без скидки</div>
-      <div class="val">${fmtMoney(order.total)}</div>
+      <div class="lbl">Итого позиций</div>
+      <div class="val">${totalQtyAll} шт</div>
       ${order.discount > 0 ? `
-      <div class="lbl">Скидка ${order.discount}%</div>
-      <div class="val discount-val">−${fmtMoney(totalDiscount)}</div>
-      <div class="lbl final">ИТОГО К ОПЛАТЕ</div>
+      <div class="lbl">Сумма</div>
+      <div class="val">${fmtMoney(order.total)}</div>
+      <div class="disc-lbl">Скидка ${order.discount}%</div>
+      <div class="disc-val">− ${fmtMoney(totalDiscount)}</div>
+      <div class="lbl final">К оплате</div>
       <div class="val final">${fmtMoney(totalAfterDisc)}</div>
       ` : `
-      <div class="lbl final">ИТОГО</div>
+      <div class="lbl final">Итого</div>
       <div class="val final">${fmtMoney(order.total)}</div>
       `}
     </div>
   </div>
 </div>
 
-${order.comment || form.comment ? `<div class="section"><div class="section-title">Комментарий</div><p style="font-size:11px;color:#444;">${order.comment || form.comment}</p></div>` : ''}
+${order.comment || form.comment ? `<div class="section"><div class="section-title">Комментарий</div><p style="font-size:11px;color:#444;margin-top:4px;">${order.comment || form.comment}</p></div>` : ''}
 
-<!-- Подписи -->
 <div class="sign-block">
   <div>
-    <div style="color:#666;font-size:10px;margin-bottom:4px;">Продавец (FABRICA)</div>
+    <div>Продавец (FABRICA)</div>
     <div class="sign-line"></div>
-    <div style="color:#aaa;font-size:10px;">Подпись / Печать</div>
+    <div>Подпись / Печать</div>
   </div>
   <div>
-    <div style="color:#666;font-size:10px;margin-bottom:4px;">Покупатель</div>
+    <div>Покупатель</div>
     <div class="sign-line"></div>
-    <div style="color:#aaa;font-size:10px;">Подпись / Дата</div>
+    <div>Подпись / Дата</div>
   </div>
 </div>
 
-<div class="footer">FABRICA · Документ сформирован ${dateStr}</div>
+<div class="footer">FABRICA · ${dateStr}</div>
 </body>
 </html>`;
 

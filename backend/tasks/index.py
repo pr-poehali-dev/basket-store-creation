@@ -126,13 +126,14 @@ def handler(event: dict, context) -> dict:
             assigned_by_name = body.get('assigned_by_name', '')
             due_date       = body.get('due_date') or None
             priority       = body.get('priority', 'normal')
+            status         = body.get('status', 'pending')
             if not title:
                 return {'statusCode': 400, 'headers': cors(), 'body': json.dumps({'error': 'title required'})}
             with conn.cursor() as cur:
                 cur.execute(
-                    "INSERT INTO tasks (title, description, assigned_to, assigned_by, assigned_by_name, due_date, priority) "
-                    "VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id",
-                    (title, description, assigned_to, assigned_by, assigned_by_name, due_date, priority)
+                    "INSERT INTO tasks (title, description, assigned_to, assigned_by, assigned_by_name, due_date, priority, status) "
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING id",
+                    (title, description, assigned_to, assigned_by, assigned_by_name, due_date, priority, status)
                 )
                 new_id = cur.fetchone()[0]
             return {'statusCode': 200, 'headers': cors(), 'body': json.dumps({'id': new_id})}

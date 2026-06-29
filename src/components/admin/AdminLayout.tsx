@@ -6,25 +6,33 @@ import urls from '../../../backend/func2url.json';
 import AdminStaffCabinet from './AdminStaffCabinet';
 
 // Хук для подсчёта непросмотренных задач (обновляется каждые 60 сек)
-function useTaskBadge(isAdmin: boolean) {
+// Считает только задачи, назначенные текущему пользователю (+ его заявки)
+function useTaskBadge(staffId?: number) {
   const [count, setCount] = useState(0);
   useEffect(() => {
     const load = async () => {
       try {
-        const [taskRes, reqRes] = await Promise.all([
-          fetch(urls['tasks']),
-          fetch(`${urls['tasks']}?type=requests`),
-        ]);
+        const taskUrl = staffId ? `${urls['tasks']}?staff_id=${staffId}` : urls['tasks'];
+        const reqUrl  = staffId
+          ? `${urls['tasks']}?type=requests&staff_id=${staffId}`
+          : `${urls['tasks']}?type=requests`;
+        const [taskRes, reqRes] = await Promise.all([fetch(taskUrl), fetch(reqUrl)]);
         const [taskData, reqData] = await Promise.all([taskRes.json(), reqRes.json()]);
-        const pending = (taskData.tasks || []).filter((t: { status: string }) => t.status === 'pending').length;
-        const pendingReqs = (reqData.requests || []).filter((r: { status: string }) => r.status === 'pending').length;
-        setCount(isAdmin ? pending + pendingReqs : pending);
+        // Только задачи МНЕ (assigned_to) со статусом pending
+        const myPending = (taskData.tasks || []).filter((t: { status: string; assigned_to: number | null }) =>
+          t.status === 'pending' && (staffId ? t.assigned_to === staffId : true)
+        ).length;
+        // Только мои заявки pending
+        const myReqPending = (reqData.requests || []).filter((r: { status: string; staff_id: number }) =>
+          r.status === 'pending' && (staffId ? r.staff_id === staffId : true)
+        ).length;
+        setCount(myPending + myReqPending);
       } catch { /* ignore */ }
     };
     load();
     const t = setInterval(load, 60000);
     return () => clearInterval(t);
-  }, [isAdmin]);
+  }, [staffId]);
   return count;
 }
 
@@ -71,13 +79,14 @@ interface AuthData {
 const AdminLayout = ({ children }: { children: ReactNode }) => {
   const navigate  = useNavigate();
   const location  = useLocation();
-  const taskBadge = useTaskBadge(true);
 
   const [authed, setAuthed] = useState<AuthData | null>(() => {
     const raw = sessionStorage.getItem('admin_auth');
     if (!raw) return null;
     try { return JSON.parse(raw) as AuthData; } catch { return null; }
   });
+
+  const taskBadge = useTaskBadge(authed?.staff_id);
 
   const [login,    setLogin]    = useState('');
   const [password, setPassword] = useState('');
@@ -201,7 +210,7 @@ const AdminLayout = ({ children }: { children: ReactNode }) => {
   return (
     <div className="min-h-screen bg-background text-foreground flex">
       {/* Левое меню */}
-      <aside className="w-56 flex-shrink-0 border-r-2 border-[#8a9a5a]/30 min-h-screen px-4 py-6 flex flex-col gap-2">
+      <aside className="w-56 flex-shrink-0 border-r-2 border-[#8B6A4A]/30 min-h-screen px-4 py-6 flex flex-col gap-2">
         <div className="flex items-center gap-2 px-2 mb-4">
           <Icon name="Wheat" className="text-accent" size={22} />
           <span className="font-display text-xl font-semibold text-primary">FABRICA</span>
@@ -213,7 +222,7 @@ const AdminLayout = ({ children }: { children: ReactNode }) => {
             if (visibleItems.length === 0) return null;
             return (
               <div key={bi}>
-                {bi > 0 && <div className="border-t-2 border-[#8a9a5a]/50 my-3" />}
+                {bi > 0 && <div className="border-t-2 border-[#8B6A4A]/40 my-3" />}
                 <div className="flex flex-col gap-1.5">
                   {visibleItems.map(item => {
                     const active = isActive(item.path);
@@ -225,8 +234,8 @@ const AdminLayout = ({ children }: { children: ReactNode }) => {
                             'w-full text-center font-semibold py-2 rounded-xl border transition-colors text-sm relative',
                             item.key === 'tasks'
                               ? active
-                                ? 'bg-[#8a9a5a] text-white border-[#8a9a5a]'
-                                : 'bg-[#8a9a5a]/12 text-[#5a6a2a] border-[#8a9a5a]/40 hover:border-[#8a9a5a] hover:bg-[#8a9a5a]/20'
+                                ? 'bg-[#c4849a] text-white border-[#c4849a]'
+                                : 'bg-[#fce8ef] text-[#a0435a] border-[#e8a0b4]/60 hover:border-[#c4849a] hover:bg-[#f8d5e0]'
                               : active
                                 ? 'bg-accent text-primary border-accent'
                                 : 'bg-background text-primary border-primary/40 hover:border-primary',
@@ -241,7 +250,7 @@ const AdminLayout = ({ children }: { children: ReactNode }) => {
                         </button>
                         {/* Разделитель после «Задачи» */}
                         {item.key === 'tasks' && (
-                          <div className="border-t-2 border-[#8a9a5a]/50 my-2" />
+                          <div className="border-t-2 border-[#8B6A4A]/40 my-2" />
                         )}
                       </div>
                     );
