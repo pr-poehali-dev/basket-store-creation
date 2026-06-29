@@ -11,125 +11,208 @@ interface Props {
 
 const OLIVE = '#6b7c3a';
 
-// ── Генерация бланка PDF ──────────────────────────────────────────────────────
-function generateOrderPDF(order: Order) {
-  const disc = 1 - (order.discount || 0) / 100;
-  const form = order.form || {};
-
-  // Группируем позиции: name (без size) + color → qty + итог со скидкой
-  const rows: { name: string; color: string; price: number; qty: number; sum: number }[] = [];
-  for (const item of order.items) {
-    // ищем уже существующую строку
-    const existing = rows.find(r => r.name === item.name && r.color === (item.color || ''));
-    if (existing) {
-      existing.qty += item.qty;
-      existing.sum += existing.price * item.qty;
-    } else {
-      rows.push({ name: item.name, color: item.color || '', price: 0, qty: item.qty, sum: 0 });
-    }
+// ── Группировка для отображения: позиция → {итого, цвета[]}
+interface PosGroup { title: string; total: number; colors: { color: string; qty: number }[] }
+function buildPosGroups(items: Order['items']): PosGroup[] {
+  const map = new Map<string, PosGroup>();
+  for (const it of items) {
+    const key = `${it.name}__${it.size || ''}`;
+    const title = it.size ? `${it.name} (${it.size})` : it.name;
+    if (!map.has(key)) map.set(key, { title, total: 0, colors: [] });
+    const g = map.get(key)!;
+    g.total += it.qty;
+    const existing = g.colors.find(c => c.color === (it.color || ''));
+    if (existing) existing.qty += it.qty;
+    else g.colors.push({ color: it.color || '—', qty: it.qty });
   }
-  const totalQty = rows.reduce((s, r) => s + r.qty, 0);
-  const totalSum = Math.round(order.total * disc);
+  return Array.from(map.values());
+}
 
-  const dateStr = new Date().toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
+// ── Генерация бланка HTML→Print (вертикальный A4) ────────────────────────────
+function generateOrderPDF(order: Order) {
+  const disc = (order.discount || 0) / 100;
+  const form = order.form || {};
+  const posGroups = buildPosGroups(order.items);
+
+  const totalFullPrice = posGroups.reduce((s, g) => s, 0); // нет цены в order.items — берём из total
+  const totalDiscount  = Math.round(order.total * disc);
+  const totalAfterDisc = order.total - totalDiscount;
+
+  const dateStr   = new Date().toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const orderDate = order.created_at
     ? new Date(order.created_at).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })
     : '—';
+
+  // Строки таблицы: для каждой позиции — строка-шапка (серая) + строки цветов
+  const tableRows = posGroups.map(g => {
+    const colorRows = g.colors.map(c => `
+      <tr class="color-row">
+        <td class="indent">${c.color}</td>
+        <td class="num">${c.qty}</td>
+        <td class="num grey">—</td>
+        <td class="num grey">—</td>
+      </tr>`).join('');
+    return `
+      <tr class="pos-row">
+        <td class="bold">${g.title}</td>
+        <td class="num bold">${g.total}</td>
+        <td class="num">${disc>0?'<span class="strike">'+order.total+'</span>':''}</td>
+        <td class="num bold">${disc>0?fmtMoney(Math.round(order.total*(1-disc)/order.items.reduce((s,i)=>s+i.qty,0)*g.total)):''}</td>
+      </tr>${colorRows}`;
+  }).join('');
 
   const html = `<!DOCTYPE html>
 <html lang="ru">
 <head>
 <meta charset="utf-8"/>
-<title>Бланк заказа #${order.order_number}</title>
+<title>Заказ #${order.order_number}</title>
 <style>
+  @page { size: A4 portrait; margin: 20mm 15mm; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: Arial, sans-serif; font-size: 13px; color: #222; padding: 32px; }
-  h1 { font-size: 20px; margin-bottom: 4px; }
-  .sub { color: #666; font-size: 12px; margin-bottom: 24px; }
-  .section { margin-bottom: 20px; }
-  .section h2 { font-size: 13px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.05em; color: #888; border-bottom: 1px solid #eee; padding-bottom: 4px; margin-bottom: 10px; }
-  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 24px; }
-  .label { color: #666; }
-  table { width: 100%; border-collapse: collapse; margin-top: 8px; }
-  th { background: #f5f5f0; text-align: left; padding: 8px 10px; font-size: 12px; border: 1px solid #ddd; }
-  td { padding: 7px 10px; border: 1px solid #eee; font-size: 13px; }
-  .tr-total { background: #f5f5f0; font-weight: bold; }
-  .footer { margin-top: 32px; font-size: 12px; color: #888; border-top: 1px solid #eee; padding-top: 12px; }
+  body { font-family: 'Arial', sans-serif; font-size: 12px; color: #1a1a1a; }
+
+  .header { display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #8a9a5a; padding-bottom: 12px; margin-bottom: 16px; }
+  .logo { font-size: 22px; font-weight: bold; letter-spacing: 3px; color: #5a6a2a; }
+  .logo-sub { font-size: 10px; color: #888; margin-top: 2px; letter-spacing: 1px; }
+  .order-num { font-size: 14px; font-weight: bold; text-align: right; }
+  .order-date { font-size: 11px; color: #666; text-align: right; }
+
+  .section { margin-bottom: 14px; }
+  .section-title { font-size: 10px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.08em; color: #8a9a5a; border-bottom: 1px solid #d4e0b4; padding-bottom: 3px; margin-bottom: 8px; }
+
+  .grid2 { display: grid; grid-template-columns: 120px 1fr; gap: 3px 12px; font-size: 11px; }
+  .lbl { color: #666; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  th { background: #f0f4e8; text-align: left; padding: 6px 8px; border: 1px solid #d4e0b4; font-size: 11px; }
+  th.num, td.num { text-align: right; }
+  td { padding: 5px 8px; border: 1px solid #e8eedc; vertical-align: top; }
+  .pos-row td { background: #fafcf7; font-weight: 600; border-top: 1px solid #c8d8b0; }
+  .color-row td { background: #fff; color: #444; padding-left: 20px; }
+  .color-row td.indent { padding-left: 20px; color: #555; font-style: italic; }
+  .grey { color: #aaa; }
+  .strike { text-decoration: line-through; color: #aaa; font-weight: normal; }
+  .bold { font-weight: 700; }
+
+  .totals { margin-top: 12px; border-top: 2px solid #8a9a5a; padding-top: 10px; }
+  .totals-grid { display: grid; grid-template-columns: 1fr auto; gap: 4px 24px; max-width: 300px; margin-left: auto; font-size: 12px; }
+  .totals-grid .lbl { color: #666; }
+  .totals-grid .val { text-align: right; }
+  .totals-grid .final { font-size: 14px; font-weight: 800; color: #5a6a2a; }
+  .totals-grid .discount-val { color: #c05; }
+
+  .footer { margin-top: 24px; font-size: 10px; color: #aaa; border-top: 1px solid #eee; padding-top: 8px; text-align: center; }
+  .sign-block { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 28px; font-size: 11px; }
+  .sign-line { border-bottom: 1px solid #ccc; margin-top: 24px; margin-bottom: 4px; }
 </style>
 </head>
 <body>
-<h1>Бланк заказа #${order.order_number}</h1>
-<div class="sub">Дата заказа: ${orderDate} &nbsp;·&nbsp; Дата документа: ${dateStr}</div>
 
-<div class="section">
-  <h2>Данные клиента</h2>
-  <div class="grid2">
-    <div class="label">Имя</div><div>${order.customer_name || '—'}</div>
-    <div class="label">Телефон</div><div>${order.customer_phone || form.phone || '—'}</div>
-    ${order.customer_email || form.email ? `<div class="label">Email</div><div>${order.customer_email || form.email}</div>` : ''}
-    ${form.inn ? `<div class="label">ИНН</div><div>${form.inn}</div>` : ''}
-    ${order.city ? `<div class="label">Город</div><div>${order.city}</div>` : ''}
+<!-- Шапка -->
+<div class="header">
+  <div>
+    <div class="logo">🌿 FABRICA</div>
+    <div class="logo-sub">Производство плетёных изделий</div>
+  </div>
+  <div>
+    <div class="order-num">Заказ №${order.order_number}</div>
+    <div class="order-date">Дата заказа: ${orderDate}</div>
+    <div class="order-date">Дата документа: ${dateStr}</div>
   </div>
 </div>
 
+<!-- Клиент -->
+<div class="section">
+  <div class="section-title">Данные клиента</div>
+  <div class="grid2">
+    <div class="lbl">Имя</div><div>${order.customer_name || '—'}</div>
+    <div class="lbl">Телефон</div><div>${order.customer_phone || form.phone || '—'}</div>
+    ${order.customer_email || form.email ? `<div class="lbl">Email</div><div>${order.customer_email || form.email}</div>` : ''}
+    ${form.inn ? `<div class="lbl">ИНН</div><div>${form.inn}</div>` : ''}
+    ${order.city ? `<div class="lbl">Город</div><div>${order.city}</div>` : ''}
+  </div>
+</div>
+
+<!-- Доставка -->
 ${order.delivery_address || form.address || order.delivery_type ? `
 <div class="section">
-  <h2>Доставка</h2>
+  <div class="section-title">Доставка</div>
   <div class="grid2">
-    ${order.delivery_address || form.address ? `<div class="label">Адрес</div><div>${order.delivery_address || form.address}</div>` : ''}
-    ${order.delivery_type ? `<div class="label">Способ</div><div>${DELIVERY_LABELS[order.delivery_type] || order.delivery_type}</div>` : ''}
-    ${form.delivery_days ? `<div class="label">Дни</div><div>${form.delivery_days}</div>` : ''}
-    ${form.delivery_time ? `<div class="label">Время</div><div>${form.delivery_time}</div>` : ''}
+    ${order.delivery_address || form.address ? `<div class="lbl">Адрес</div><div>${order.delivery_address || form.address}</div>` : ''}
+    ${order.delivery_type ? `<div class="lbl">Способ</div><div>${DELIVERY_LABELS[order.delivery_type] || order.delivery_type}</div>` : ''}
+    ${form.delivery_days ? `<div class="lbl">Дни</div><div>${form.delivery_days}</div>` : ''}
+    ${form.delivery_time ? `<div class="lbl">Время</div><div>${form.delivery_time}</div>` : ''}
   </div>
 </div>` : ''}
 
+<!-- Состав заказа -->
 <div class="section">
-  <h2>Состав заказа</h2>
+  <div class="section-title">Состав заказа</div>
   <table>
     <thead>
       <tr>
-        <th style="width:40%">Позиция</th>
-        <th>Цвет</th>
-        <th style="text-align:right">Кол-во</th>
+        <th>Позиция / Цвет</th>
+        <th class="num" style="width:60px">Кол-во</th>
+        <th class="num" style="width:90px">Цена</th>
+        <th class="num" style="width:90px">${order.discount > 0 ? 'Со скидкой' : 'Цена'}</th>
       </tr>
     </thead>
     <tbody>
-      ${order.items.map(item => `
-        <tr>
-          <td>${item.name}</td>
-          <td>${item.color || '—'}</td>
-          <td style="text-align:right">${item.qty}</td>
-        </tr>`).join('')}
-      <tr class="tr-total">
-        <td colspan="2"><b>ИТОГО</b></td>
-        <td style="text-align:right"><b>${totalQty} шт</b></td>
-      </tr>
+      ${tableRows}
     </tbody>
   </table>
-  <div style="text-align:right; margin-top:12px; font-size:15px;">
-    Сумма: <b>${fmtMoney(order.total)}</b>
-    ${order.discount ? ` &nbsp;·&nbsp; Скидка ${order.discount}% &nbsp;·&nbsp; <b>К оплате: ${fmtMoney(totalSum)}</b>` : ''}
+
+  <!-- Итого -->
+  <div class="totals">
+    <div class="totals-grid">
+      <div class="lbl">Всего позиций</div>
+      <div class="val">${order.items.reduce((s,i)=>s+i.qty,0)} шт</div>
+      <div class="lbl">Сумма без скидки</div>
+      <div class="val">${fmtMoney(order.total)}</div>
+      ${order.discount > 0 ? `
+      <div class="lbl">Скидка ${order.discount}%</div>
+      <div class="val discount-val">−${fmtMoney(totalDiscount)}</div>
+      <div class="lbl final">ИТОГО К ОПЛАТЕ</div>
+      <div class="val final">${fmtMoney(totalAfterDisc)}</div>
+      ` : `
+      <div class="lbl final">ИТОГО</div>
+      <div class="val final">${fmtMoney(order.total)}</div>
+      `}
+    </div>
   </div>
 </div>
 
-${order.comment ? `<div class="section"><h2>Комментарий</h2><p>${order.comment}</p></div>` : ''}
+${order.comment || form.comment ? `<div class="section"><div class="section-title">Комментарий</div><p style="font-size:11px;color:#444;">${order.comment || form.comment}</p></div>` : ''}
 
-<div class="footer">FABRICA &nbsp;·&nbsp; Бланк сформирован ${dateStr}</div>
+<!-- Подписи -->
+<div class="sign-block">
+  <div>
+    <div style="color:#666;font-size:10px;margin-bottom:4px;">Продавец (FABRICA)</div>
+    <div class="sign-line"></div>
+    <div style="color:#aaa;font-size:10px;">Подпись / Печать</div>
+  </div>
+  <div>
+    <div style="color:#666;font-size:10px;margin-bottom:4px;">Покупатель</div>
+    <div class="sign-line"></div>
+    <div style="color:#aaa;font-size:10px;">Подпись / Дата</div>
+  </div>
+</div>
+
+<div class="footer">FABRICA · Документ сформирован ${dateStr}</div>
 </body>
 </html>`;
 
   const blob = new Blob([html], { type: 'text/html; charset=utf-8' });
   const url  = URL.createObjectURL(blob);
   const win  = window.open(url, '_blank');
-  if (win) {
-    win.onload = () => { setTimeout(() => { win.print(); }, 300); };
-  }
-  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  if (win) win.onload = () => setTimeout(() => win.print(), 400);
+  setTimeout(() => URL.revokeObjectURL(url), 15000);
 }
 
 // ── Компонент ─────────────────────────────────────────────────────────────────
 const OrderFullCard = ({ order, onClose, onUpdate, onOpenClient }: Props) => {
   const positions = groupPositions(order.items);
+  const posGroups = buildPosGroups(order.items);
   const [showColors, setShowColors] = useState(false);
   const [notes, setNotes]           = useState(order.notes || '');
   const [savingNotes, setSavingNotes] = useState(false);
@@ -192,7 +275,6 @@ const OrderFullCard = ({ order, onClose, onUpdate, onOpenClient }: Props) => {
         <div className="flex items-center justify-between px-6 py-4 border-b border-primary/20 flex-shrink-0">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              {/* Клиент — кликабельный если есть телефон */}
               {phone && onOpenClient ? (
                 <button onClick={() => onOpenClient(phone, order.customer_name)}
                   className="font-bold text-primary text-lg hover:text-accent transition-colors underline decoration-dashed underline-offset-2">
@@ -222,9 +304,7 @@ const OrderFullCard = ({ order, onClose, onUpdate, onOpenClient }: Props) => {
             </div>
           </div>
           <div className="flex items-center gap-2 ml-4 flex-shrink-0">
-            {/* Кнопка PDF */}
-            <button onClick={() => generateOrderPDF(order)}
-              title="Сформировать бланк для клиента"
+            <button onClick={() => generateOrderPDF(order)} title="Бланк для клиента (PDF/печать)"
               className="text-xs px-3 py-1.5 rounded-xl border border-primary/30 text-primary hover:border-primary hover:bg-primary/5 transition-colors">
               📄 Бланк
             </button>
@@ -312,49 +392,62 @@ const OrderFullCard = ({ order, onClose, onUpdate, onOpenClient }: Props) => {
               </button>
             </div>
             <div className="border border-primary/20 rounded-xl overflow-hidden">
-              <table className="w-full text-sm border-collapse">
-                <thead>
-                  <tr className="bg-primary/5 text-xs text-primary/60 border-b border-primary/15">
-                    <th className="px-3 py-2 text-left font-semibold">Позиция</th>
-                    {showColors && <th className="px-3 py-2 text-left font-semibold">Цвет</th>}
-                    <th className="px-3 py-2 text-right font-semibold">Кол-во</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {showColors ? (
-                    // Показываем каждую строку отдельно
-                    order.items.map((item, i) => (
+              {!showColors ? (
+                // Сгруппировано по позиции — только название и итого
+                <table className="w-full text-sm border-collapse">
+                  <thead>
+                    <tr className="bg-primary/5 text-xs text-primary/60 border-b border-primary/15">
+                      <th className="px-3 py-2 text-left font-semibold">Позиция</th>
+                      <th className="px-3 py-2 text-right font-semibold">Кол-во</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {posGroups.map((g, i) => (
                       <tr key={i} className="border-b border-primary/10 last:border-0">
-                        <td className="px-3 py-2 text-primary font-medium">{item.name}{item.size ? ` (${item.size})` : ''}</td>
-                        <td className="px-3 py-2 text-primary/70">{item.color || '—'}</td>
-                        <td className="px-3 py-2 text-right font-bold text-primary">{item.qty}</td>
+                        <td className="px-3 py-2 text-primary font-medium">{g.title}</td>
+                        <td className="px-3 py-2 text-right font-bold text-primary">{g.total}</td>
                       </tr>
-                    ))
-                  ) : (
-                    // Группируем по позиции
-                    positions.map(pos => (
-                      <tr key={pos.key} className="border-b border-primary/10 last:border-0">
-                        <td className="px-3 py-2 text-primary font-medium">{pos.title}</td>
-                        <td className="px-3 py-2 text-right font-bold text-primary">{pos.total}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-                <tfoot>
-                  <tr className="bg-primary/5 border-t-2 border-primary/20">
-                    <td className="px-3 py-2 font-bold text-primary" colSpan={showColors ? 2 : 1}>Итого</td>
-                    <td className="px-3 py-2 text-right font-bold text-primary">
-                      {order.items.reduce((s, i) => s + i.qty, 0)} шт
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-primary/5 border-t-2 border-primary/20">
+                      <td className="px-3 py-2 font-bold text-primary">Итого</td>
+                      <td className="px-3 py-2 text-right font-bold text-primary">{order.items.reduce((s,i)=>s+i.qty,0)} шт</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              ) : (
+                // Развёрнуто: позиция → цвета (как в мини-карточке)
+                <div>
+                  {posGroups.map((g, gi) => (
+                    <div key={gi}>
+                      {/* Строка позиции — шапка */}
+                      <div className="flex justify-between items-center px-3 py-2 bg-primary/5 border-b border-primary/20">
+                        <span className="font-bold text-primary text-sm">{g.title}</span>
+                        <span className="font-bold text-primary text-sm">{g.total} шт</span>
+                      </div>
+                      {/* Строки цветов */}
+                      {g.colors.map((c, ci) => (
+                        <div key={ci} className="flex justify-between items-center px-3 py-1.5 pl-6 border-b border-primary/10 last:border-0">
+                          <span className="text-sm text-primary/70">{c.color}</span>
+                          <span className="text-sm text-primary/80 font-medium">{c.qty}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                  {/* Итого */}
+                  <div className="flex justify-between items-center px-3 py-2 bg-primary/5 border-t-2 border-primary/20">
+                    <span className="font-bold text-primary">Итого</span>
+                    <span className="font-bold text-primary">{order.items.reduce((s,i)=>s+i.qty,0)} шт</span>
+                  </div>
+                </div>
+              )}
             </div>
             <div className="mt-2 text-right">
               <span className="text-sm text-muted-foreground">Сумма: </span>
               <span className="font-bold text-primary text-lg">{fmtMoney(order.total)}</span>
               {order.discount > 0 && (
-                <span className="ml-2 text-sm text-accent font-semibold">−{order.discount}%</span>
+                <span className="ml-2 text-sm font-semibold" style={{ color: OLIVE }}>−{order.discount}%</span>
               )}
             </div>
           </section>
@@ -427,12 +520,9 @@ const OrderFullCard = ({ order, onClose, onUpdate, onOpenClient }: Props) => {
               <div className="flex flex-wrap gap-2 mb-3">
                 {attachments.map(url => (
                   <div key={url} className="relative group">
-                    <img
-                      src={url} alt=""
-                      className="w-20 h-20 object-cover rounded-xl border border-primary/20 cursor-pointer"
+                    <img src={url} alt="" className="w-20 h-20 object-cover rounded-xl border border-primary/20 cursor-pointer"
                       onClick={() => window.open(url, '_blank')}
-                      onError={e => { (e.target as HTMLImageElement).style.display='none'; }}
-                    />
+                      onError={e => { (e.target as HTMLImageElement).style.display='none'; }} />
                     <div className="absolute inset-0 bg-black/40 rounded-xl hidden group-hover:flex items-center justify-center gap-1">
                       <button onClick={() => window.open(url, '_blank')} className="w-6 h-6 bg-white/90 rounded-full flex items-center justify-center text-[11px]">↗</button>
                       <a href={url} download className="w-6 h-6 bg-white/90 rounded-full flex items-center justify-center text-[11px]">⬇</a>
@@ -442,7 +532,7 @@ const OrderFullCard = ({ order, onClose, onUpdate, onOpenClient }: Props) => {
                 ))}
               </div>
             )}
-            <label className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border border-primary/30 text-sm text-primary hover:border-primary cursor-pointer transition-colors ${uploading ? 'opacity-50' : ''}`}>
+            <label className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border border-primary/30 text-sm text-primary hover:border-primary cursor-pointer transition-colors ${uploading?'opacity-50':''}`}>
               {uploading ? '⏳ Загружаю...' : '📎 Прикрепить фото'}
               <input type="file" accept="image/*" multiple className="hidden" onChange={handlePhoto} disabled={uploading} />
             </label>

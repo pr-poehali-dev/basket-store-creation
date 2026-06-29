@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import urls from '../../../backend/func2url.json';
-import { Order, OrderItem, fmtDate, fmtMoney, fmtDateShort, STAGES, CLOSED_STAGE } from './orderUtils';
+import { Order, OrderItem, fmtDate, fmtMoney, fmtDateShort, STAGES, CLOSED_STAGE, canAdvanceStage } from './orderUtils';
 import OrderFullCard from './OrderFullCard';
 
 const PAINT_COLORS: { name: string; hex: string }[] = [
@@ -17,7 +17,7 @@ const PAINT_COLORS: { name: string; hex: string }[] = [
 
 const PAINTING_STAGES = STAGES.slice(STAGES.indexOf('В очереди на плетение'));
 const OLIVE = '#6b7c3a';
-type PaintFilter = 'working' | 'done';
+type PaintFilter = 'weaving' | 'working' | 'done';
 
 function pct(done: number, qty: number) { return qty<=0?0:Math.round(done/qty*100); }
 function nextStage(current: string): string | null {
@@ -70,16 +70,7 @@ const PaintingCard = ({ order, colorFilter, onUpdatePainted, onUpdateStage, onOp
 
   const setPainted = (posKey: string, val: number, max: number) => {
     const clamped = Math.max(0, Math.min(val, max));
-    const newPainted = { ...painted, [posKey]: clamped };
-    onUpdatePainted(order.id, newPainted);
-    // Авто-переход на Упаковку при 100% покраски
-    let totalQ=0, totalP=0;
-    for (const [,positions] of Array.from(byColor.entries())) {
-      for (const pos of positions) { totalQ+=pos.qty; totalP+=Math.min(newPainted[pos.posKey]||0,pos.qty); }
-    }
-    if (totalQ>0 && totalP>=totalQ && order.stage==='Малярка') {
-      onUpdateStage(order.id, 'Упаковка');
-    }
+    onUpdatePainted(order.id, { ...painted, [posKey]: clamped });
   };
 
   return (
@@ -90,12 +81,20 @@ const PaintingCard = ({ order, colorFilter, onUpdatePainted, onUpdateStage, onOp
           <div>
             {/* Кнопки сверху */}
             <div className="flex items-center gap-2 mb-2 flex-wrap" onClick={e => e.stopPropagation()}>
-              {next && (
-                <button onClick={() => onUpdateStage(order.id, next)}
-                  className="text-[11px] px-2.5 py-1 rounded-lg bg-accent hover:bg-accent/90 text-accent-foreground font-semibold transition-colors">
-                  → {next}
-                </button>
-              )}
+              {next && (() => {
+                const check = canAdvanceStage(order, next);
+                return check.ok ? (
+                  <button onClick={() => onUpdateStage(order.id, next)}
+                    className="text-[11px] px-2.5 py-1 rounded-lg bg-accent hover:bg-accent/90 text-accent-foreground font-semibold transition-colors">
+                    → {next}
+                  </button>
+                ) : (
+                  <span title={check.reason}
+                    className="text-[11px] px-2.5 py-1 rounded-lg bg-primary/10 text-primary/40 cursor-not-allowed select-none">
+                    → {next} 🔒
+                  </span>
+                );
+              })()}
               <button onClick={() => onOpenFull(order)}
                 className="text-[11px] px-2.5 py-1 rounded-lg border border-primary/30 text-primary/60 hover:text-primary hover:border-primary transition-colors">
                 ↗ Карточка
@@ -210,7 +209,7 @@ const PaintingCard = ({ order, colorFilter, onUpdatePainted, onUpdateStage, onOp
 const AdminPainting = () => {
   const [orders, setOrders]         = useState<Order[]>([]);
   const [loading, setLoading]       = useState(true);
-  const [filter, setFilter]         = useState<PaintFilter>('working');
+  const [filter, setFilter]         = useState<PaintFilter>('working'); // по умолчанию «В работе»
   const [colorFilter, setColorFilter] = useState<string | null>(null);
   const [fullOrder, setFullOrder]   = useState<Order | null>(null);
 
@@ -234,28 +233,37 @@ const AdminPainting = () => {
 
   const allPainting = orders.filter(o => PAINTING_STAGES.includes(o.stage) && !o.is_archived && !o.is_trashed);
 
+  // Плетутся — заказы на этапе «Плетение»
+  const weavingOrders = allPainting.filter(o => o.stage === 'Плетение');
+  // В работе — заказы на этапе «Малярка»
   const workingOrders = allPainting.filter(o => o.stage === 'Малярка');
+  // Выполнены — покраска 100% (не в очереди и не на плетении)
   const doneOrders    = allPainting.filter(o => {
+    if (o.stage === 'В очереди на плетение' || o.stage === 'Плетение') return false;
     const byColor = groupByColor(o.items);
     let totalQ=0, totalP=0;
     for (const [,positions] of Array.from(byColor.entries())) {
       for (const pos of positions) { totalQ+=pos.qty; totalP+=Math.min((o.painted||{})[pos.posKey]||0,pos.qty); }
     }
-    return totalQ>0 && totalP>=totalQ && o.stage!=='В очереди на плетение' && o.stage!=='Плетение';
+    return totalQ>0 && totalP>=totalQ;
   });
 
-  const visibleOrders = filter === 'working' ? workingOrders : doneOrders;
+  const visibleOrders = filter === 'weaving' ? weavingOrders : filter === 'working' ? workingOrders : doneOrders;
 
   return (
     <div className="p-6">
       <div className="flex flex-wrap items-center gap-4 mb-5">
         <h1 className="font-display text-2xl font-semibold text-primary">Малярка</h1>
-        <div className="flex gap-2">
-          {([['working','В работе',workingOrders.length],['done','Выполнены',doneOrders.length]] as const).map(([key,label,count]) => (
-            <button key={key} onClick={() => setFilter(key as PaintFilter)}
+        <div className="flex gap-2 flex-wrap">
+          {([
+            ['weaving', 'Плетутся',  weavingOrders.length],
+            ['working', 'В работе',  workingOrders.length],
+            ['done',    'Выполнены', doneOrders.length],
+          ] as [PaintFilter, string, number][]).map(([key, label, count]) => (
+            <button key={key} onClick={() => setFilter(key)}
               className={`px-4 py-1.5 rounded-xl border text-sm font-medium transition-colors ${filter===key?'bg-primary text-white border-primary':'border-primary/40 text-primary hover:border-primary'}`}>
               {label}
-              {(count as number)>0 && <span className={`ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full font-bold ${filter===key?'bg-white/30':'bg-primary/10'}`}>{count}</span>}
+              {count > 0 && <span className={`ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full font-bold ${filter===key?'bg-white/30':'bg-primary/10'}`}>{count}</span>}
             </button>
           ))}
         </div>

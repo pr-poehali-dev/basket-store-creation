@@ -166,3 +166,16 @@ export function paintingPct(order: Order): number {
     s + Math.min((order.painted || {})[p.key] || 0, p.total), 0);
   return Math.round((totalPainted / totalQty) * 100);
 }
+
+// Можно ли перейти на следующий этап (блокировка по 100%)
+export function canAdvanceStage(order: Order, targetStage: string): { ok: boolean; reason?: string } {
+  if (targetStage === 'Малярка') {
+    const pct = weavingPct(order);
+    if (pct < 100) return { ok: false, reason: `Плетение ${pct}% — нужно 100% для перехода в Малярку.` };
+  }
+  if (targetStage === 'Упаковка') {
+    const pct = paintingPct(order);
+    if (pct < 100) return { ok: false, reason: `Покраска ${pct}% — нужно 100% для перехода в Упаковку.` };
+  }
+  return { ok: true };
+}

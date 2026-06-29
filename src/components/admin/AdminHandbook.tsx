@@ -241,7 +241,7 @@ const AdminHandbook = () => {
           </div>
 
           {importResult && (
-            <div className={`mb-3 px-4 py-2 rounded-xl text-sm ${importResult.startsWith('Ошибка') ? 'bg-red-50 text-red-600 border border-red-200' : 'bg-green-50 text-green-700 border border-green-200'}`}>
+            <div className={`mb-3 px-4 py-2 rounded-xl text-sm ${importResult.startsWith('Ошибка') ? 'bg-red-50 text-red-600 border border-red-200' : 'bg-[#f0f4e8] text-[#5a6a2a] border border-[#c8d8b0]'}`}>
               {importResult}
             </div>
           )}

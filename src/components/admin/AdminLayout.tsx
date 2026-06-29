@@ -201,7 +201,7 @@ const AdminLayout = ({ children }: { children: ReactNode }) => {
   return (
     <div className="min-h-screen bg-background text-foreground flex">
       {/* Левое меню */}
-      <aside className="w-56 flex-shrink-0 border-r border-border min-h-screen px-4 py-6 flex flex-col gap-2">
+      <aside className="w-56 flex-shrink-0 border-r-2 border-[#8a9a5a]/30 min-h-screen px-4 py-6 flex flex-col gap-2">
         <div className="flex items-center gap-2 px-2 mb-4">
           <Icon name="Wheat" className="text-accent" size={22} />
           <span className="font-display text-xl font-semibold text-primary">FABRICA</span>
@@ -213,7 +213,7 @@ const AdminLayout = ({ children }: { children: ReactNode }) => {
             if (visibleItems.length === 0) return null;
             return (
               <div key={bi}>
-                {bi > 0 && <div className="border-t-2 border-primary/25 my-3" />}
+                {bi > 0 && <div className="border-t-2 border-[#8a9a5a]/50 my-3" />}
                 <div className="flex flex-col gap-1.5">
                   {visibleItems.map(item => {
                     const active = isActive(item.path);
@@ -241,7 +241,7 @@ const AdminLayout = ({ children }: { children: ReactNode }) => {
                         </button>
                         {/* Разделитель после «Задачи» */}
                         {item.key === 'tasks' && (
-                          <div className="border-t-2 border-[#8a9a5a]/30 my-2" />
+                          <div className="border-t-2 border-[#8a9a5a]/50 my-2" />
                         )}
                       </div>
                     );
@@ -256,10 +256,10 @@ const AdminLayout = ({ children }: { children: ReactNode }) => {
           {authed.full_name && (
             <p className="text-xs text-muted-foreground truncate">{authed.full_name}</p>
           )}
-          <a href="/" className="text-sm text-muted-foreground hover:text-accent">На сайт</a>
+          <a href="/" className="text-sm text-muted-foreground hover:text-[#8a9a5a]">На сайт</a>
           <button
             onClick={doLogout}
-            className="text-sm text-muted-foreground hover:text-accent text-left"
+            className="text-sm text-muted-foreground hover:text-[#8a9a5a] text-left"
           >
             Выйти
           </button>

@@ -72,7 +72,7 @@ const STATUS_LABEL: Record<TaskStatus, string> = {
 const STATUS_COLOR: Record<TaskStatus, string> = {
   pending: 'bg-yellow-50 text-yellow-700 border-yellow-200',
   in_progress: 'bg-blue-50 text-blue-700 border-blue-200',
-  done: 'bg-green-50 text-green-700 border-green-200',
+  done: 'bg-[#f0f4e8] text-[#5a6a2a] border-[#c8d8b0]',
   cancelled: 'bg-gray-50 text-gray-500 border-gray-200',
 };
 const REQ_TYPE_LABEL: Record<ReqType, string> = {
@@ -641,9 +641,9 @@ const AdminTasksBlock = ({ auth, fullPage }: { auth: AuthData; fullPage?: boolea
           <div className="text-xs text-muted-foreground">Задач на сегодня</div>
           <div className="text-xl font-bold text-primary">{todayTasks.length}</div>
         </div>
-        <div className="bg-card border border-green-200 rounded-2xl px-4 py-2.5">
+        <div className="bg-card border border-[#c8d8b0] rounded-2xl px-4 py-2.5">
           <div className="text-xs text-muted-foreground">Выполнено сегодня</div>
-          <div className="text-xl font-bold text-green-600">{doneTodayTasks.length}</div>
+          <div className="text-xl font-bold text-[#5a6a2a]">{doneTodayTasks.length}</div>
         </div>
         <div className="bg-card border border-red-200 rounded-2xl px-4 py-2.5">
           <div className="text-xs text-muted-foreground">Просроченных</div>
@@ -784,7 +784,7 @@ const AdminTasksBlock = ({ auth, fullPage }: { auth: AuthData; fullPage?: boolea
                   <div>
                     <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <span className="font-semibold text-primary">{REQ_TYPE_LABEL[req.request_type]}</span>
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${req.status==='pending'?'bg-yellow-50 text-yellow-700':req.status==='approved'?'bg-green-50 text-green-700':'bg-red-50 text-red-600'}`}>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${req.status==='pending'?'bg-yellow-50 text-yellow-700':req.status==='approved'?'bg-[#f0f4e8] text-[#5a6a2a]':'bg-red-50 text-red-600'}`}>
                         {REQ_STATUS_LABEL[req.status]}
                       </span>
                     </div>
@@ -799,7 +799,7 @@ const AdminTasksBlock = ({ auth, fullPage }: { auth: AuthData; fullPage?: boolea
                         <input value={reviewComment} onChange={e=>setReviewComment(e.target.value)} placeholder="Комментарий"
                           className="w-full text-xs border border-primary/25 rounded-lg px-2 py-1 outline-none"/>
                         <div className="flex gap-1">
-                          <button onClick={()=>reviewRequest(req.id,'approved')} className="flex-1 text-xs bg-green-500 text-white rounded-lg py-1">Одобрить</button>
+                          <button onClick={()=>reviewRequest(req.id,'approved')} className="flex-1 text-xs bg-[#6b7c3a] text-white rounded-lg py-1">Одобрить</button>
                           <button onClick={()=>reviewRequest(req.id,'rejected')} className="flex-1 text-xs bg-red-400 text-white rounded-lg py-1">Отклонить</button>
                           <button onClick={()=>setReviewId(null)} className="text-xs text-primary/50 px-1">✕</button>
                         </div>

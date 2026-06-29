@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import urls from '../../../backend/func2url.json';
-import { Order, groupPositions, fmtDate, fmtMoney, fmtDateShort, STAGES, CLOSED_STAGE } from './orderUtils';
+import { Order, groupPositions, fmtDate, fmtMoney, fmtDateShort, STAGES, CLOSED_STAGE, canAdvanceStage } from './orderUtils';
 import OrderFullCard from './OrderFullCard';
 
 const PROD_STAGES = STAGES.slice(STAGES.indexOf('В очереди на плетение'));
@@ -32,15 +32,7 @@ const ProductionCard = ({ order, onUpdateProduced, onUpdateStage, onOpenFull }: 
 
   const setDone = (key: string, val: number, max: number) => {
     const clamped = Math.max(0, Math.min(val, max));
-    const newProduced = { ...produced, [key]: clamped };
-    onUpdateProduced(order.id, newProduced);
-    // Авто-переход на Малярку при 100% плетения
-    const pos2 = groupPositions(order.items);
-    const nd = pos2.reduce((s,p)=>s+Math.min(newProduced[p.key]||0,p.total),0);
-    const nq = pos2.reduce((s,p)=>s+p.total,0);
-    if (nq > 0 && nd >= nq && order.stage === 'Плетение') {
-      onUpdateStage(order.id, 'Малярка');
-    }
+    onUpdateProduced(order.id, { ...produced, [key]: clamped });
   };
 
   return (
@@ -50,12 +42,21 @@ const ProductionCard = ({ order, onUpdateProduced, onUpdateStage, onOpenFull }: 
           <div className="flex-1">
             {/* Кнопки сверху */}
             <div className="flex items-center gap-2 mb-2 flex-wrap" onClick={e => e.stopPropagation()}>
-              {next && (
-                <button onClick={() => onUpdateStage(order.id, next)}
-                  className="text-[11px] px-2.5 py-1 rounded-lg bg-accent hover:bg-accent/90 text-accent-foreground font-semibold transition-colors">
-                  → {next}
-                </button>
-              )}
+              {next && (() => {
+                const check = canAdvanceStage(order, next);
+                return check.ok ? (
+                  <button onClick={() => onUpdateStage(order.id, next)}
+                    className="text-[11px] px-2.5 py-1 rounded-lg bg-accent hover:bg-accent/90 text-accent-foreground font-semibold transition-colors">
+                    → {next}
+                  </button>
+                ) : (
+                  <span title={check.reason}
+                    className="text-[11px] px-2.5 py-1 rounded-lg bg-primary/10 text-primary/40 cursor-not-allowed select-none"
+                    style={{ borderBottom: '2px solid #e2e8f0' }}>
+                    → {next} 🔒
+                  </span>
+                );
+              })()}
               <button onClick={() => onOpenFull(order)}
                 className="text-[11px] px-2.5 py-1 rounded-lg border border-primary/30 text-primary/60 hover:text-primary hover:border-primary transition-colors">
                 ↗ Карточка
