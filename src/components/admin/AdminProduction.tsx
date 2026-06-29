@@ -225,7 +225,9 @@ const AdminProduction = () => {
             setOrders(p => p.map(o => o.id===id?{...o,...patch}:o));
             setFullOrder(p => p?{...p,...patch}:p);
             fetch(urls['orders'],{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,...patch})});
-          }} />
+          }}
+          onOpenClient={() => window.open('/admin/clients', '_blank')}
+        />
       )}
     </div>
   );

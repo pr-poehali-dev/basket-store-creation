@@ -3,7 +3,6 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import Icon from '@/components/ui/icon';
 import urls from '../../../backend/func2url.json';
-import AdminTasksBlock from './AdminTasksBlock';
 import AdminStaffCabinet from './AdminStaffCabinet';
 
 // Хук для подсчёта непросмотренных задач (обновляется каждые 60 сек)
@@ -191,7 +190,6 @@ const AdminLayout = ({ children }: { children: ReactNode }) => {
           </div>
         </aside>
         <main className="flex-1 min-w-0 overflow-x-auto flex flex-col">
-          <AdminTasksBlock auth={authed} />
           <div className="flex-1">
             <AdminStaffCabinet auth={authed} />
           </div>
@@ -220,23 +218,32 @@ const AdminLayout = ({ children }: { children: ReactNode }) => {
                   {visibleItems.map(item => {
                     const active = isActive(item.path);
                     return (
-                      <button
-                        key={item.path}
-                        onClick={() => navigate(item.path)}
-                        className={[
-                          'w-full text-center font-semibold py-2 rounded-xl border transition-colors text-sm relative',
-                          active
-                            ? 'bg-accent text-primary border-accent'
-                            : 'bg-background text-primary border-primary/40 hover:border-primary',
-                        ].join(' ')}
-                      >
-                        {item.label}
-                        {item.key === 'tasks' && taskBadge > 0 && (
-                          <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
-                            {taskBadge > 99 ? '99+' : taskBadge}
-                          </span>
+                      <div key={item.path}>
+                        <button
+                          onClick={() => navigate(item.path)}
+                          className={[
+                            'w-full text-center font-semibold py-2 rounded-xl border transition-colors text-sm relative',
+                            item.key === 'tasks'
+                              ? active
+                                ? 'bg-[#8a9a5a] text-white border-[#8a9a5a]'
+                                : 'bg-[#8a9a5a]/12 text-[#5a6a2a] border-[#8a9a5a]/40 hover:border-[#8a9a5a] hover:bg-[#8a9a5a]/20'
+                              : active
+                                ? 'bg-accent text-primary border-accent'
+                                : 'bg-background text-primary border-primary/40 hover:border-primary',
+                          ].join(' ')}
+                        >
+                          {item.label}
+                          {item.key === 'tasks' && taskBadge > 0 && (
+                            <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                              {taskBadge > 99 ? '99+' : taskBadge}
+                            </span>
+                          )}
+                        </button>
+                        {/* Разделитель после «Задачи» */}
+                        {item.key === 'tasks' && (
+                          <div className="border-t-2 border-[#8a9a5a]/30 my-2" />
                         )}
-                      </button>
+                      </div>
                     );
                   })}
                 </div>
@@ -261,8 +268,7 @@ const AdminLayout = ({ children }: { children: ReactNode }) => {
 
       {/* Контент */}
       <main className="flex-1 min-w-0 overflow-x-auto flex flex-col">
-        <AdminTasksBlock auth={authed} />
-        <div className="flex-1 border-t-2 border-primary/20">
+        <div className="flex-1">
           {children}
         </div>
       </main>

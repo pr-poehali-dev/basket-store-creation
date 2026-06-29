@@ -8,7 +8,8 @@ type TaskPriority = 'low' | 'normal' | 'high' | 'urgent';
 type ReqType      = 'sick' | 'dayoff' | 'vacation' | 'data_fix';
 type ReqStatus    = 'pending' | 'approved' | 'rejected';
 type ViewMode     = 'list' | 'kanban' | 'calendar';
-type TabKey       = 'my' | 'by_me' | 'all' | 'requests' | 'notifications';
+type TabKey       = 'tasks' | 'requests' | 'notifications';
+type TaskSubTab   = 'my' | 'by_me' | 'all';
 type PeriodFilter = 'all' | 'overdue' | 'today' | 'week' | 'next_week' | 'future';
 
 interface Task {
@@ -135,14 +136,13 @@ const TaskForm = ({ auth, staff, onSave, onClose }: {
   const [priority, setPriority] = useState<TaskPriority>('normal');
   const [saving, setSaving]     = useState(false);
 
-  // Только сотрудники с личным кабинетом
-  const staffWithCabinet = staff.filter(s => (s.pages || []).includes('cabinet') && s.is_active);
-
-  // Группируем по group_name
+  // Группируем: у кого есть кабинет — в группу «Плетельщики», остальные — по своим группам
   const groups: Record<string, StaffOption[]> = {};
-  for (const s of staffWithCabinet) {
-    if (!groups[s.group_name]) groups[s.group_name] = [];
-    groups[s.group_name].push(s);
+  for (const s of staff.filter(s => s.is_active)) {
+    const hasCabinet = (s.pages || []).includes('cabinet');
+    const groupKey = hasCabinet ? 'Плетельщики' : s.group_name;
+    if (!groups[groupKey]) groups[groupKey] = [];
+    groups[groupKey].push(s);
   }
 
   const submit = async () => {
@@ -445,16 +445,17 @@ const AdminTasksBlock = ({ auth, fullPage }: { auth: AuthData; fullPage?: boolea
   const [tasks, setTasks]       = useState<Task[]>([]);
   const [requests, setRequests] = useState<TaskRequest[]>([]);
   const [staff, setStaff]       = useState<StaffOption[]>([]);
-  const [tab, setTab]           = useState<TabKey>('my');
+  const [tab, setTab]           = useState<TabKey>('tasks');
+  const [taskSubTab, setTaskSubTab] = useState<TaskSubTab>('my');
   const [view, setView]         = useState<ViewMode>('list');
   const [staffFilter, setStaffFilter] = useState<number | ''>('');
+  const [reqStaffFilter, setReqStaffFilter] = useState<number | ''>('');
   const [showDone, setShowDone] = useState(false);
   const [period, setPeriod]     = useState<PeriodFilter>('all');
   const [showTaskForm, setShowTaskForm]   = useState(false);
   const [showReqForm, setShowReqForm]     = useState(false);
   const [reviewId, setReviewId]           = useState<number | null>(null);
   const [reviewComment, setReviewComment] = useState('');
-  const [collapsed, setCollapsed] = useState(true); // для мини-блока сверху
 
   const isAdmin   = auth.is_admin;
   const isManager = !isAdmin && auth.pages?.includes('access');
@@ -496,32 +497,38 @@ const AdminTasksBlock = ({ auth, fullPage }: { auth: AuthData; fullPage?: boolea
     setReviewId(null); setReviewComment(''); await load();
   };
 
-  // Базовые фильтрации по вкладкам
+  // Базовые фильтрации
   const myTasks    = tasks.filter(t => t.assigned_to === auth.staff_id);
   const byMeTasks  = tasks.filter(t => t.assigned_by === auth.staff_id && t.assigned_to !== auth.staff_id);
   const allTasks   = tasks;
   const pendingReqs = requests.filter(r => r.status === 'pending');
 
-  // Статистика для мини-блока
+  // Статистика
   const today = isoToday();
-  const todayTasks   = tasks.filter(t => t.due_date === today && t.status !== 'done');
+  const todayTasks     = tasks.filter(t => t.due_date === today && t.status !== 'done');
   const doneTodayTasks = tasks.filter(t => t.due_date === today && t.status === 'done');
-  const overdueTasks  = tasks.filter(t => t.due_date && t.due_date < today && t.status !== 'done');
+  const overdueTasks   = tasks.filter(t => t.due_date && t.due_date < today && t.status !== 'done');
 
   const getBaseTasks = () => {
-    if (tab === 'my') return myTasks;
-    if (tab === 'by_me') return byMeTasks;
+    if (taskSubTab === 'my') return myTasks;
+    if (taskSubTab === 'by_me') return byMeTasks;
     return allTasks;
   };
 
-  // Применяем фильтры
+  // Применяем фильтры для задач
   const filteredTasks = useMemo(() => {
     let list = getBaseTasks();
     if (staffFilter !== '') list = list.filter(t => t.assigned_to === staffFilter || t.assigned_by === staffFilter);
     if (!showDone) list = list.filter(t => t.status !== 'done' && t.status !== 'cancelled');
     if (period !== 'all') list = list.filter(t => matchesPeriod(t, period));
     return list;
-  }, [tasks, tab, staffFilter, showDone, period, auth.staff_id]);
+  }, [tasks, taskSubTab, staffFilter, showDone, period, auth.staff_id]);
+
+  // Применяем фильтры для заявок
+  const filteredRequests = useMemo(() => {
+    if (reqStaffFilter === '') return requests;
+    return requests.filter(r => r.staff_id === reqStaffFilter);
+  }, [requests, reqStaffFilter]);
 
   // ── Мини-блок (сверху страниц, только свёрнутый) ──────────────────────────
   if (!fullPage) {
@@ -584,28 +591,32 @@ const AdminTasksBlock = ({ auth, fullPage }: { auth: AuthData; fullPage?: boolea
   }
 
   // ── Полная страница задач ──────────────────────────────────────────────────
-  const TABS: { key: TabKey; label: string; count?: number; adminOnly?: boolean }[] = [
-    { key: 'my',            label: 'Мои задачи',       count: myTasks.filter(t=>t.status!=='done'&&t.status!=='cancelled').length },
-    { key: 'by_me',         label: 'Я поставил',       count: byMeTasks.filter(t=>t.status!=='done'&&t.status!=='cancelled').length },
-    { key: 'all',           label: 'Все задачи',       count: allTasks.filter(t=>t.status!=='done'&&t.status!=='cancelled').length, adminOnly: true },
-    { key: 'requests',      label: 'Заявки',           count: pendingReqs.length },
+  const MAIN_TABS: { key: TabKey; label: string; count?: number }[] = [
+    { key: 'tasks',         label: 'Задачи',  count: (myTasks.length + byMeTasks.length + (isAdmin||isManager ? allTasks.filter(t=>t.assigned_to!==auth.staff_id&&t.assigned_by!==auth.staff_id).length : 0)) },
+    { key: 'requests',      label: 'Заявки',  count: pendingReqs.length },
     { key: 'notifications', label: 'Уведомления' },
   ];
 
-  const visibleTabs = TABS.filter(t => !t.adminOnly || isAdmin || isManager);
+  // Подвкладки задач
+  const TASK_SUB_TABS: { key: TaskSubTab; label: string; count: number; adminOnly?: boolean }[] = [
+    { key: 'my',    label: 'Мои задачи',        count: myTasks.filter(t=>t.status!=='done'&&t.status!=='cancelled').length },
+    { key: 'by_me', label: 'Я поставил',         count: byMeTasks.filter(t=>t.status!=='done'&&t.status!=='cancelled').length },
+    { key: 'all',   label: 'Задачи сотрудников', count: allTasks.filter(t=>t.status!=='done'&&t.status!=='cancelled'&&t.assigned_to!==auth.staff_id&&t.assigned_by!==auth.staff_id).length, adminOnly: true },
+  ];
+  const visibleSubTabs = TASK_SUB_TABS.filter(t => !t.adminOnly || isAdmin || isManager);
 
   const PERIODS: { key: PeriodFilter; label: string }[] = [
-    { key: 'all', label: 'Все' },
-    { key: 'overdue', label: '🔴 Просроченные' },
-    { key: 'today', label: 'Сегодня' },
-    { key: 'week', label: 'Эта неделя' },
-    { key: 'next_week', label: 'Следующая неделя' },
-    { key: 'future', label: 'Будущее' },
+    { key: 'all',       label: 'Все' },
+    { key: 'overdue',   label: '🔴 Просрочены' },
+    { key: 'today',     label: 'Сегодня' },
+    { key: 'week',      label: 'Эта неделя' },
+    { key: 'next_week', label: 'След. неделя' },
+    { key: 'future',    label: 'Будущее' },
   ];
 
   return (
     <div>
-      {/* Заголовок + кнопки действий */}
+      {/* Заголовок */}
       <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
         <h1 className="font-display text-2xl font-semibold text-primary">Задачи</h1>
         <div className="flex gap-2">
@@ -615,8 +626,8 @@ const AdminTasksBlock = ({ auth, fullPage }: { auth: AuthData; fullPage?: boolea
               + Задача
             </button>
           )}
-          {isEmployee && (
-            <button onClick={() => setShowReqForm(true)}
+          {(isEmployee || canCreateTask) && (
+            <button onClick={() => { setTab('requests'); setShowReqForm(true); }}
               className="px-4 py-2 rounded-xl border border-primary/40 text-primary text-sm hover:border-primary transition-colors">
               + Заявка
             </button>
@@ -640,14 +651,18 @@ const AdminTasksBlock = ({ auth, fullPage }: { auth: AuthData; fullPage?: boolea
         </div>
       </div>
 
-      {/* Вкладки */}
-      <div className="flex gap-1.5 mb-4 flex-wrap border-b border-primary/15 pb-3">
-        {visibleTabs.map(t => (
+      {/* Главные вкладки */}
+      <div className="flex gap-1.5 mb-0 border-b-2 border-primary/15 pb-0">
+        {MAIN_TABS.map(t => (
           <button key={t.key} onClick={() => setTab(t.key)}
-            className={`px-3 py-1.5 rounded-xl border text-sm font-medium transition-colors relative ${tab === t.key ? 'bg-primary text-white border-primary' : 'border-primary/30 text-primary hover:border-primary'}`}>
+            className={`px-4 py-2 text-sm font-semibold transition-colors border-b-2 -mb-0.5 ${
+              tab === t.key
+                ? 'border-primary text-primary'
+                : 'border-transparent text-primary/50 hover:text-primary'
+            }`}>
             {t.label}
             {(t.count ?? 0) > 0 && (
-              <span className={`ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${tab === t.key ? 'bg-white/30 text-white' : 'bg-primary/10 text-primary'}`}>
+              <span className={`ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${tab === t.key ? 'bg-primary text-white' : 'bg-primary/10 text-primary'}`}>
                 {t.count}
               </span>
             )}
@@ -655,100 +670,153 @@ const AdminTasksBlock = ({ auth, fullPage }: { auth: AuthData; fullPage?: boolea
         ))}
       </div>
 
-      {/* Фильтры (для всех вкладок кроме "мои") */}
-      {tab !== 'my' && tab !== 'requests' && tab !== 'notifications' && (
-        <div className="flex gap-3 mb-4 flex-wrap items-center">
-          {/* Фильтр по сотруднику */}
-          <select value={staffFilter} onChange={e => setStaffFilter(e.target.value === '' ? '' : Number(e.target.value))}
-            className="border border-primary/30 rounded-xl px-3 py-1.5 text-sm outline-none focus:border-accent">
-            <option value="">Все сотрудники</option>
-            {staff.map(s => <option key={s.id} value={s.id}>{s.full_name}</option>)}
-          </select>
-
-          {/* Тумблер выполненных */}
-          <label className="flex items-center gap-2 cursor-pointer select-none">
-            <div onClick={() => setShowDone(v => !v)}
-              className={`w-10 h-5 rounded-full transition-colors relative ${showDone ? 'bg-accent' : 'bg-primary/20'}`}>
-              <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${showDone ? 'translate-x-5' : 'translate-x-0.5'}`} />
-            </div>
-            <span className="text-sm text-primary">Выполненные</span>
-          </label>
-
-          {/* Периоды */}
-          <div className="flex gap-1.5 flex-wrap">
-            {PERIODS.map(p => (
-              <button key={p.key} onClick={() => setPeriod(p.key)}
-                className={`px-2.5 py-1 rounded-lg border text-xs font-medium transition-colors ${period === p.key ? 'bg-primary text-white border-primary' : 'border-primary/25 text-primary/70 hover:border-primary hover:text-primary'}`}>
-                {p.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Вид */}
-          <div className="flex gap-1 ml-auto">
-            {([['list','List'],['kanban','Columns'],['calendar','CalendarDays']] as const).map(([v, icon]) => (
-              <button key={v} onClick={() => setView(v as ViewMode)}
-                className={`w-8 h-8 flex items-center justify-center rounded-lg border transition-colors ${view === v ? 'bg-primary text-white border-primary' : 'border-primary/25 text-primary/60 hover:border-primary hover:text-primary'}`}>
-                <Icon name={icon} size={14} />
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-      {tab === 'my' && (
-        <div className="flex gap-1 mb-4 ml-auto justify-end">
-          {([['list','List'],['kanban','Columns'],['calendar','CalendarDays']] as const).map(([v, icon]) => (
-            <button key={v} onClick={() => setView(v as ViewMode)}
-              className={`w-8 h-8 flex items-center justify-center rounded-lg border transition-colors ${view === v ? 'bg-primary text-white border-primary' : 'border-primary/25 text-primary/60 hover:border-primary hover:text-primary'}`}>
-              <Icon name={icon} size={14} />
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Контент */}
-      {tab === 'requests' ? (
-        <div className="space-y-2">
-          {requests.length === 0 ? <p className="text-muted-foreground">Заявок нет</p> : requests.map(req => (
-            <div key={req.id} className="bg-card border border-primary/25 rounded-2xl px-4 py-3">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="flex items-center gap-2 mb-1 flex-wrap">
-                    <span className="font-semibold text-primary">{REQ_TYPE_LABEL[req.request_type]}</span>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${req.status==='pending'?'bg-yellow-50 text-yellow-700':req.status==='approved'?'bg-green-50 text-green-700':'bg-red-50 text-red-600'}`}>
-                      {REQ_STATUS_LABEL[req.status]}
-                    </span>
-                  </div>
-                  {(isAdmin||isManager) && <div className="text-sm text-primary/70 mb-1">{req.staff_name}</div>}
-                  {(req.date_from||req.date_to) && <div className="text-sm text-primary mb-0.5">{req.date_from&&fmtDate(req.date_from)}{req.date_to&&req.date_to!==req.date_from&&` — ${fmtDate(req.date_to)}`}</div>}
-                  {req.comment && <p className="text-sm text-primary/60">{req.comment}</p>}
-                  {req.review_comment && <p className="text-xs text-primary/40 italic mt-1">{req.reviewed_by}: {req.review_comment}</p>}
-                </div>
-                {canApprove && req.status==='pending' && (
-                  reviewId===req.id ? (
-                    <div className="space-y-1 flex-shrink-0 w-44">
-                      <input value={reviewComment} onChange={e=>setReviewComment(e.target.value)} placeholder="Комментарий"
-                        className="w-full text-xs border border-primary/25 rounded-lg px-2 py-1 outline-none"/>
-                      <div className="flex gap-1">
-                        <button onClick={()=>reviewRequest(req.id,'approved')} className="flex-1 text-xs bg-green-500 text-white rounded-lg py-1">Одобрить</button>
-                        <button onClick={()=>reviewRequest(req.id,'rejected')} className="flex-1 text-xs bg-red-400 text-white rounded-lg py-1">Отклонить</button>
-                        <button onClick={()=>setReviewId(null)} className="text-xs text-primary/50 px-1">✕</button>
-                      </div>
-                    </div>
-                  ) : <button onClick={()=>setReviewId(req.id)} className="text-sm text-primary/60 hover:text-primary underline flex-shrink-0">Рассмотреть →</button>
+      {/* Контент по вкладкам */}
+      {tab === 'tasks' && (
+        <div className="pt-4">
+          {/* Подвкладки */}
+          <div className="flex gap-1.5 mb-4 flex-wrap">
+            {visibleSubTabs.map(st => (
+              <button key={st.key} onClick={() => setTaskSubTab(st.key)}
+                className={`px-3 py-1.5 rounded-xl border text-sm font-medium transition-colors ${
+                  taskSubTab === st.key ? 'bg-primary text-white border-primary' : 'border-primary/30 text-primary hover:border-primary'
+                }`}>
+                {st.label}
+                {st.count > 0 && (
+                  <span className={`ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${taskSubTab === st.key ? 'bg-white/30 text-white' : 'bg-primary/10 text-primary'}`}>
+                    {st.count}
+                  </span>
                 )}
+              </button>
+            ))}
+          </div>
+
+          {/* Фильтры (только для by_me и all) */}
+          {(taskSubTab === 'by_me' || taskSubTab === 'all') && (
+            <div className="flex gap-3 mb-4 flex-wrap items-center bg-primary/3 rounded-2xl px-4 py-3">
+              <select value={staffFilter} onChange={e => setStaffFilter(e.target.value === '' ? '' : Number(e.target.value))}
+                className="border border-primary/30 rounded-xl px-3 py-1.5 text-sm outline-none focus:border-accent bg-background">
+                <option value="">Все сотрудники</option>
+                {staff.map(s => <option key={s.id} value={s.id}>{s.full_name}</option>)}
+              </select>
+
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <div onClick={() => setShowDone(v => !v)}
+                  className={`w-10 h-5 rounded-full transition-colors relative cursor-pointer ${showDone ? 'bg-accent' : 'bg-primary/20'}`}>
+                  <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${showDone ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                </div>
+                <span className="text-sm text-primary">Выполненные</span>
+              </label>
+
+              <div className="flex gap-1.5 flex-wrap">
+                {PERIODS.map(p => (
+                  <button key={p.key} onClick={() => setPeriod(p.key)}
+                    className={`px-2.5 py-1 rounded-lg border text-xs font-medium transition-colors ${period === p.key ? 'bg-primary text-white border-primary' : 'border-primary/25 text-primary/70 hover:border-primary'}`}>
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex gap-1 ml-auto">
+                {([['list','List'],['kanban','Columns'],['calendar','CalendarDays']] as [ViewMode, string][]).map(([v, icon]) => (
+                  <button key={v} onClick={() => setView(v)}
+                    className={`w-8 h-8 flex items-center justify-center rounded-lg border transition-colors ${view === v ? 'bg-primary text-white border-primary' : 'border-primary/25 text-primary/60 hover:border-primary'}`}>
+                    <Icon name={icon} size={14} />
+                  </button>
+                ))}
               </div>
             </div>
-          ))}
-        </div>
-      ) : tab === 'notifications' ? (
-        <div className="text-muted-foreground py-4">Уведомления появятся здесь при изменении сроков задач.</div>
-      ) : (
-        <>
+          )}
+          {/* Вид для «Мои задачи» */}
+          {taskSubTab === 'my' && (
+            <div className="flex gap-3 mb-4 flex-wrap items-center">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <div onClick={() => setShowDone(v => !v)}
+                  className={`w-10 h-5 rounded-full transition-colors relative cursor-pointer ${showDone ? 'bg-accent' : 'bg-primary/20'}`}>
+                  <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${showDone ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                </div>
+                <span className="text-sm text-primary">Выполненные</span>
+              </label>
+              <div className="flex gap-1.5 flex-wrap">
+                {PERIODS.map(p => (
+                  <button key={p.key} onClick={() => setPeriod(p.key)}
+                    className={`px-2.5 py-1 rounded-lg border text-xs font-medium transition-colors ${period === p.key ? 'bg-primary text-white border-primary' : 'border-primary/25 text-primary/70 hover:border-primary'}`}>
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-1 ml-auto">
+                {([['list','List'],['kanban','Columns'],['calendar','CalendarDays']] as [ViewMode, string][]).map(([v, icon]) => (
+                  <button key={v} onClick={() => setView(v)}
+                    className={`w-8 h-8 flex items-center justify-center rounded-lg border transition-colors ${view === v ? 'bg-primary text-white border-primary' : 'border-primary/25 text-primary/60 hover:border-primary'}`}>
+                    <Icon name={icon} size={14} />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {view === 'list'     && <ListView     tasks={filteredTasks} onUpdateStatus={updateTaskStatus} />}
           {view === 'kanban'   && <KanbanView   tasks={filteredTasks} onUpdateStatus={updateTaskStatus} />}
           {view === 'calendar' && <CalendarView tasks={filteredTasks} onUpdateStatus={updateTaskStatus} />}
-        </>
+        </div>
+      )}
+
+      {tab === 'requests' && (
+        <div className="pt-4">
+          {/* Фильтр заявок по сотруднику */}
+          {(isAdmin || isManager) && (
+            <div className="flex gap-3 mb-4 items-center flex-wrap">
+              <select value={reqStaffFilter} onChange={e => setReqStaffFilter(e.target.value === '' ? '' : Number(e.target.value))}
+                className="border border-primary/30 rounded-xl px-3 py-1.5 text-sm outline-none focus:border-accent">
+                <option value="">Все сотрудники</option>
+                {staff.map(s => <option key={s.id} value={s.id}>{s.full_name}</option>)}
+              </select>
+              {reqStaffFilter !== '' && (
+                <button onClick={() => setReqStaffFilter('')} className="text-sm text-muted-foreground hover:text-primary underline">Сбросить</button>
+              )}
+              <span className="text-sm text-muted-foreground">Заявок: {filteredRequests.length}</span>
+            </div>
+          )}
+          <div className="space-y-2">
+            {filteredRequests.length === 0 ? <p className="text-muted-foreground">Заявок нет</p> : filteredRequests.map(req => (
+              <div key={req.id} className="bg-card border border-primary/25 rounded-2xl px-4 py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <span className="font-semibold text-primary">{REQ_TYPE_LABEL[req.request_type]}</span>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${req.status==='pending'?'bg-yellow-50 text-yellow-700':req.status==='approved'?'bg-green-50 text-green-700':'bg-red-50 text-red-600'}`}>
+                        {REQ_STATUS_LABEL[req.status]}
+                      </span>
+                    </div>
+                    {(isAdmin||isManager) && <div className="text-sm text-primary/70 mb-1">{req.staff_name}</div>}
+                    {(req.date_from||req.date_to) && <div className="text-sm text-primary mb-0.5">{req.date_from&&fmtDate(req.date_from)}{req.date_to&&req.date_to!==req.date_from&&` — ${fmtDate(req.date_to)}`}</div>}
+                    {req.comment && <p className="text-sm text-primary/60">{req.comment}</p>}
+                    {req.review_comment && <p className="text-xs text-primary/40 italic mt-1">{req.reviewed_by}: {req.review_comment}</p>}
+                  </div>
+                  {canApprove && req.status==='pending' && (
+                    reviewId===req.id ? (
+                      <div className="space-y-1 flex-shrink-0 w-44">
+                        <input value={reviewComment} onChange={e=>setReviewComment(e.target.value)} placeholder="Комментарий"
+                          className="w-full text-xs border border-primary/25 rounded-lg px-2 py-1 outline-none"/>
+                        <div className="flex gap-1">
+                          <button onClick={()=>reviewRequest(req.id,'approved')} className="flex-1 text-xs bg-green-500 text-white rounded-lg py-1">Одобрить</button>
+                          <button onClick={()=>reviewRequest(req.id,'rejected')} className="flex-1 text-xs bg-red-400 text-white rounded-lg py-1">Отклонить</button>
+                          <button onClick={()=>setReviewId(null)} className="text-xs text-primary/50 px-1">✕</button>
+                        </div>
+                      </div>
+                    ) : <button onClick={()=>setReviewId(req.id)} className="text-sm text-primary/60 hover:text-primary underline flex-shrink-0">Рассмотреть →</button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {tab === 'notifications' && (
+        <div className="pt-4 text-muted-foreground">
+          Уведомления появятся здесь при изменении сроков задач и этапов заказов.
+        </div>
       )}
 
       {showTaskForm && <TaskForm auth={auth} staff={staff} onSave={createTask} onClose={() => setShowTaskForm(false)} />}
