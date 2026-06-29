@@ -21,6 +21,7 @@ const ALL_COLUMNS = [
   { key: 'size',          label: 'Размер' },
   { key: 'color',         label: 'Цвет' },
   { key: 'price',         label: 'Цена' },
+  { key: 'cost',          label: 'Расходы' },
   { key: 'sale_price',    label: 'По акции' },
   { key: 'labels',        label: 'Метки' },
   { key: 'priority',      label: 'Приоритет' },
@@ -203,7 +204,26 @@ const AdminProducts = () => {
   };
 
   const editingLabels = editing ? parseLabels(editing.labels) : [];
-  const filteredProducts = products.filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase()) || (p.sku || '').toLowerCase().includes(search.toLowerCase()));
+
+  const [sortCol, setSortCol] = useState<string>('name');
+  const [sortAsc, setSortAsc] = useState(true);
+
+  const filteredProducts = products
+    .filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase()) || (p.sku || '').toLowerCase().includes(search.toLowerCase()))
+    .sort((a, b) => {
+      const va = (a as Record<string, unknown>)[sortCol], vb = (b as Record<string, unknown>)[sortCol];
+      let cmp = 0;
+      if (typeof va === 'number' && typeof vb === 'number') cmp = va - vb;
+      else cmp = String(va ?? '').localeCompare(String(vb ?? ''), 'ru');
+      return sortAsc ? cmp : -cmp;
+    });
+
+  const prodTh = (col: string, label: string) => (
+    <th className="text-left px-4 py-3 font-medium cursor-pointer hover:text-primary select-none whitespace-nowrap"
+      onClick={() => { if (sortCol === col) setSortAsc(v => !v); else { setSortCol(col); setSortAsc(true); } }}>
+      {label}{sortCol === col ? (sortAsc ? ' ↑' : ' ↓') : <span className="opacity-30"> ↕</span>}
+    </th>
+  );
 
   return (
     <div className="text-foreground">
@@ -294,18 +314,19 @@ const AdminProducts = () => {
               <thead className="bg-secondary/40 border-b border-border">
                 <tr>
                   {col('photo')         && <th className="text-left px-4 py-3 font-medium">Фото</th>}
-                  {col('sku')           && <th className="text-left px-4 py-3 font-medium">Артикул</th>}
-                  {col('name')          && <th className="text-left px-4 py-3 font-medium">Название</th>}
-                  {col('shape')         && <th className="text-left px-4 py-3 font-medium">Форма</th>}
-                  {col('size')          && <th className="text-left px-4 py-3 font-medium">Размер</th>}
-                  {col('color')         && <th className="text-left px-4 py-3 font-medium">Цвет</th>}
-                  {col('price')         && <th className="text-left px-4 py-3 font-medium">Цена</th>}
-                  {col('sale_price')    && <th className="text-left px-4 py-3 font-medium">По акции</th>}
-                  {col('labels')        && <th className="text-left px-4 py-3 font-medium">Метки</th>}
-                  {col('priority')      && <th className="text-left px-4 py-3 font-medium">Приор.</th>}
-                  {col('weave_type')    && <th className="text-left px-4 py-3 font-medium">Плетение</th>}
-                  {col('handles_count') && <th className="text-left px-4 py-3 font-medium">Ручки</th>}
-                  {col('group_id')      && <th className="text-left px-4 py-3 font-medium">Группа</th>}
+                  {col('sku')           && prodTh('sku', 'Артикул')}
+                  {col('name')          && prodTh('name', 'Название')}
+                  {col('shape')         && prodTh('shape', 'Форма')}
+                  {col('size')          && prodTh('size', 'Размер')}
+                  {col('color')         && prodTh('color', 'Цвет')}
+                  {col('price')         && prodTh('price', 'Цена')}
+                  {col('cost')          && prodTh('cost', 'Расходы')}
+                  {col('sale_price')    && prodTh('sale_price', 'По акции')}
+                  {col('labels')        && prodTh('labels', 'Метки')}
+                  {col('priority')      && prodTh('priority', 'Приор.')}
+                  {col('weave_type')    && prodTh('weave_type', 'Плетение')}
+                  {col('handles_count') && prodTh('handles_count', 'Ручки')}
+                  {col('group_id')      && prodTh('group_id', 'Группа')}
                   <th className="text-left px-4 py-3 font-medium"></th>
                 </tr>
               </thead>
@@ -325,6 +346,7 @@ const AdminProducts = () => {
                     {col('size')          && <td className="px-4 py-3 text-muted-foreground">{p.size}</td>}
                     {col('color')         && <td className="px-4 py-3 text-muted-foreground">{p.color || '—'}</td>}
                     {col('price')         && <td className="px-4 py-3">{p.price} ₽</td>}
+                    {col('cost')          && <td className="px-4 py-3 text-muted-foreground">{p.cost ? `${p.cost} ₽` : '—'}</td>}
                     {col('sale_price')    && <td className="px-4 py-3">{p.sale_price ? <span className="text-accent">{p.sale_price} ₽</span> : '—'}</td>}
                     {col('labels')        && (
                       <td className="px-4 py-3">

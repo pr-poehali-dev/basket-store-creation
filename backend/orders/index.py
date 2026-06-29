@@ -114,6 +114,31 @@ def handler(event: dict, context) -> dict:
                 )
                 new_id = cur.fetchone()[0]
 
+            # Синхронизируем клиента
+            if phone:
+                try:
+                    import urllib.request
+                    form_data = body.get('form', {})
+                    client_payload = json.dumps({
+                        'type': 'upsert_from_order',
+                        'phone': phone,
+                        'full_name': customer_name,
+                        'email': customer_email,
+                        'city': city,
+                        'inn': form_data.get('inn', ''),
+                        'delivery_days': form_data.get('delivery_days', ''),
+                        'delivery_time': form_data.get('delivery_time', ''),
+                        'payment_method': payment_method,
+                        'delivery_address': delivery_address,
+                        'delivery_type': delivery_type,
+                    }, ensure_ascii=False).encode()
+                    clients_url = 'https://functions.poehali.dev/d615081f-bf45-4ff6-95c2-d509e37d46e8'
+                    req = urllib.request.Request(clients_url, data=client_payload,
+                        headers={'Content-Type': 'application/json'}, method='POST')
+                    urllib.request.urlopen(req, timeout=3)
+                except Exception:
+                    pass
+
             return {'statusCode': 200, 'headers': cors_headers(),
                     'body': json.dumps({'id': new_id, 'order_number': order_number})}
 

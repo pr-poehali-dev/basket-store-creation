@@ -32,12 +32,14 @@ export interface Order {
   due_painting: string;
   delivery_type: string;
   delivery_address: string;
+  payment_method: string;
   comment: string;
   notes: string;
   produced: Record<string, number>;
   painted: Record<string, number>;
   is_archived: boolean;
   is_trashed: boolean;
+  form?: Record<string, string>;
 }
 
 export interface Position {

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import {
   Order, groupPositions, fmtMoney, fmtDateShort,
   RESPONSIBLES, responsibleStyle, DELIVERY_TYPES, DELIVERY_LABELS,
-  getDeadlineStatus, weavingPct, paintingPct, CLOSED_STAGE,
+  getDeadlineStatus, weavingPct, paintingPct, CLOSED_STAGE, canAdvanceStage,
 } from '../orderUtils';
 import { nextStage, createAutoTasks } from './orderHelpers';
 
@@ -29,7 +29,7 @@ export const OrderCard = ({ order, onDragStart, onUpdate, onOpenFull }: OrderCar
 
   const canMoveNext = (() => {
     if (order.stage === 'Согласование') return !!order.due_date;
-    // Из «В очереди на плетение» → «Плетение» разрешён даже без сроков
+    if (order.stage === 'В очереди на плетение') return !!order.due_weaving && !!order.due_painting;
     return true;
   })();
 
@@ -178,18 +178,25 @@ export const OrderCard = ({ order, onDragStart, onUpdate, onOpenFull }: OrderCar
             </div>
           )}
 
-          {next && !isClosed && !order.is_trashed && (
-            canMoveNext ? (
+          {next && !isClosed && !order.is_trashed && (() => {
+            if (!canMoveNext) return (
+              <div className="text-xs text-center py-2 rounded-xl bg-red-50 border border-red-200 text-red-500">
+                Заполните обязательные поля для перехода
+              </div>
+            );
+            const stageCheck = canAdvanceStage(order, next);
+            if (!stageCheck.ok) return (
+              <div className="text-xs text-center py-2 rounded-xl bg-red-50 border border-red-200 text-red-500">
+                {stageCheck.reason}
+              </div>
+            );
+            return (
               <button onClick={() => onUpdate(order.id, { stage: next, is_archived: next === CLOSED_STAGE })}
                 className="w-full text-xs font-semibold py-2 rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground transition-colors">
                 → {next}
               </button>
-            ) : (
-              <div className="text-xs text-center py-2 rounded-xl bg-red-50 border border-red-200 text-red-500">
-                Заполните обязательные поля для перехода
-              </div>
-            )
-          )}
+            );
+          })()}
 
           <div className="flex gap-2 pt-1 border-t border-primary/10">
             {isClosed ? (

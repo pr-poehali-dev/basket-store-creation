@@ -330,59 +330,92 @@ const KanbanView = ({ tasks, onUpdateStatus }: { tasks: Task[]; onUpdateStatus: 
   </div>
 );
 
-// ── Список ────────────────────────────────────────────────────────────────────
-const ListView = ({ tasks, onUpdateStatus }: { tasks: Task[]; onUpdateStatus: (id: number, status: TaskStatus) => void }) => (
-  <div className="border border-primary/20 rounded-2xl overflow-hidden">
-    <table className="w-full text-sm border-collapse">
-      <thead>
-        <tr className="bg-primary/5 text-xs text-primary/60 border-b border-primary/15">
-          <th className="px-3 py-2.5 text-left font-semibold">Задача</th>
-          <th className="px-3 py-2.5 text-left font-semibold">Дедлайн</th>
-          <th className="px-3 py-2.5 text-left font-semibold">Исполнитель</th>
-          <th className="px-3 py-2.5 text-left font-semibold">Автор</th>
-          <th className="px-3 py-2.5 text-left font-semibold">Статус</th>
-        </tr>
-      </thead>
-      <tbody>
-        {tasks.map(t => {
-          const today = isoToday();
-          const isOverdue = t.due_date && t.due_date < today && t.status !== 'done';
-          return (
-            <tr key={t.id} className={`border-b border-primary/10 last:border-0 hover:bg-primary/3 ${t.status === 'done' ? 'opacity-60' : ''}`}>
-              <td className="px-3 py-2">
-                <div className="flex items-center gap-2">
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 ${PRIORITY_COLOR[t.priority]}`}>{PRIORITY_LABEL[t.priority]}</span>
+// ── Список с сортировкой ───────────────────────────────────────────────────────
+type SortCol = 'title' | 'due_date' | 'assignee_name' | 'assigned_by_name' | 'status' | 'priority';
+const ListView = ({ tasks, onUpdateStatus }: { tasks: Task[]; onUpdateStatus: (id: number, status: TaskStatus) => void }) => {
+  const [sortCol, setSortCol] = useState<SortCol>('due_date');
+  const [sortAsc, setSortAsc] = useState(true);
+  const today = isoToday();
+
+  const PRIORITY_ORDER: Record<TaskPriority, number> = { urgent: 0, high: 1, normal: 2, low: 3 };
+  const STATUS_ORDER:   Record<TaskStatus,   number> = { pending: 0, in_progress: 1, done: 2, cancelled: 3 };
+
+  const sorted = [...tasks].sort((a, b) => {
+    let cmp = 0;
+    if (sortCol === 'priority') cmp = PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority];
+    else if (sortCol === 'status') cmp = STATUS_ORDER[a.status] - STATUS_ORDER[b.status];
+    else if (sortCol === 'due_date') cmp = (a.due_date || '').localeCompare(b.due_date || '');
+    else cmp = (a[sortCol] || '').localeCompare(b[sortCol] || '', 'ru');
+    return sortAsc ? cmp : -cmp;
+  });
+
+  const th = (col: SortCol, label: string) => (
+    <th className="px-3 py-2.5 text-left font-semibold cursor-pointer hover:text-primary select-none whitespace-nowrap"
+      onClick={() => { if (sortCol === col) setSortAsc(v => !v); else { setSortCol(col); setSortAsc(true); } }}>
+      {label} {sortCol === col ? (sortAsc ? '↑' : '↓') : <span className="opacity-30">↕</span>}
+    </th>
+  );
+
+  return (
+    <div className="border border-primary/20 rounded-2xl overflow-hidden">
+      <table className="w-full text-sm border-collapse">
+        <thead>
+          <tr className="bg-primary/5 text-xs text-primary/60 border-b border-primary/15">
+            {th('title', 'Задача')}
+            {th('priority', 'Приоритет')}
+            {th('due_date', 'Дедлайн')}
+            {th('assignee_name', 'Исполнитель')}
+            {th('assigned_by_name', 'Автор')}
+            {th('status', 'Статус')}
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map(t => {
+            const isOverdue = t.due_date && t.due_date < today && t.status !== 'done';
+            return (
+              <tr key={t.id} className={`border-b border-primary/10 last:border-0 hover:bg-primary/3 ${t.status === 'done' ? 'opacity-60' : ''}`}>
+                <td className="px-3 py-2">
                   <span className="font-medium text-primary text-sm">{t.title}</span>
-                </div>
-                {t.description && <p className="text-xs text-primary/50 mt-0.5 line-clamp-1">{t.description}</p>}
-              </td>
-              <td className={`px-3 py-2 text-xs font-medium ${isOverdue ? 'text-red-500 font-bold' : 'text-primary/70'}`}>
-                {isOverdue ? '⚠️ ' : ''}{t.due_date ? fmtDate(t.due_date) : '—'}
-              </td>
-              <td className="px-3 py-2 text-xs text-primary/70">{t.assignee_name || 'Все'}</td>
-              <td className="px-3 py-2 text-xs text-primary/50">{t.assigned_by_name}</td>
-              <td className="px-3 py-2">
-                <select value={t.status} onChange={e => onUpdateStatus(t.id, e.target.value as TaskStatus)}
-                  className="text-[10px] border border-primary/25 rounded-lg px-1.5 py-0.5 bg-background outline-none text-primary">
-                  {(Object.keys(STATUS_LABEL) as TaskStatus[]).map(s => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
-                </select>
-              </td>
-            </tr>
-          );
-        })}
-        {tasks.length === 0 && (
-          <tr><td colSpan={5} className="px-3 py-6 text-center text-muted-foreground text-sm">Нет задач</td></tr>
-        )}
-      </tbody>
-    </table>
-  </div>
-);
+                  {t.description && <p className="text-xs text-primary/50 mt-0.5 line-clamp-1">{t.description}</p>}
+                </td>
+                <td className="px-3 py-2">
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${PRIORITY_COLOR[t.priority]}`}>{PRIORITY_LABEL[t.priority]}</span>
+                </td>
+                <td className={`px-3 py-2 text-xs font-medium ${isOverdue ? 'text-red-500 font-bold' : 'text-primary/70'}`}>
+                  {isOverdue ? '⚠️ ' : ''}{t.due_date ? fmtDate(t.due_date) : '—'}
+                </td>
+                <td className="px-3 py-2 text-xs text-primary/70">{t.assignee_name || 'Все'}</td>
+                <td className="px-3 py-2 text-xs text-primary/50">{t.assigned_by_name}</td>
+                <td className="px-3 py-2">
+                  <select value={t.status} onChange={e => onUpdateStatus(t.id, e.target.value as TaskStatus)}
+                    className="text-[10px] border border-primary/25 rounded-lg px-1.5 py-0.5 bg-background outline-none text-primary">
+                    {(Object.keys(STATUS_LABEL) as TaskStatus[]).map(s => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
+                  </select>
+                </td>
+              </tr>
+            );
+          })}
+          {sorted.length === 0 && (
+            <tr><td colSpan={6} className="px-3 py-6 text-center text-muted-foreground text-sm">Нет задач</td></tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+};
 
 // ── Мини-календарь задач ──────────────────────────────────────────────────────
 function addDays(d: Date, n: number) { const r = new Date(d); r.setDate(r.getDate() + n); return r; }
 
-const CalendarView = ({ tasks, onUpdateStatus }: { tasks: Task[]; onUpdateStatus: (id: number, status: TaskStatus) => void }) => {
+interface CalendarOrder { id: number; order_number: string; city: string; customer_name: string; total: number; due_date: string; stage: string; }
+
+const CalendarView = ({ tasks, onUpdateStatus, responsible }: {
+  tasks: Task[];
+  onUpdateStatus: (id: number, status: TaskStatus) => void;
+  responsible?: string;
+}) => {
   const [currentMonth, setCurrentMonth] = useState(() => { const d = new Date(); d.setDate(1); return d; });
+  const [orders, setOrders] = useState<CalendarOrder[]>([]);
   const today = new Date(); today.setHours(0,0,0,0);
   const year  = currentMonth.getFullYear();
   const month = currentMonth.getMonth();
@@ -394,7 +427,24 @@ const CalendarView = ({ tasks, onUpdateStatus }: { tasks: Task[]; onUpdateStatus
   while (gridDays.length % 7 !== 0) gridDays.push(null);
   const WEEKDAYS = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
   const [selected, setSelected] = useState<Date|null>(null);
-  const selectedTasks = selected ? tasks.filter(t => t.due_date === selected.toISOString().slice(0,10)) : [];
+
+  useEffect(() => {
+    if (!responsible) return;
+    (async () => {
+      try {
+        const res  = await fetch(urls['orders']);
+        const data = await res.json();
+        const filtered = (data.orders || []).filter((o: CalendarOrder & { responsible?: string }) =>
+          o.responsible === responsible && !o.is_archived && !o.is_trashed && o.due_date
+        );
+        setOrders(filtered);
+      } catch { /* ignore */ }
+    })();
+  }, [responsible]);
+
+  const isoStr = (d: Date) => d.toISOString().slice(0,10);
+  const selectedTasks  = selected ? tasks.filter(t => t.due_date === isoStr(selected)) : [];
+  const selectedOrders = selected ? orders.filter(o => o.due_date === isoStr(selected)) : [];
 
   return (
     <div>
@@ -410,29 +460,42 @@ const CalendarView = ({ tasks, onUpdateStatus }: { tasks: Task[]; onUpdateStatus
         <div className="grid grid-cols-7">
           {gridDays.map((d, i) => {
             if (!d) return <div key={i} className="min-h-[80px] border-r border-b border-primary/10 bg-primary/2" />;
-            const iso = d.toISOString().slice(0,10);
-            const dayTasks = tasks.filter(t => t.due_date === iso);
-            const isToday  = d.getTime() === today.getTime();
-            const isSelected = selected?.toISOString().slice(0,10) === iso;
-            const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+            const iso = isoStr(d);
+            const dayTasks  = tasks.filter(t => t.due_date === iso);
+            const dayOrders = orders.filter(o => o.due_date === iso);
+            const isToday    = d.getTime() === today.getTime();
+            const isSelected = selected ? isoStr(selected) === iso : false;
+            const isWeekend  = d.getDay() === 0 || d.getDay() === 6;
             return (
               <div key={i} onClick={() => setSelected(isSelected ? null : d)}
                 className={`min-h-[80px] border-r border-b border-primary/10 p-1.5 cursor-pointer transition-colors ${isSelected ? 'bg-accent/15' : isToday ? 'bg-accent/8' : isWeekend ? 'bg-primary/2' : 'bg-background'} hover:bg-primary/5`}>
                 <div className={`text-xs font-bold mb-1 ${isToday ? 'text-accent' : isWeekend ? 'text-primary/40' : 'text-primary/70'}`}>{d.getDate()}</div>
                 <div className="space-y-0.5">
-                  {dayTasks.slice(0,3).map(t => (
+                  {dayTasks.slice(0,2).map(t => (
                     <div key={t.id} className={`text-[9px] px-1 py-0.5 rounded truncate font-medium ${PRIORITY_COLOR[t.priority]}`}>{t.title}</div>
                   ))}
-                  {dayTasks.length > 3 && <div className="text-[9px] text-primary/50">+{dayTasks.length-3}</div>}
+                  {dayOrders.slice(0,2).map(o => (
+                    <div key={`o${o.id}`} className="text-[9px] px-1 py-0.5 rounded truncate font-medium bg-accent/20 text-accent border border-accent/30">
+                      📦 {o.city} {o.customer_name}
+                    </div>
+                  ))}
+                  {(dayTasks.length + dayOrders.length) > 4 && <div className="text-[9px] text-primary/50">+{dayTasks.length+dayOrders.length-4}</div>}
                 </div>
               </div>
             );
           })}
         </div>
       </div>
-      {selectedTasks.length > 0 && (
+      {(selectedTasks.length > 0 || selectedOrders.length > 0) && (
         <div className="mt-4 space-y-2">
           <div className="text-sm font-semibold text-primary">{selected!.toLocaleDateString('ru-RU',{day:'numeric',month:'long'})}</div>
+          {selectedOrders.map(o => (
+            <div key={`o${o.id}`} className="bg-accent/10 border border-accent/30 rounded-2xl px-3 py-2 text-sm">
+              <span className="font-bold text-primary">📦 {o.city} {o.customer_name}</span>
+              <span className="ml-2 text-xs text-muted-foreground">#{o.order_number} · {o.stage}</span>
+              <span className="ml-2 font-semibold text-primary">{o.total.toLocaleString('ru-RU')} ₽</span>
+            </div>
+          ))}
           {selectedTasks.map(t => <TaskCard key={t.id} task={t} onUpdateStatus={onUpdateStatus} />)}
         </div>
       )}
@@ -757,7 +820,7 @@ const AdminTasksBlock = ({ auth, fullPage }: { auth: AuthData; fullPage?: boolea
 
           {view === 'list'     && <ListView     tasks={filteredTasks} onUpdateStatus={updateTaskStatus} />}
           {view === 'kanban'   && <KanbanView   tasks={filteredTasks} onUpdateStatus={updateTaskStatus} />}
-          {view === 'calendar' && <CalendarView tasks={filteredTasks} onUpdateStatus={updateTaskStatus} />}
+          {view === 'calendar' && <CalendarView tasks={filteredTasks} onUpdateStatus={updateTaskStatus} responsible={auth.full_name} />}
         </div>
       )}
 

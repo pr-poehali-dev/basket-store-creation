@@ -45,15 +45,19 @@ function fmtDt(iso: string): string {
   return d.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
+type WhSortCol = 'catalog_name' | 'qty_full' | 'qty_no_handle' | 'total' | 'updated_at';
+
 const AdminWarehouse = () => {
   const [items, setItems]         = useState<WarehouseItem[]>([]);
   const [allNames, setAllNames]   = useState<string[]>([]); // все имена из products
   const [log, setLog]             = useState<LogEntry[]>([]);
   const [loading, setLoading]     = useState(true);
   const [search, setSearch]       = useState('');
-  const [showOnlyStock, setShowOnlyStock] = useState(false); // фильтр: только >0
+  const [showOnlyStock, setShowOnlyStock] = useState(false);
   const [showLog, setShowLog]     = useState(false);
   const [logItem, setLogItem]     = useState<string | null>(null);
+  const [sortCol, setSortCol]     = useState<WhSortCol>('catalog_name');
+  const [sortAsc, setSortAsc]     = useState(true);
 
   // Форма операции
   const [showForm, setShowForm] = useState(false);
@@ -126,12 +130,29 @@ const AdminWarehouse = () => {
     setSaving(false);
   };
 
-  // Фильтрация
-  const filtered = items.filter(i => {
-    const matchSearch = i.catalog_name.toLowerCase().includes(search.toLowerCase());
-    const matchStock  = !showOnlyStock || (i.qty_full + i.qty_no_handle) > 0;
-    return matchSearch && matchStock;
-  });
+  // Фильтрация + сортировка
+  const filtered = items
+    .filter(i => {
+      const matchSearch = i.catalog_name.toLowerCase().includes(search.toLowerCase());
+      const matchStock  = !showOnlyStock || (i.qty_full + i.qty_no_handle) > 0;
+      return matchSearch && matchStock;
+    })
+    .sort((a, b) => {
+      let cmp = 0;
+      if (sortCol === 'catalog_name') cmp = a.catalog_name.localeCompare(b.catalog_name, 'ru');
+      else if (sortCol === 'qty_full') cmp = a.qty_full - b.qty_full;
+      else if (sortCol === 'qty_no_handle') cmp = a.qty_no_handle - b.qty_no_handle;
+      else if (sortCol === 'total') cmp = (a.qty_full + a.qty_no_handle) - (b.qty_full + b.qty_no_handle);
+      else if (sortCol === 'updated_at') cmp = (a.updated_at || '').localeCompare(b.updated_at || '');
+      return sortAsc ? cmp : -cmp;
+    });
+
+  const whTh = (col: WhSortCol, label: string, align = 'left') => (
+    <th className={`px-4 py-3 text-${align} font-semibold cursor-pointer hover:text-primary select-none`}
+      onClick={() => { if (sortCol === col) setSortAsc(v => !v); else { setSortCol(col); setSortAsc(col !== 'qty_full' && col !== 'qty_no_handle' && col !== 'total'); } }}>
+      {label}{sortCol === col ? (sortAsc ? ' ↑' : ' ↓') : <span className="opacity-30"> ↕</span>}
+    </th>
+  );
 
   const totalFull     = items.filter(i => i.id > 0).reduce((s, i) => s + i.qty_full, 0);
   const totalNoHandle = items.filter(i => i.id > 0).reduce((s, i) => s + i.qty_no_handle, 0);
@@ -198,11 +219,11 @@ const AdminWarehouse = () => {
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr className="bg-primary/5 text-xs text-primary/70 border-b border-primary/20">
-                <th className="px-4 py-3 text-left font-semibold">Наименование</th>
-                <th className="px-4 py-3 text-right font-semibold">С ручкой</th>
-                <th className="px-4 py-3 text-right font-semibold">Без ручки</th>
-                <th className="px-4 py-3 text-right font-semibold">Итого</th>
-                <th className="px-4 py-3 text-center font-semibold w-24">Обновлено</th>
+                {whTh('catalog_name', 'Наименование')}
+                {whTh('qty_full', 'С ручкой', 'right')}
+                {whTh('qty_no_handle', 'Без ручки', 'right')}
+                {whTh('total', 'Итого', 'right')}
+                {whTh('updated_at', 'Обновлено', 'center')}
                 <th className="px-4 py-3 w-10"></th>
               </tr>
             </thead>

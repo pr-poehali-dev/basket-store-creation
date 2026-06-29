@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import Icon from '@/components/ui/icon';
 import urls from '../../../backend/func2url.json';
-import { STAGES, CLOSED_STAGE, Order } from './orderUtils';
+import { STAGES, CLOSED_STAGE, Order, canAdvanceStage } from './orderUtils';
 import OrderFullCard from './OrderFullCard';
 import { ViewMode } from './orders/orderHelpers';
 import { KanbanView, ListView, CalendarView, GanttView } from './orders/OrderViews';
@@ -46,13 +46,13 @@ const AdminOrders = () => {
     const order = orders.find(o => o.id === dragId);
     if (!order) return;
     if (stage === 'В очереди на плетение' && !order.due_date) {
-      alert('Заполните дату готовности перед переводом');
-      return;
+      alert('Заполните дату готовности перед переводом'); return;
     }
     if (stage === 'Плетение' && (!order.due_weaving || !order.due_painting)) {
-      alert('Заполните срок плетения и окраски перед переводом в Плетение');
-      return;
+      alert('Заполните срок плетения и окраски перед переводом в Плетение'); return;
     }
+    const check = canAdvanceStage(order, stage);
+    if (!check.ok) { alert(check.reason); return; }
     patchOrder(dragId, { stage, is_archived: stage === CLOSED_STAGE });
     setDragId(null);
   };

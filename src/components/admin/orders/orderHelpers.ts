@@ -35,34 +35,25 @@ export async function createAutoTasks(order: Order, field: 'due_date' | 'due_wea
     } catch { /* ignore */ }
 
     for (const s of targets) {
-      // Ищем уже существующую задачу с таким же названием для этого сотрудника
+      // Не создаём дубли — пропускаем если уже есть активная задача
       const existing = existingTasks.find(t =>
-        t.title === cfg.title && t.assigned_to === s.id && t.status !== 'done'
+        t.title === cfg.title && t.assigned_to === s.id && t.status !== 'done' && t.status !== 'cancelled'
       );
-      if (existing) {
-        // Отмечаем как выполненную
-        await fetch(urls['tasks'], {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ type: 'task', id: existing.id, status: 'done' }),
-        });
-      } else {
-        // Создаём новую задачу сразу как выполненную (срок уже установлен)
-        await fetch(urls['tasks'], {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'task',
-            title: cfg.title,
-            description: `Заказ #${order.order_number} · ${fmtMoney(order.total)}`,
-            assigned_to: s.id,
-            assigned_by_name: 'Система',
-            priority: 'high',
-            due_date: today,
-            status: 'done',
-          }),
-        });
-      }
+      if (existing) continue;
+      // Создаём задачу со статусом pending
+      await fetch(urls['tasks'], {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'task',
+          title: cfg.title,
+          description: `Заказ #${order.order_number} · ${fmtMoney(order.total)}`,
+          assigned_to: s.id,
+          assigned_by_name: 'Система',
+          priority: 'high',
+          due_date: today,
+        }),
+      });
     }
   } catch { /* не критично */ }
 }

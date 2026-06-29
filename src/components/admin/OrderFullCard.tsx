@@ -28,40 +28,39 @@ function buildPosGroups(items: Order['items']): PosGroup[] {
   return Array.from(map.values());
 }
 
-// ── Генерация бланка HTML→Print (вертикальный A4) ────────────────────────────
+// ── Генерация бланка HTML→Print ──────────────────────────────────────────────
 function generateOrderPDF(order: Order) {
   const disc = (order.discount || 0) / 100;
   const form = order.form || {};
   const posGroups = buildPosGroups(order.items);
 
-  const totalDiscount  = Math.round(order.total * disc);
-  const totalAfterDisc = order.total - totalDiscount;
+  // Считаем полную сумму без скидки: total — это уже с учётом скидки если disc > 0
+  // Восстанавливаем сумму без скидки
+  const totalWithDisc    = order.total;           // сумма в заказе (со скидкой)
+  const totalWithoutDisc = disc > 0 ? Math.round(order.total / (1 - disc)) : order.total;
+  const totalDiscount    = totalWithoutDisc - totalWithDisc;
 
   const dateStr   = new Date().toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const orderDate = order.created_at
     ? new Date(order.created_at).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })
     : '—';
 
-  // Среднее значение цены на одну единицу из общей суммы
   const totalQtyAll = order.items.reduce((s, i) => s + i.qty, 0);
-  const avgUnitPrice = totalQtyAll > 0 ? Math.round(order.total / totalQtyAll) : 0;
+  // Цена за единицу = сумма без скидки / кол-во (из total заказа)
+  const baseUnitPrice = totalQtyAll > 0 ? Math.round(totalWithoutDisc / totalQtyAll) : 0;
 
-  // Строки таблицы: позиция → общее + цвета
   const tableRows = posGroups.map(g => {
-    const unitPrice  = avgUnitPrice;
-    const groupSum   = unitPrice * g.total;
-    const colorRows = g.colors.map(c => `
-      <tr class="color-row">
-        <td class="indent" colspan="2">${c.color} — ${c.qty} шт</td>
-        <td></td><td></td><td></td>
-      </tr>`).join('');
+    const pricePerUnit = baseUnitPrice;
+    const groupFullSum  = pricePerUnit * g.total;
+    // Цвета в той же ячейке количества — через строки
+    const colorLines = g.colors.map(c => `${c.color}: ${c.qty} шт`).join('<br>');
     return `
       <tr class="pos-row">
         <td>${g.title}</td>
-        <td class="num">${g.total}</td>
-        <td class="num">${unitPrice > 0 ? unitPrice.toLocaleString('ru-RU') + ' ₽' : '—'}</td>
-        <td class="num bold">${groupSum > 0 ? groupSum.toLocaleString('ru-RU') + ' ₽' : '—'}</td>
-      </tr>${colorRows}`;
+        <td class="num">${g.total}<br><span class="color-list">${colorLines}</span></td>
+        <td class="num">${pricePerUnit > 0 ? pricePerUnit.toLocaleString('ru-RU') + ' ₽' : '—'}</td>
+        <td class="num bold">${groupFullSum > 0 ? groupFullSum.toLocaleString('ru-RU') + ' ₽' : '—'}</td>
+      </tr>`;
   }).join('');
 
   const html = `<!DOCTYPE html>
@@ -70,43 +69,35 @@ function generateOrderPDF(order: Order) {
 <meta charset="utf-8"/>
 <title>Заказ #${order.order_number}</title>
 <style>
-  @page { size: A4 portrait; margin: 20mm 15mm; }
+  @page { size: A4 portrait; margin: 18mm 15mm; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: Arial, sans-serif; font-size: 12px; color: #1a1a1a; }
+  body { font-family: Arial, sans-serif; font-size: 12px; color: #000; }
 
-  .header { display: flex; justify-content: space-between; border-bottom: 2px solid #5a3e28; padding-bottom: 10px; margin-bottom: 16px; }
-  .company { font-size: 18px; font-weight: bold; letter-spacing: 2px; color: #1a1a1a; }
-  .company-sub { font-size: 10px; color: #666; margin-top: 2px; }
-  .order-info { text-align: right; }
-  .order-num { font-size: 15px; font-weight: bold; }
-  .order-date { font-size: 11px; color: #555; margin-top: 2px; }
+  .header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 14px; }
+  .company { font-size: 22px; font-weight: bold; letter-spacing: 3px; }
+  .company-sub { font-size: 10px; color: #444; margin-top: 2px; }
+  .order-info { text-align: right; font-size: 11px; color: #333; }
+  .order-num { font-size: 14px; font-weight: bold; color: #000; }
 
-  .section { margin-bottom: 14px; }
-  .section-title { font-size: 10px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.07em; color: #5a3e28; border-bottom: 1px solid #c8a882; padding-bottom: 3px; margin-bottom: 8px; }
-
-  .grid2 { display: grid; grid-template-columns: 120px 1fr; gap: 3px 12px; font-size: 11px; }
-  .lbl { color: #666; }
+  .section { margin-bottom: 12px; }
+  .section-title { font-size: 9px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.1em; color: #555; border-bottom: 1px solid #ccc; padding-bottom: 2px; margin-bottom: 6px; }
+  .grid2 { display: grid; grid-template-columns: 110px 1fr; gap: 2px 10px; font-size: 11px; }
+  .lbl { color: #555; }
 
   table { width: 100%; border-collapse: collapse; font-size: 11px; }
-  th { background: #f5f0eb; text-align: left; padding: 6px 8px; border: 1px solid #c8a882; font-size: 11px; }
-  th.num, td.num { text-align: right; }
-  td { padding: 5px 8px; border: 1px solid #e0d0c0; vertical-align: top; }
-  .pos-row td { background: #faf7f4; font-weight: 600; border-top: 1px solid #c8a882; }
-  .color-row td { background: #fff; color: #555; font-style: italic; font-size: 10px; border-color: #ede0d0; }
-  .color-row td.indent { padding-left: 18px; }
+  th { background: #f0f0f0; text-align: left; padding: 5px 8px; border: 1px solid #ccc; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
+  th.r, td.r { text-align: right; }
+  td { padding: 5px 8px; border: 1px solid #ddd; vertical-align: top; }
+  .pos-row td { background: #f8f8f8; font-weight: 700; }
+  .color-list { font-size: 9px; font-weight: normal; color: #555; font-style: italic; }
   .bold { font-weight: 700; }
 
-  .totals { margin-top: 14px; border-top: 2px solid #5a3e28; padding-top: 10px; }
-  .totals-grid { display: grid; grid-template-columns: 1fr auto; gap: 4px 24px; max-width: 280px; margin-left: auto; font-size: 12px; }
-  .totals-grid .lbl { color: #555; }
-  .totals-grid .val { text-align: right; }
-  .totals-grid .final { font-size: 14px; font-weight: 800; color: #1a1a1a; }
-  .totals-grid .disc-lbl { color: #888; }
-  .totals-grid .disc-val { text-align: right; color: #888; }
-
-  .sign-block { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 32px; font-size: 11px; color: #555; }
-  .sign-line { border-bottom: 1px solid #bbb; margin-top: 22px; margin-bottom: 4px; }
-  .footer { margin-top: 20px; font-size: 10px; color: #aaa; border-top: 1px solid #ddd; padding-top: 6px; text-align: center; }
+  .totals { margin-top: 12px; border-top: 2px solid #000; padding-top: 8px; }
+  .totals-table { margin-left: auto; width: 260px; font-size: 11px; border-collapse: collapse; }
+  .totals-table td { padding: 2px 4px; border: none; }
+  .totals-table td:last-child { text-align: right; font-weight: 600; }
+  .totals-table .final td { font-size: 13px; font-weight: 800; border-top: 1px solid #000; padding-top: 4px; }
+  .totals-table .grey { color: #777; }
 </style>
 </head>
 <body>
@@ -118,8 +109,7 @@ function generateOrderPDF(order: Order) {
   </div>
   <div class="order-info">
     <div class="order-num">Заказ №${order.order_number}</div>
-    <div class="order-date">Дата заказа: ${orderDate}</div>
-    <div class="order-date">Документ: ${dateStr}</div>
+    <div>Дата: ${orderDate}</div>
   </div>
 </div>
 
@@ -131,17 +121,13 @@ function generateOrderPDF(order: Order) {
     ${order.customer_email || form.email ? `<div class="lbl">Email</div><div>${order.customer_email || form.email}</div>` : ''}
     ${form.inn ? `<div class="lbl">ИНН</div><div>${form.inn}</div>` : ''}
     ${order.city ? `<div class="lbl">Город</div><div>${order.city}</div>` : ''}
+    ${order.delivery_address || form.address ? `<div class="lbl">Адрес</div><div>${order.delivery_address || form.address}</div>` : ''}
+    ${order.delivery_type ? `<div class="lbl">Доставка</div><div>${DELIVERY_LABELS[order.delivery_type] || order.delivery_type}</div>` : ''}
+    ${form.delivery_days ? `<div class="lbl">Дни</div><div>${form.delivery_days}</div>` : ''}
+    ${form.delivery_time ? `<div class="lbl">Время</div><div>${form.delivery_time}</div>` : ''}
+    ${order.payment_method || form.payment_method ? `<div class="lbl">Оплата</div><div>${order.payment_method || form.payment_method}</div>` : ''}
   </div>
 </div>
-
-${order.delivery_address || form.address || order.delivery_type ? `
-<div class="section">
-  <div class="section-title">Доставка</div>
-  <div class="grid2">
-    ${order.delivery_address || form.address ? `<div class="lbl">Адрес</div><div>${order.delivery_address || form.address}</div>` : ''}
-    ${order.delivery_type ? `<div class="lbl">Способ</div><div>${DELIVERY_LABELS[order.delivery_type] || order.delivery_type}</div>` : ''}
-  </div>
-</div>` : ''}
 
 <div class="section">
   <div class="section-title">Состав заказа</div>
@@ -149,49 +135,28 @@ ${order.delivery_address || form.address || order.delivery_type ? `
     <thead>
       <tr>
         <th>Позиция</th>
-        <th class="num" style="width:55px">Кол-во</th>
-        <th class="num" style="width:80px">Цена / шт</th>
-        <th class="num" style="width:90px">Сумма</th>
+        <th class="r" style="width:120px">Кол-во / Цвета</th>
+        <th class="r" style="width:75px">Цена / шт</th>
+        <th class="r" style="width:85px">Сумма</th>
       </tr>
     </thead>
     <tbody>${tableRows}</tbody>
   </table>
 
   <div class="totals">
-    <div class="totals-grid">
-      <div class="lbl">Итого позиций</div>
-      <div class="val">${totalQtyAll} шт</div>
+    <table class="totals-table">
+      <tr><td>Позиций всего:</td><td>${totalQtyAll} шт</td></tr>
+      <tr><td>Общая сумма без скидки:</td><td>${totalWithoutDisc.toLocaleString('ru-RU')} ₽</td></tr>
       ${order.discount > 0 ? `
-      <div class="lbl">Сумма</div>
-      <div class="val">${fmtMoney(order.total)}</div>
-      <div class="disc-lbl">Скидка ${order.discount}%</div>
-      <div class="disc-val">− ${fmtMoney(totalDiscount)}</div>
-      <div class="lbl final">К оплате</div>
-      <div class="val final">${fmtMoney(totalAfterDisc)}</div>
-      ` : `
-      <div class="lbl final">Итого</div>
-      <div class="val final">${fmtMoney(order.total)}</div>
-      `}
-    </div>
+      <tr class="grey"><td>Скидка ${order.discount}%:</td><td>− ${totalDiscount.toLocaleString('ru-RU')} ₽</td></tr>
+      ` : ''}
+      <tr class="final"><td>ИТОГО:</td><td>${totalWithDisc.toLocaleString('ru-RU')} ₽</td></tr>
+    </table>
   </div>
 </div>
 
-${order.comment || form.comment ? `<div class="section"><div class="section-title">Комментарий</div><p style="font-size:11px;color:#444;margin-top:4px;">${order.comment || form.comment}</p></div>` : ''}
+${order.comment || form.comment ? `<div class="section"><div class="section-title">Комментарий</div><p style="font-size:11px;color:#333;margin-top:4px;">${order.comment || form.comment}</p></div>` : ''}
 
-<div class="sign-block">
-  <div>
-    <div>Продавец (FABRICA)</div>
-    <div class="sign-line"></div>
-    <div>Подпись / Печать</div>
-  </div>
-  <div>
-    <div>Покупатель</div>
-    <div class="sign-line"></div>
-    <div>Подпись / Дата</div>
-  </div>
-</div>
-
-<div class="footer">FABRICA · ${dateStr}</div>
 </body>
 </html>`;
 
