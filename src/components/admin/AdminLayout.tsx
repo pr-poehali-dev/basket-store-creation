@@ -92,6 +92,10 @@ const AdminLayout = ({ children }: { children: ReactNode }) => {
   const [password, setPassword] = useState('');
   const [authError, setAuthError]     = useState('');
   const [authLoading, setAuthLoading] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Закрываем мобильное меню при смене страницы
+  useEffect(() => { setMobileMenuOpen(false); }, [location.pathname]);
 
   const doLogin = async () => {
     setAuthLoading(true); setAuthError('');
@@ -175,8 +179,17 @@ const AdminLayout = ({ children }: { children: ReactNode }) => {
   // Личный кабинет сотрудника — отдельный layout
   if (isEmployee) {
     return (
-      <div className="min-h-screen bg-background text-foreground flex">
-        <aside className="w-48 flex-shrink-0 border-r border-border min-h-screen px-3 py-6 flex flex-col gap-2">
+      <div className="min-h-screen bg-background text-foreground flex flex-col md:flex-row">
+        {/* Мобильная шапка */}
+        <div className="md:hidden flex items-center justify-between px-4 py-3 border-b border-border sticky top-0 bg-background z-40">
+          <div className="flex items-center gap-2">
+            <Icon name="Wheat" className="text-accent" size={20} />
+            <span className="font-display text-lg font-semibold text-primary">FABRICA</span>
+          </div>
+          <button onClick={doLogout} className="text-sm text-muted-foreground hover:text-accent">Выйти</button>
+        </div>
+        {/* Десктоп сайдбар */}
+        <aside className="hidden md:flex w-48 flex-shrink-0 border-r border-border min-h-screen px-3 py-6 flex-col gap-2">
           <div className="flex items-center gap-2 px-2 mb-4">
             <Icon name="Wheat" className="text-accent" size={20} />
             <span className="font-display text-lg font-semibold text-primary">FABRICA</span>
@@ -198,7 +211,7 @@ const AdminLayout = ({ children }: { children: ReactNode }) => {
             <button onClick={doLogout} className="text-sm text-muted-foreground hover:text-accent text-left">Выйти</button>
           </div>
         </aside>
-        <main className="flex-1 min-w-0 overflow-x-auto flex flex-col">
+        <main className="flex-1 min-w-0 overflow-x-auto flex flex-col pb-4">
           <div className="flex-1">
             <AdminStaffCabinet auth={authed} />
           </div>
@@ -207,76 +220,110 @@ const AdminLayout = ({ children }: { children: ReactNode }) => {
     );
   }
 
-  return (
-    <div className="min-h-screen bg-background text-foreground flex">
-      {/* Левое меню */}
-      <aside className="w-56 flex-shrink-0 border-r-2 border-[#8B6A4A]/30 min-h-screen px-4 py-6 flex flex-col gap-2">
-        <div className="flex items-center gap-2 px-2 mb-4">
-          <Icon name="Wheat" className="text-accent" size={22} />
-          <span className="font-display text-xl font-semibold text-primary">FABRICA</span>
-        </div>
+  // Общий контент навигации (переиспользуется в сайдбаре и в выезжающем мобильном меню)
+  const navContent = (closeAfterClick?: () => void) => (
+    <>
+      <div className="flex items-center gap-2 px-2 mb-4">
+        <Icon name="Wheat" className="text-accent" size={22} />
+        <span className="font-display text-xl font-semibold text-primary">FABRICA</span>
+      </div>
 
-        <nav className="flex flex-col gap-0 flex-1">
-          {NAV_BLOCKS.map((block, bi) => {
-            const visibleItems = block.items.filter(item => canSee(item.key));
-            if (visibleItems.length === 0) return null;
-            return (
-              <div key={bi}>
-                {bi > 0 && <div className="border-t-2 border-[#8B6A4A]/40 my-3" />}
-                <div className="flex flex-col gap-1.5">
-                  {visibleItems.map(item => {
-                    const active = isActive(item.path);
-                    return (
-                      <div key={item.path}>
-                        <button
-                          onClick={() => navigate(item.path)}
-                          className={[
-                            'w-full text-center font-semibold py-2 rounded-xl border transition-colors text-sm relative',
-                            item.key === 'tasks'
-                              ? active
-                                ? 'bg-[#c4849a] text-white border-[#c4849a]'
-                                : 'bg-[#fce8ef] text-[#a0435a] border-[#e8a0b4]/60 hover:border-[#c4849a] hover:bg-[#f8d5e0]'
-                              : active
-                                ? 'bg-accent text-primary border-accent'
-                                : 'bg-background text-primary border-primary/40 hover:border-primary',
-                          ].join(' ')}
-                        >
-                          {item.label}
-                          {item.key === 'tasks' && taskBadge > 0 && (
-                            <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
-                              {taskBadge > 99 ? '99+' : taskBadge}
-                            </span>
-                          )}
-                        </button>
-                        {/* Разделитель после «Задачи» */}
-                        {item.key === 'tasks' && (
-                          <div className="border-t-2 border-[#8B6A4A]/40 my-2" />
+      <nav className="flex flex-col gap-0 flex-1">
+        {NAV_BLOCKS.map((block, bi) => {
+          const visibleItems = block.items.filter(item => canSee(item.key));
+          if (visibleItems.length === 0) return null;
+          return (
+            <div key={bi}>
+              {bi > 0 && <div className="border-t-2 border-[#8B6A4A]/40 my-3" />}
+              <div className="flex flex-col gap-1.5">
+                {visibleItems.map(item => {
+                  const active = isActive(item.path);
+                  return (
+                    <div key={item.path}>
+                      <button
+                        onClick={() => { navigate(item.path); closeAfterClick?.(); }}
+                        className={[
+                          'w-full text-center font-semibold py-2.5 md:py-2 rounded-xl border transition-colors text-sm relative',
+                          item.key === 'tasks'
+                            ? active
+                              ? 'bg-[#c4849a] text-white border-[#c4849a]'
+                              : 'bg-[#fce8ef] text-[#a0435a] border-[#e8a0b4]/60 hover:border-[#c4849a] hover:bg-[#f8d5e0]'
+                            : active
+                              ? 'bg-accent text-primary border-accent'
+                              : 'bg-background text-primary border-primary/40 hover:border-primary',
+                        ].join(' ')}
+                      >
+                        {item.label}
+                        {item.key === 'tasks' && taskBadge > 0 && (
+                          <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                            {taskBadge > 99 ? '99+' : taskBadge}
+                          </span>
                         )}
-                      </div>
-                    );
-                  })}
-                </div>
+                      </button>
+                      {/* Разделитель после «Задачи» */}
+                      {item.key === 'tasks' && (
+                        <div className="border-t-2 border-[#8B6A4A]/40 my-2" />
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-            );
-          })}
-        </nav>
+            </div>
+          );
+        })}
+      </nav>
 
-        <div className="flex flex-col gap-1.5 px-1 pt-4 border-t border-primary/15">
-          {authed.full_name && (
-            <p className="text-xs text-muted-foreground truncate">{authed.full_name}</p>
+      <div className="flex flex-col gap-1.5 px-1 pt-4 border-t border-primary/15">
+        {authed.full_name && (
+          <p className="text-xs text-muted-foreground truncate">{authed.full_name}</p>
+        )}
+        <a href="/" className="text-sm text-muted-foreground hover:text-[#8a9a5a]">На сайт</a>
+        <button
+          onClick={doLogout}
+          className="text-sm text-muted-foreground hover:text-[#8a9a5a] text-left"
+        >
+          Выйти
+        </button>
+      </div>
+    </>
+  );
+
+  const currentLabel = NAV_BLOCKS.flatMap(b => b.items).find(i => isActive(i.path))?.label || 'FABRICA';
+
+  return (
+    <div className="min-h-screen bg-background text-foreground flex flex-col md:flex-row">
+      {/* Мобильная шапка с бургером */}
+      <div className="md:hidden flex items-center justify-between px-4 py-3 border-b-2 border-[#8B6A4A]/30 sticky top-0 bg-background z-40">
+        <button onClick={() => setMobileMenuOpen(true)} className="p-1 -ml-1 text-primary relative">
+          <Icon name="Menu" size={26} />
+          {taskBadge > 0 && (
+            <span className="absolute -top-0.5 right-0 w-2.5 h-2.5 rounded-full bg-red-500" />
           )}
-          <a href="/" className="text-sm text-muted-foreground hover:text-[#8a9a5a]">На сайт</a>
-          <button
-            onClick={doLogout}
-            className="text-sm text-muted-foreground hover:text-[#8a9a5a] text-left"
-          >
-            Выйти
-          </button>
+        </button>
+        <span className="font-display text-lg font-semibold text-primary truncate">{currentLabel}</span>
+        <div className="w-8" />
+      </div>
+
+      {/* Мобильное выезжающее меню */}
+      {mobileMenuOpen && (
+        <div className="md:hidden fixed inset-0 z-50 flex">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setMobileMenuOpen(false)} />
+          <div className="relative w-72 max-w-[85vw] bg-background border-r-2 border-[#8B6A4A]/30 h-full px-4 py-6 flex flex-col gap-2 overflow-y-auto">
+            <button onClick={() => setMobileMenuOpen(false)} className="absolute top-4 right-3 text-primary/60">
+              <Icon name="X" size={22} />
+            </button>
+            {navContent(() => setMobileMenuOpen(false))}
+          </div>
         </div>
+      )}
+
+      {/* Левое меню — только десктоп */}
+      <aside className="hidden md:flex w-56 flex-shrink-0 border-r-2 border-[#8B6A4A]/30 min-h-screen px-4 py-6 flex-col gap-2">
+        {navContent()}
       </aside>
 
       {/* Контент */}
-      <main className="flex-1 min-w-0 overflow-x-auto flex flex-col">
+      <main className="flex-1 min-w-0 overflow-x-hidden flex flex-col">
         <div className="flex-1">
           {children}
         </div>

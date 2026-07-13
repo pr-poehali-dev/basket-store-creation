@@ -7,6 +7,13 @@ import Footer from '@/components/Footer';
 import urls from '../../backend/func2url.json';
 import { colorToCss, sortColors } from '@/data/colors';
 import { useCart } from '@/context/CartContext';
+import { PriceTiersFull } from '@/components/PriceTiers';
+
+// Метки товара (для проверки акции)
+function parseLabels(s: string | null | undefined): string[] {
+  if (!s) return [];
+  return s.split(';').map(l => l.trim().toLowerCase()).filter(Boolean);
+}
 
 interface Product {
   id: number;
@@ -22,6 +29,7 @@ interface Product {
   group_id: string | null;
   group_by: string | null;
   split_by: string | null;
+  labels?: string | null;
 }
 
 interface Card {
@@ -196,6 +204,10 @@ const ProductPage = () => {
                 ) : (
                   <span className="text-3xl font-semibold">{active.price} ₽</span>
                 )}
+                <PriceTiersFull
+                  price={active.price}
+                  isPromo={!!active.sale_price || parseLabels(active.labels).includes('акция')}
+                />
               </div>
 
               <div className="space-y-6 mb-8">

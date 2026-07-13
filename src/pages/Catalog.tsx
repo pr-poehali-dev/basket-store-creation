@@ -8,6 +8,7 @@ import { colorToCss, sortColors } from '@/data/colors';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { useCart } from '@/context/CartContext';
+import { PriceTiersCompact } from '@/components/PriceTiers';
 import urls from '../../backend/func2url.json';
 
 
@@ -171,6 +172,8 @@ const ProductCard = ({ card, cardIndex }: { card: Card; cardIndex: number }) => 
               Подробнее <Icon name="ArrowRight" size={12} />
             </span>
           </div>
+
+          <div className="mb-3"><PriceTiersCompact price={active.price} isPromo={isPromo} /></div>
 
           {/* Кнопка в корзину + кол-во */}
           <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
@@ -336,7 +339,7 @@ const Catalog = () => {
         <div className="container mx-auto">
           <div className="mb-12 max-w-xl">
             <p className="text-accent text-sm tracking-[0.3em] uppercase mb-3">Продукция</p>
-            <h1 className="text-5xl font-semibold">Каталог корзин</h1>
+            <h1 className="text-3xl sm:text-5xl font-semibold">Каталог корзин</h1>
           </div>
 
           <div className="grid lg:grid-cols-[280px_1fr] gap-10">

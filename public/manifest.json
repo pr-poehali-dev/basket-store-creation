@@ -1,0 +1,15 @@
+{
+  "name": "FABRICA — Админка",
+  "short_name": "FABRICA Admin",
+  "start_url": "/admin",
+  "display": "standalone",
+  "background_color": "#f7f4ee",
+  "theme_color": "#8B6A4A",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

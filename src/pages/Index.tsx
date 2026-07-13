@@ -18,7 +18,7 @@ const Index = () => {
         <div className="container mx-auto grid md:grid-cols-2 gap-12 items-center">
           <div className="animate-fade-in">
             <p className="text-accent text-sm tracking-[0.3em] uppercase mb-6">Оптовое производство</p>
-            <h1 className="text-5xl md:text-7xl font-semibold leading-[1.05] mb-6">
+            <h1 className="text-4xl sm:text-5xl md:text-7xl font-semibold leading-[1.05] mb-6">
               Плетёные корзины из натуральных материалов
             </h1>
             <p className="text-muted-foreground text-lg mb-8 max-w-md">
@@ -47,7 +47,7 @@ const Index = () => {
 
       {/* Stats */}
       <section className="border-y border-border py-10 px-6">
-        <div className="container mx-auto grid grid-cols-2 md:grid-cols-5 gap-8 text-center">
+        <div className="container mx-auto grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 sm:gap-8 text-center">
           {[
             { v: '100+', l: 'видов корзин' },
             { v: '70+', l: 'регионов полюбили\nнаши изделия' },
@@ -56,8 +56,8 @@ const Index = () => {
             { v: '100%', l: 'ручная работа\nи натуральные материалы' },
           ].map((s) => (
             <div key={s.l}>
-              <p className="text-4xl font-bold mb-1">{s.v}</p>
-              <p className="text-sm text-muted-foreground whitespace-pre-line">{s.l}</p>
+              <p className="text-2xl sm:text-4xl font-bold mb-1">{s.v}</p>
+              <p className="text-xs sm:text-sm text-muted-foreground whitespace-pre-line">{s.l}</p>
             </div>
           ))}
         </div>
@@ -73,14 +73,14 @@ const Index = () => {
           />
           <div>
             <p className="text-accent text-sm tracking-[0.3em] uppercase mb-3">О компании</p>
-            <h2 className="text-5xl font-semibold mb-6">Ремесло и масштаб</h2>
+            <h2 className="text-3xl sm:text-5xl font-semibold mb-6">Ремесло и масштаб</h2>
             <p className="text-muted-foreground mb-4">
               Мы — производственная мастерская «FABRICA». С 2015 года плетём корзины из ивовой лозы для оптовых покупателей.
             </p>
             <p className="text-muted-foreground mb-8">
               Своё сырьё, контроль качества на каждом этапе и стабильные объёмы поставок — от пробной партии до промышленных тиражей.
             </p>
-            <div className="grid grid-cols-2 gap-6">
+            <div className="grid grid-cols-2 gap-4 sm:gap-6">
               {[
                 { icon: 'Leaf', t: 'Натуральные материалы' },
                 { icon: 'Factory', t: 'Полный цикл производства' },
@@ -102,7 +102,7 @@ const Index = () => {
         <div className="container mx-auto">
           <div className="text-center mb-14 max-w-2xl mx-auto">
             <p className="text-accent text-sm tracking-[0.3em] uppercase mb-3">Сотрудничество</p>
-            <h2 className="text-5xl font-semibold mb-4">Условия оптовой торговли</h2>
+            <h2 className="text-3xl sm:text-5xl font-semibold mb-4">Условия оптовой торговли</h2>
             <p className="text-muted-foreground">Гибкая система скидок и индивидуальные условия для постоянных партнёров.</p>
           </div>
           <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-6">
@@ -118,7 +118,7 @@ const Index = () => {
               >
                 <h3 className="text-2xl font-semibold mb-1">{t.tier}</h3>
                 <p className="text-sm text-muted-foreground mb-6">{t.qty}</p>
-                <p className="text-5xl font-bold text-accent mb-6">{t.disc}</p>
+                <p className="text-3xl sm:text-5xl font-bold text-accent mb-6">{t.disc}</p>
                 <p className="text-sm text-muted-foreground">{t.note}</p>
               </div>
             ))}
@@ -131,7 +131,7 @@ const Index = () => {
         <div className="container mx-auto">
           <div className="mb-14 max-w-xl">
             <p className="text-accent text-sm tracking-[0.3em] uppercase mb-3">Логистика</p>
-            <h2 className="text-5xl font-semibold">Доставка</h2>
+            <h2 className="text-3xl sm:text-5xl font-semibold">Доставка</h2>
           </div>
           <div className="grid md:grid-cols-3 gap-8">
             {[
@@ -154,7 +154,7 @@ const Index = () => {
         <div className="container mx-auto grid md:grid-cols-2 gap-12">
           <div>
             <p className="text-accent text-sm tracking-[0.3em] uppercase mb-3">Связь</p>
-            <h2 className="text-5xl font-semibold mb-8">Запросить прайс-лист</h2>
+            <h2 className="text-3xl sm:text-5xl font-semibold mb-8">Запросить прайс-лист</h2>
             <div className="space-y-4">
               {[
                 { icon: 'Phone', t: '+7 (927) 120-00-07' },
