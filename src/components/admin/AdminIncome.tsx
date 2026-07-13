@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, Fragment } from 'react';
 import urls from '../../../backend/func2url.json';
 
 interface OrderItem { name: string; size: string; color: string; qty: number; }
@@ -420,9 +420,9 @@ const AdminIncome = () => {
                           const groupProfit = groupRev - groupCost;
                           const groupPct   = groupRev > 0 ? Math.round(groupProfit/groupRev*100) : 0;
                           return (
-                            <>
+                            <Fragment key={`g-${gi}`}>
                               {/* Строка-шапка позиции */}
-                              <tr key={`g-${gi}`} className="bg-primary/5 border-b border-primary/10">
+                              <tr className="bg-primary/5 border-b border-primary/10">
                                 <td className="py-1.5 text-primary font-bold">{g.title}</td>
                                 <td className="py-1.5 text-right font-bold text-primary">{g.total}</td>
                                 <td className="py-1.5 text-right text-primary/60">{basePrice > 0 ? fmtMoney(Math.round(basePrice*discMult)) : '—'}</td>
@@ -439,7 +439,7 @@ const AdminIncome = () => {
                                   <td colSpan={5} />
                                 </tr>
                               ))}
-                            </>
+                            </Fragment>
                           );
                         })}
                       </tbody>
