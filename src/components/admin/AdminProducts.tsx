@@ -14,22 +14,25 @@ const LABEL_OPTIONS = [
 ];
 
 const ALL_COLUMNS = [
-  { key: 'photo',         label: 'Фото' },
-  { key: 'sku',           label: 'Артикул' },
-  { key: 'name',          label: 'Название' },
-  { key: 'shape',         label: 'Форма' },
-  { key: 'size',          label: 'Размер' },
-  { key: 'color',         label: 'Цвет' },
-  { key: 'price',         label: 'Цена' },
-  { key: 'cost',          label: 'Расходы' },
-  { key: 'sale_price',    label: 'По акции' },
-  { key: 'labels',        label: 'Метки' },
-  { key: 'priority',      label: 'Приоритет' },
-  { key: 'weave_type',    label: 'Плетение' },
-  { key: 'handles_count', label: 'Ручки' },
-  { key: 'group_id',      label: 'Группа' },
+  { key: 'photo',           label: 'Фото' },
+  { key: 'sku',             label: 'Артикул' },
+  { key: 'name',            label: 'Название' },
+  { key: 'shape',           label: 'Форма' },
+  { key: 'size',            label: 'Размер' },
+  { key: 'color',           label: 'Цвет' },
+  { key: 'price',           label: 'Цена' },
+  { key: 'cost',            label: 'Расходы' },
+  { key: 'price_16',        label: 'Цена −16%' },
+  { key: 'price_20',        label: 'Цена −20%' },
+  { key: 'sale_price',      label: 'По акции' },
+  { key: 'labels',          label: 'Метки' },
+  { key: 'priority',        label: 'Приоритет' },
+  { key: 'weave_type',      label: 'Плетение' },
+  { key: 'handles_count',   label: 'Ручки' },
+  { key: 'group_id',        label: 'Группа' },
+  { key: 'show_in_catalog', label: 'В каталоге' },
 ];
-const DEFAULT_VISIBLE = ['photo', 'sku', 'name', 'shape', 'size', 'color', 'price', 'sale_price', 'labels', 'priority'];
+const DEFAULT_VISIBLE = ['photo', 'sku', 'name', 'shape', 'size', 'color', 'price', 'sale_price', 'labels', 'priority', 'show_in_catalog'];
 
 interface Product {
   id?: number;
@@ -42,6 +45,9 @@ interface Product {
   price: number;
   sale_price: number | null;
   cost: number;
+  price_16?: number;
+  price_20?: number;
+  show_in_catalog: boolean;
   image_url: string;
   images: string[];
   video_url: string;
@@ -56,7 +62,7 @@ interface Product {
 
 const empty = (): Product => ({
   sku: '', name: '', description: '', shape: 'Круглые', size: 'Средние',
-  color: '', price: 0, sale_price: null, cost: 0, image_url: '', images: [], video_url: '',
+  color: '', price: 0, sale_price: null, cost: 0, show_in_catalog: true, image_url: '', images: [], video_url: '',
   group_id: '', group_by: '', split_by: '',
   labels: '', priority: null, weave_type: '', handles_count: '',
 });
@@ -115,6 +121,12 @@ const AdminProducts = () => {
     const method = editing?.id ? 'PUT' : 'POST';
     await fetch(urls['products'], { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(editing) });
     setSaving(false); setEditing(null); load();
+  };
+
+  const toggleShowInCatalog = async (p: Product) => {
+    const next = !p.show_in_catalog;
+    setProducts(prev => prev.map(x => x.id === p.id ? { ...x, show_in_catalog: next } : x));
+    await fetch(urls['products'], { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...p, show_in_catalog: next }) });
   };
 
   const remove = async (id: number) => {
@@ -319,14 +331,17 @@ const AdminProducts = () => {
                   {col('shape')         && prodTh('shape', 'Форма')}
                   {col('size')          && prodTh('size', 'Размер')}
                   {col('color')         && prodTh('color', 'Цвет')}
-                  {col('price')         && prodTh('price', 'Цена')}
-                  {col('cost')          && prodTh('cost', 'Расходы')}
-                  {col('sale_price')    && prodTh('sale_price', 'По акции')}
-                  {col('labels')        && prodTh('labels', 'Метки')}
-                  {col('priority')      && prodTh('priority', 'Приор.')}
-                  {col('weave_type')    && prodTh('weave_type', 'Плетение')}
-                  {col('handles_count') && prodTh('handles_count', 'Ручки')}
-                  {col('group_id')      && prodTh('group_id', 'Группа')}
+                  {col('price')           && prodTh('price', 'Цена')}
+                  {col('cost')            && prodTh('cost', 'Расходы')}
+                  {col('price_16')        && prodTh('price_16', 'Цена −16%')}
+                  {col('price_20')        && prodTh('price_20', 'Цена −20%')}
+                  {col('sale_price')      && prodTh('sale_price', 'По акции')}
+                  {col('labels')          && prodTh('labels', 'Метки')}
+                  {col('priority')        && prodTh('priority', 'Приор.')}
+                  {col('weave_type')      && prodTh('weave_type', 'Плетение')}
+                  {col('handles_count')   && prodTh('handles_count', 'Ручки')}
+                  {col('group_id')        && prodTh('group_id', 'Группа')}
+                  {col('show_in_catalog') && <th className="text-center px-4 py-3 font-medium">В каталоге</th>}
                   <th className="text-left px-4 py-3 font-medium"></th>
                 </tr>
               </thead>
@@ -347,6 +362,8 @@ const AdminProducts = () => {
                     {col('color')         && <td className="px-4 py-3 text-muted-foreground">{p.color || '—'}</td>}
                     {col('price')         && <td className="px-4 py-3">{p.price} ₽</td>}
                     {col('cost')          && <td className="px-4 py-3 text-muted-foreground">{p.cost ? `${p.cost} ₽` : '—'}</td>}
+                    {col('price_16')      && <td className="px-4 py-3 text-muted-foreground">{p.price_16 ? `${p.price_16} ₽` : '—'}</td>}
+                    {col('price_20')      && <td className="px-4 py-3 text-muted-foreground">{p.price_20 ? `${p.price_20} ₽` : '—'}</td>}
                     {col('sale_price')    && <td className="px-4 py-3">{p.sale_price ? <span className="text-accent">{p.sale_price} ₽</span> : '—'}</td>}
                     {col('labels')        && (
                       <td className="px-4 py-3">
@@ -362,6 +379,15 @@ const AdminProducts = () => {
                     {col('weave_type')    && <td className="px-4 py-3 text-muted-foreground">{p.weave_type || '—'}</td>}
                     {col('handles_count') && <td className="px-4 py-3 text-muted-foreground">{p.handles_count || '—'}</td>}
                     {col('group_id')      && <td className="px-4 py-3 text-muted-foreground text-xs">{p.group_id || '—'}</td>}
+                    {col('show_in_catalog') && (
+                      <td className="px-4 py-3 text-center">
+                        <button onClick={() => toggleShowInCatalog(p)}
+                          className={`w-5 h-5 border rounded flex items-center justify-center mx-auto transition-colors ${p.show_in_catalog ? 'bg-accent border-accent' : 'border-border hover:border-accent'}`}
+                          title={p.show_in_catalog ? 'Показывается в каталоге' : 'Скрыт из каталога'}>
+                          {p.show_in_catalog && <Icon name="Check" size={13} className="text-accent-foreground" />}
+                        </button>
+                      </td>
+                    )}
                     <td className="px-4 py-3">
                       <div className="flex gap-2">
                         <Button size="sm" variant="outline" className="rounded-lg h-8" onClick={() => setEditing({
@@ -453,6 +479,20 @@ const AdminProducts = () => {
                     placeholder="0" className={inputCls} />
                 </div>
               </div>
+
+              {!editing.sale_price && editing.price > 0 && (
+                <p className="text-xs text-muted-foreground -mt-2">
+                  Оптовые цены: −16% = <strong>{Math.round(editing.price * 0.84)} ₽</strong>, −20% = <strong>{Math.round(editing.price * 0.80)} ₽</strong> (считаются автоматически)
+                </p>
+              )}
+
+              <label className="flex items-center gap-2 cursor-pointer w-fit">
+                <span className={`w-4 h-4 border flex items-center justify-center transition-colors flex-shrink-0 ${editing.show_in_catalog ? 'bg-accent border-accent' : 'border-border hover:border-accent'}`}>
+                  {editing.show_in_catalog && <Icon name="Check" size={11} className="text-accent-foreground" />}
+                </span>
+                <input type="checkbox" className="hidden" checked={editing.show_in_catalog} onChange={() => setEditing({ ...editing, show_in_catalog: !editing.show_in_catalog })} />
+                <span className="text-sm">Показывать в каталоге на сайте</span>
+              </label>
 
               <div className="border-t border-border pt-4">
                 <label className={labelCls}>Метки (можно выбрать несколько)</label>

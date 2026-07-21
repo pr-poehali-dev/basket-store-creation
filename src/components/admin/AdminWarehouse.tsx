@@ -28,15 +28,17 @@ interface CatalogProduct {
 }
 
 const OP_LABELS: Record<string, string> = {
-  income_staff: 'Приход от сотрудников',
-  add:          'Ручное добавление',
-  defect:       'Брак',
+  income_staff:  'Приход от сотрудников',
+  add:           'Ручное добавление',
+  defect:        'Брак',
+  order_consume: 'Списание в заказ',
 };
 
 const OP_COLORS: Record<string, string> = {
-  income_staff: 'text-[#6b7c3a]',
-  add:          'text-blue-600',
-  defect:       'text-red-500',
+  income_staff:  'text-[#6b7c3a]',
+  add:           'text-blue-600',
+  defect:        'text-red-500',
+  order_consume: 'text-purple-600',
 };
 
 function fmtDt(iso: string): string {

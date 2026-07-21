@@ -46,6 +46,10 @@ def row_to_dict(r):
         'images': images,
         'video_url': r[20] or '',
         'cost': int(r[21]) if r[21] else 0,
+        # Оптовые цены — вычисляются от базовой цены (скидка не применяется к акционным товарам)
+        'price_16': round(r[6] * 0.84) if r[6] else 0,
+        'price_20': round(r[6] * 0.80) if r[6] else 0,
+        'show_in_catalog': bool(r[22]),
     }
 
 def build_cards(rows):
@@ -95,7 +99,7 @@ def handler(event: dict, context) -> dict:
                 SELECT id, name, description, shape, size, color, price, sale_price,
                        image_url, group_id, group_by, split_by, набор, size_category,
                        labels, priority, weave_type, handles_count, sku,
-                       images, video_url, cost
+                       images, video_url, cost, show_in_catalog
                 FROM products ORDER BY priority NULLS LAST, id
             """)
             rows = [row_to_dict(r) for r in cur.fetchall()]
@@ -103,7 +107,9 @@ def handler(event: dict, context) -> dict:
             if raw:
                 return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'products': rows}, ensure_ascii=False)}
 
-            cards = build_cards(rows)
+            # Публичный каталог — скрываем товары с show_in_catalog=False
+            visible_rows = [r for r in rows if r.get('show_in_catalog', True)]
+            cards = build_cards(visible_rows)
             return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'cards': cards}, ensure_ascii=False)}
 
         elif method == 'POST':
@@ -113,17 +119,18 @@ def handler(event: dict, context) -> dict:
             cost = int(body.get('cost') or 0)
             images = body.get('images', [])
             image_url = body.get('image_url') or (images[0] if images else '')
+            show_in_catalog = bool(body.get('show_in_catalog', True))
             cur.execute(
                 """INSERT INTO products (name, description, shape, size, color, price, sale_price, cost,
-                   image_url, group_id, group_by, split_by, labels, priority, weave_type, handles_count, sku, images, video_url)
-                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+                   image_url, group_id, group_by, split_by, labels, priority, weave_type, handles_count, sku, images, video_url, show_in_catalog)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
                 (body.get('name',''), body.get('description',''), body.get('shape','Круглые'),
                  body.get('size','Средние'), body.get('color',''), body.get('price',0), sale_price, cost,
                  image_url, body.get('group_id') or None,
                  body.get('group_by') or None, body.get('split_by') or None,
                  body.get('labels') or None, priority,
                  body.get('weave_type') or None, body.get('handles_count') or None, sku,
-                 json.dumps(images, ensure_ascii=False), body.get('video_url') or '')
+                 json.dumps(images, ensure_ascii=False), body.get('video_url') or '', show_in_catalog)
             )
             new_id = cur.fetchone()[0]
             conn.commit()
@@ -137,18 +144,19 @@ def handler(event: dict, context) -> dict:
             cost = int(body.get('cost') or 0)
             images = body.get('images', [])
             image_url = body.get('image_url') or (images[0] if images else '')
+            show_in_catalog = bool(body.get('show_in_catalog', True))
             cur.execute(
                 """UPDATE products SET name=%s, description=%s, shape=%s, size=%s, color=%s,
                    price=%s, sale_price=%s, cost=%s, image_url=%s, group_id=%s, group_by=%s, split_by=%s,
                    labels=%s, priority=%s, weave_type=%s, handles_count=%s, sku=%s,
-                   images=%s, video_url=%s, updated_at=NOW() WHERE id=%s""",
+                   images=%s, video_url=%s, show_in_catalog=%s, updated_at=NOW() WHERE id=%s""",
                 (body.get('name',''), body.get('description',''), body.get('shape','Круглые'),
                  body.get('size','Средние'), body.get('color',''), body.get('price',0), sale_price, cost,
                  image_url, body.get('group_id') or None,
                  body.get('group_by') or None, body.get('split_by') or None,
                  body.get('labels') or None, priority,
                  body.get('weave_type') or None, body.get('handles_count') or None, sku,
-                 json.dumps(images, ensure_ascii=False), body.get('video_url') or '', pid)
+                 json.dumps(images, ensure_ascii=False), body.get('video_url') or '', show_in_catalog, pid)
             )
             conn.commit()
             return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'ok': True})}

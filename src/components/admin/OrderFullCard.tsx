@@ -46,19 +46,22 @@ function generateOrderPDF(order: Order) {
     : '—';
 
   const totalQtyAll = order.items.reduce((s, i) => s + i.qty, 0);
-  // Цена за единицу = сумма без скидки / кол-во (из total заказа)
-  const baseUnitPrice = totalQtyAll > 0 ? Math.round(totalWithoutDisc / totalQtyAll) : 0;
+  // Цена за единицу — ИТОГОВАЯ (уже со скидкой, если она применялась), т.к. клиент должен видеть финальную цену за 1 корзину
+  const finalUnitPrice = totalQtyAll > 0 ? Math.round(totalWithDisc / totalQtyAll) : 0;
+  const baseUnitPrice  = totalQtyAll > 0 ? Math.round(totalWithoutDisc / totalQtyAll) : 0;
 
   const tableRows = posGroups.map(g => {
-    const pricePerUnit = baseUnitPrice;
-    const groupFullSum  = pricePerUnit * g.total;
+    const groupFullSum  = finalUnitPrice * g.total;
     // Цвета в той же ячейке количества — через строки
     const colorLines = g.colors.map(c => `${c.color}: ${c.qty} шт`).join('<br>');
+    const priceCell = disc > 0
+      ? `<span class="strike">${baseUnitPrice.toLocaleString('ru-RU')} ₽</span><br>${finalUnitPrice.toLocaleString('ru-RU')} ₽`
+      : (finalUnitPrice > 0 ? finalUnitPrice.toLocaleString('ru-RU') + ' ₽' : '—');
     return `
       <tr class="pos-row">
         <td>${g.title}</td>
         <td class="num">${g.total}<br><span class="color-list">${colorLines}</span></td>
-        <td class="num">${pricePerUnit > 0 ? pricePerUnit.toLocaleString('ru-RU') + ' ₽' : '—'}</td>
+        <td class="num">${priceCell}</td>
         <td class="num bold">${groupFullSum > 0 ? groupFullSum.toLocaleString('ru-RU') + ' ₽' : '—'}</td>
       </tr>`;
   }).join('');
@@ -90,6 +93,7 @@ function generateOrderPDF(order: Order) {
   td { padding: 5px 8px; border: 1px solid #ddd; vertical-align: top; }
   .pos-row td { background: #f8f8f8; font-weight: 700; }
   .color-list { font-size: 9px; font-weight: normal; color: #555; font-style: italic; }
+  .strike { text-decoration: line-through; color: #999; font-size: 10px; }
   .bold { font-weight: 700; }
 
   .totals { margin-top: 12px; border-top: 2px solid #000; padding-top: 8px; }

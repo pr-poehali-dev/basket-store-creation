@@ -14,9 +14,10 @@ function nextStage(current: string): string | null {
   return idx === -1 || idx >= work.length-1 ? null : work[idx+1];
 }
 
-const ProductionCard = ({ order, onUpdateProduced, onUpdateStage, onOpenFull }: {
+const ProductionCard = ({ order, warehouseMap, onUpdateProduced, onUpdateStage, onOpenFull }: {
   order: Order;
-  onUpdateProduced: (id: number, produced: Record<string, number>) => void;
+  warehouseMap: Record<string, number>;
+  onUpdateProduced: (order: Order, key: string, catalogName: string, delta: number, max: number) => void;
   onUpdateStage: (id: number, stage: string) => void;
   onOpenFull: (o: Order) => void;
 }) => {
@@ -28,12 +29,8 @@ const ProductionCard = ({ order, onUpdateProduced, onUpdateStage, onOpenFull }: 
   const totalDone = positions.reduce((s,p)=>s+Math.min(produced[p.key]||0, p.total), 0);
   const totalLeft = totalQty - totalDone;
   const totalPct  = pct(totalDone, totalQty);
+  const totalStock = positions.reduce((s,p)=>s+(warehouseMap[p.title]||0), 0);
   const next      = nextStage(order.stage);
-
-  const setDone = (key: string, val: number, max: number) => {
-    const clamped = Math.max(0, Math.min(val, max));
-    onUpdateProduced(order.id, { ...produced, [key]: clamped });
-  };
 
   return (
     <div className="bg-card border border-primary/30 rounded-2xl overflow-hidden cursor-pointer hover:border-primary transition-colors">
@@ -74,16 +71,18 @@ const ProductionCard = ({ order, onUpdateProduced, onUpdateStage, onOpenFull }: 
               {order.due_weaving && <span className="px-2 py-0.5 rounded-full bg-primary/8 text-primary/80 border border-primary/20">Плетение до: {fmtDateShort(order.due_weaving)}</span>}
             </div>
           </div>
-          <div className="border-t border-primary/20 md:border-t-0 md:border-l md:border-primary/20 pt-3 md:pt-0 md:pl-4 min-w-[200px]" onClick={e => e.stopPropagation()}>
+          <div className="border-t border-primary/20 md:border-t-0 md:border-l md:border-primary/20 pt-3 md:pt-0 md:pl-4 min-w-[240px]" onClick={e => e.stopPropagation()}>
             <table className="w-full text-xs border-collapse">
               <thead><tr className="bg-primary/5">
                 <th className="px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">Кол-во</th>
-                <th className="px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">Сделано</th>
+                <th className="px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">На складе</th>
+                <th className="px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">Готово</th>
                 <th className="px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">Остаток</th>
                 <th className="px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">%</th>
               </tr></thead>
               <tbody><tr>
                 <td className="px-2 py-1.5 text-center font-bold text-primary border border-primary/20">{totalQty}</td>
+                <td className="px-2 py-1.5 text-center font-bold border border-primary/20" style={{color: totalStock>0?OLIVE:undefined}}>{totalStock}</td>
                 <td className="px-2 py-1.5 text-center font-bold text-primary border border-primary/20">{totalDone}</td>
                 <td className="px-2 py-1.5 text-center font-bold text-primary border border-primary/20">{totalLeft}</td>
                 <td className="px-2 py-1.5 text-center font-bold border border-primary/20" style={{color:OLIVE}}>{totalPct}%</td>
@@ -102,15 +101,18 @@ const ProductionCard = ({ order, onUpdateProduced, onUpdateStage, onOpenFull }: 
                 <th className="px-3 py-1.5 text-left font-semibold text-primary border border-primary/20">Позиция</th>
                 {showColors && <th className="px-2 py-1.5 text-left font-semibold text-primary border border-primary/20">Цвета</th>}
                 <th className="px-2 py-1.5 text-center font-semibold text-primary border border-primary/20 w-16">Кол-во</th>
+                <th className="px-2 py-1.5 text-center font-semibold text-primary border border-primary/20 w-16">На складе</th>
                 <th className="px-2 py-1.5 text-center font-semibold text-primary border border-primary/20 w-20">Сделано</th>
+                <th className="px-2 py-1.5 text-center font-semibold text-primary border border-primary/20 w-16">Готово</th>
                 <th className="px-2 py-1.5 text-center font-semibold text-primary border border-primary/20 w-16">Остаток</th>
                 <th className="px-2 py-1.5 text-center font-semibold text-primary border border-primary/20 w-14">%</th>
               </tr>
             </thead>
             <tbody>
               {positions.map((pos, i) => {
-                const done = Math.min(produced[pos.key]||0, pos.total);
-                const left = pos.total - done;
+                const done  = Math.min(produced[pos.key]||0, pos.total);
+                const left  = pos.total - done;
+                const stock = warehouseMap[pos.title] || 0;
                 return (
                   <tr key={pos.key}>
                     <td className="px-2 py-1.5 text-center text-primary font-semibold border border-primary/10">{i+1}</td>
@@ -121,13 +123,24 @@ const ProductionCard = ({ order, onUpdateProduced, onUpdateStage, onOpenFull }: 
                       </td>
                     )}
                     <td className="px-2 py-1.5 text-center text-primary font-bold border border-primary/10">{pos.total}</td>
+                    <td className="px-2 py-1.5 text-center font-bold border border-primary/10" style={{color: stock>0?OLIVE:undefined}}>{stock}</td>
                     <td className="px-1 py-1 text-center border border-primary/10">
-                      <input type="number" min={0} max={pos.total}
-                        defaultValue={done} key={`${pos.key}-${done}`}
-                        onBlur={e => setDone(pos.key, parseInt(e.target.value,10)||0, pos.total)}
-                        onKeyDown={e => e.key==='Enter' && setDone(pos.key, parseInt((e.target as HTMLInputElement).value,10)||0, pos.total)}
+                      <input type="number" placeholder="0" key={`${pos.key}-${done}`}
+                        onBlur={e => {
+                          const delta = parseInt(e.target.value, 10) || 0;
+                          if (delta !== 0) onUpdateProduced(order, pos.key, pos.title, delta, pos.total);
+                          e.target.value = '';
+                        }}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') {
+                            const delta = parseInt((e.target as HTMLInputElement).value, 10) || 0;
+                            if (delta !== 0) onUpdateProduced(order, pos.key, pos.title, delta, pos.total);
+                            (e.target as HTMLInputElement).value = '';
+                          }
+                        }}
                         className="w-14 text-center border border-primary/30 rounded px-1 py-0.5 bg-background outline-none focus:border-accent [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
                     </td>
+                    <td className="px-2 py-1.5 text-center text-primary font-bold border border-primary/10">{done}</td>
                     <td className="px-2 py-1.5 text-center text-primary font-bold border border-primary/10">{left}</td>
                     <td className="px-2 py-1.5 text-center font-semibold border border-primary/10" style={{color:OLIVE}}>{pct(done,pos.total)}%</td>
                   </tr>
@@ -137,12 +150,17 @@ const ProductionCard = ({ order, onUpdateProduced, onUpdateStage, onOpenFull }: 
                 <td className="border border-primary/20" />
                 <td className="px-3 py-1.5 text-center font-bold text-primary border border-primary/20" colSpan={showColors ? 2 : 1}>ИТОГО</td>
                 <td className="px-2 py-1.5 text-center font-bold text-primary border border-primary/20">{totalQty}</td>
+                <td className="px-2 py-1.5 text-center font-bold border border-primary/20" style={{color: totalStock>0?OLIVE:undefined}}>{totalStock}</td>
+                <td className="border border-primary/20" />
                 <td className="px-2 py-1.5 text-center font-bold text-primary border border-primary/20">{totalDone}</td>
                 <td className="px-2 py-1.5 text-center font-bold text-primary border border-primary/20">{totalLeft}</td>
                 <td className="px-2 py-1.5 text-center font-bold border border-primary/20" style={{color:OLIVE}}>{totalPct}%</td>
               </tr>
             </tbody>
           </table>
+          <p className="text-[10px] text-primary/50 px-3 py-2">
+            В «Сделано» вводите количество за один раз — оно прибавится к «Готово» и спишется со склада (готовые корзины с ручкой). Для исправления ошибки введите отрицательное число.
+          </p>
         </div>
       )}
     </div>
@@ -151,9 +169,18 @@ const ProductionCard = ({ order, onUpdateProduced, onUpdateStage, onOpenFull }: 
 
 const AdminProduction = () => {
   const [orders, setOrders]       = useState<Order[]>([]);
+  const [warehouseMap, setWarehouseMap] = useState<Record<string, number>>({});
   const [loading, setLoading]     = useState(true);
   const [filter, setFilter]       = useState<ProdFilter>('working');
   const [fullOrder, setFullOrder] = useState<Order | null>(null);
+
+  const loadWarehouse = async () => {
+    const res  = await fetch(`${urls['reports']}?type=warehouse`);
+    const data = await res.json();
+    const map: Record<string, number> = {};
+    for (const item of (data.items || [])) map[item.catalog_name] = item.qty_full;
+    setWarehouseMap(map);
+  };
 
   const load = async () => {
     const res = await fetch(urls['orders']);
@@ -161,11 +188,27 @@ const AdminProduction = () => {
     setOrders(data.orders || []);
     setLoading(false);
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); loadWarehouse(); }, []);
 
-  const updateProduced = async (id: number, produced: Record<string, number>) => {
-    setOrders(prev => prev.map(o => o.id === id ? { ...o, produced } : o));
-    await fetch(urls['orders'], { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, produced }) });
+  // Сделано: вносим ДЕЛЬТУ, прибавляем к order.produced[key] (=«Готово»), списываем со склада
+  const updateProduced = async (order: Order, key: string, catalogName: string, delta: number, max: number) => {
+    const produced = order.produced || {};
+    const current   = Math.min(produced[key] || 0, max);
+    const nextVal   = Math.max(0, Math.min(current + delta, max));
+    const realDelta = nextVal - current; // фактическое изменение (после клампа)
+    if (realDelta === 0) return;
+
+    const newProduced = { ...produced, [key]: nextVal };
+    setOrders(prev => prev.map(o => o.id === order.id ? { ...o, produced: newProduced } : o));
+    setWarehouseMap(prev => ({ ...prev, [catalogName]: Math.max(0, (prev[catalogName] || 0) - realDelta) }));
+
+    await Promise.all([
+      fetch(urls['orders'], { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: order.id, produced: newProduced }) }),
+      fetch(urls['reports'], { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+        type: 'warehouse_consume', catalog_name: catalogName, delta: realDelta,
+        comment: `Заказ #${order.order_number}`, created_by: 'Производство',
+      }) }),
+    ]);
   };
 
   const updateStage = async (id: number, stage: string) => {
@@ -212,9 +255,9 @@ const AdminProduction = () => {
           {filter==='waiting'?'Нет заказов в очереди на плетение.':filter==='working'?'Нет заказов в работе.':'Нет выполненных заказов.'}
         </p>
        ) : (
-        <div className="space-y-4 max-w-4xl">
+        <div className="space-y-4 max-w-5xl">
           {visibleOrders.map(order => (
-            <ProductionCard key={order.id} order={order}
+            <ProductionCard key={order.id} order={order} warehouseMap={warehouseMap}
               onUpdateProduced={updateProduced} onUpdateStage={updateStage} onOpenFull={setFullOrder} />
           ))}
         </div>

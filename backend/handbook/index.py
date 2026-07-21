@@ -1,5 +1,8 @@
 """
-API справочника позиций FABRICA. v3
+API справочника корзин FABRICA. v5
+Столбцы позиции: catalog_name, set_catalog_names, set_staff_names, staff_name,
+weave_type, price_whole, price_no_handle, price_handle, price_ears
+
 GET  ?type=positions|plans|staff|price_history|plans_month  — данные
 POST { type, ...data }  — создать позицию/план/история цены/excel-импорт
 PUT  { type, id, ...fields }  — обновить
@@ -9,6 +12,9 @@ import os, json, base64, io
 from decimal import Decimal
 import psycopg2
 from psycopg2.extras import RealDictCursor
+
+PRICE_FIELDS = ('price_whole', 'price_no_handle', 'price_handle', 'price_ears')
+POSITION_FIELDS = ('catalog_name', 'set_catalog_names', 'set_staff_names', 'staff_name', 'weave_type', *PRICE_FIELDS)
 
 
 def get_conn():
@@ -28,6 +34,22 @@ def to_float(v):
     if v is None:
         return 0.0
     return float(Decimal(str(v)))
+
+
+def row_to_position(r):
+    return {
+        'id': r['id'],
+        'catalog_name': r['catalog_name'] or '',
+        'set_catalog_names': r['set_catalog_names'] or '',
+        'set_staff_names': r['set_staff_names'] or '',
+        'staff_name': r['staff_name'],
+        'weave_type': r['weave_type'] or '',
+        'price_whole': to_float(r['price_whole']),
+        'price_no_handle': to_float(r['price_no_handle']),
+        'price_handle': to_float(r['price_handle']),
+        'price_ears': to_float(r['price_ears']),
+        'is_active': bool(r['is_active']),
+    }
 
 
 def handler(event: dict, context) -> dict:
@@ -51,20 +73,10 @@ def handler(event: dict, context) -> dict:
                     q = "SELECT * FROM handbook_positions"
                     if not show_all:
                         q += " WHERE is_active = TRUE"
-                    q += " ORDER BY basket_group, category, staff_name"
+                    q += " ORDER BY staff_name"
                     cur.execute(q)
-                    rows = cur.fetchall()
-                    positions = [{
-                        'id': r['id'],
-                        'staff_name': r['staff_name'],
-                        'category': r['category'],
-                        'basket_group': r['basket_group'],
-                        'catalog_name': r['catalog_name'] or '',
-                        'price': to_float(r['price']),
-                        'is_active': bool(r['is_active']),
-                    } for r in rows]
-                    return {'statusCode': 200, 'headers': cors(),
-                            'body': json.dumps({'positions': positions})}
+                    positions = [row_to_position(r) for r in cur.fetchall()]
+                    return {'statusCode': 200, 'headers': cors(), 'body': json.dumps({'positions': positions})}
 
                 if rec_type == 'price_history':
                     position_id = params.get('position_id')
@@ -86,12 +98,14 @@ def handler(event: dict, context) -> dict:
                         'id': r['id'],
                         'position_id': r['position_id'],
                         'staff_name': r['staff_name'],
-                        'price': to_float(r['price']),
+                        'price_whole': to_float(r['price_whole']),
+                        'price_no_handle': to_float(r['price_no_handle']),
+                        'price_handle': to_float(r['price_handle']),
+                        'price_ears': to_float(r['price_ears']),
                         'valid_from': r['valid_from'].isoformat() if r['valid_from'] else '',
                         'created_at': r['created_at'].isoformat() if r['created_at'] else '',
                     } for r in rows]
-                    return {'statusCode': 200, 'headers': cors(),
-                            'body': json.dumps({'history': history})}
+                    return {'statusCode': 200, 'headers': cors(), 'body': json.dumps({'history': history})}
 
                 if rec_type == 'plans':
                     staff_id = params.get('staff_id')
@@ -103,7 +117,6 @@ def handler(event: dict, context) -> dict:
                             (int(staff_id),)
                         )
                     else:
-                        # Актуальные планы по всем сотрудникам из группы Сотрудники
                         cur.execute(
                             "SELECT DISTINCT ON (s.id) s.id as staff_id, s.full_name, "
                             "COALESCE(sp.id, 0) as plan_id, "
@@ -124,12 +137,10 @@ def handler(event: dict, context) -> dict:
                         'daily_plan_hours': to_float(r.get('daily_plan_hours') or 8),
                         'valid_from': r['valid_from'].isoformat() if r.get('valid_from') else '',
                     } for r in rows]
-                    return {'statusCode': 200, 'headers': cors(),
-                            'body': json.dumps({'plans': plans})}
+                    return {'statusCode': 200, 'headers': cors(), 'body': json.dumps({'plans': plans})}
 
                 if rec_type == 'plans_month':
-                    # История планов за конкретный месяц
-                    month = params.get('month', '')  # YYYY-MM
+                    month = params.get('month', '')
                     if month:
                         cur.execute(
                             "SELECT DISTINCT ON (staff_id) sp.*, s.full_name "
@@ -153,22 +164,16 @@ def handler(event: dict, context) -> dict:
                         'daily_plan_hours': to_float(r.get('daily_plan_hours') or 8),
                         'valid_from': r['valid_from'].isoformat() if r['valid_from'] else '',
                     } for r in rows]
-                    return {'statusCode': 200, 'headers': cors(),
-                            'body': json.dumps({'plans': plans})}
+                    return {'statusCode': 200, 'headers': cors(), 'body': json.dumps({'plans': plans})}
 
                 if rec_type == 'staff':
                     cur.execute(
-                        "SELECT id, full_name, group_name FROM staff "
-                        "WHERE is_active = TRUE ORDER BY full_name"
+                        "SELECT id, full_name, group_name FROM staff WHERE is_active = TRUE ORDER BY full_name"
                     )
-                    rows = cur.fetchall()
-                    staff = [{'id': r['id'], 'full_name': r['full_name'],
-                              'group_name': r['group_name']} for r in rows]
-                    return {'statusCode': 200, 'headers': cors(),
-                            'body': json.dumps({'staff': staff})}
+                    staff = [{'id': r['id'], 'full_name': r['full_name'], 'group_name': r['group_name']} for r in cur.fetchall()]
+                    return {'statusCode': 200, 'headers': cors(), 'body': json.dumps({'staff': staff})}
 
-            return {'statusCode': 400, 'headers': cors(),
-                    'body': json.dumps({'error': 'unknown type'})}
+            return {'statusCode': 400, 'headers': cors(), 'body': json.dumps({'error': 'unknown type'})}
 
         # ── POST ─────────────────────────────────────────────────────────────
         body = json.loads(event.get('body') or '{}')
@@ -177,56 +182,58 @@ def handler(event: dict, context) -> dict:
         if method == 'POST':
 
             if b_type == 'position':
-                staff_name   = body.get('staff_name', '').strip()
-                category     = body.get('category', 'whole')
-                basket_group = body.get('basket_group', '').strip()
-                catalog_name = body.get('catalog_name', '').strip() or None
-                price        = float(body.get('price', 0))
-                valid_from   = body.get('valid_from') or None
-                if not staff_name or not basket_group:
-                    return {'statusCode': 400, 'headers': cors(),
-                            'body': json.dumps({'error': 'staff_name and basket_group required'})}
+                staff_name = body.get('staff_name', '').strip()
+                if not staff_name:
+                    return {'statusCode': 400, 'headers': cors(), 'body': json.dumps({'error': 'staff_name required'})}
+                vals = {f: body.get(f) for f in POSITION_FIELDS}
+                vals['staff_name'] = staff_name
+                for f in ('catalog_name', 'set_catalog_names', 'set_staff_names', 'weave_type'):
+                    vals[f] = (vals.get(f) or '').strip() or None
+                for f in PRICE_FIELDS:
+                    vals[f] = float(vals.get(f) or 0)
+                valid_from = body.get('valid_from') or None
+
                 with conn.cursor() as cur:
                     cur.execute(
-                        "INSERT INTO handbook_positions (staff_name, category, basket_group, catalog_name, price) "
-                        "VALUES (%s, %s, %s, %s, %s) RETURNING id",
-                        (staff_name, category, basket_group, catalog_name, price)
+                        "INSERT INTO handbook_positions "
+                        "(catalog_name, set_catalog_names, set_staff_names, staff_name, weave_type, "
+                        "price_whole, price_no_handle, price_handle, price_ears) "
+                        "VALUES (%(catalog_name)s, %(set_catalog_names)s, %(set_staff_names)s, %(staff_name)s, %(weave_type)s, "
+                        "%(price_whole)s, %(price_no_handle)s, %(price_handle)s, %(price_ears)s) RETURNING id",
+                        vals
                     )
                     new_id = cur.fetchone()[0]
-                    # Записываем начальную цену в историю
                     cur.execute(
-                        "INSERT INTO handbook_price_history (position_id, price, valid_from) "
-                        "VALUES (%s, %s, COALESCE(%s::date, CURRENT_DATE))",
-                        (new_id, price, valid_from)
+                        "INSERT INTO handbook_price_history (position_id, price_whole, price_no_handle, price_handle, price_ears, valid_from) "
+                        "VALUES (%s, %s, %s, %s, %s, COALESCE(%s::date, CURRENT_DATE))",
+                        (new_id, vals['price_whole'], vals['price_no_handle'], vals['price_handle'], vals['price_ears'], valid_from)
                     )
-                return {'statusCode': 200, 'headers': cors(),
-                        'body': json.dumps({'id': new_id})}
+                return {'statusCode': 200, 'headers': cors(), 'body': json.dumps({'id': new_id})}
 
             if b_type == 'price_change':
-                # Изменение цены с определённой даты
                 position_id = int(body.get('position_id'))
-                price       = float(body.get('price'))
-                valid_from  = body.get('valid_from') or None
+                price_whole = float(body.get('price_whole', 0))
+                price_no_handle = float(body.get('price_no_handle', 0))
+                price_handle = float(body.get('price_handle', 0))
+                price_ears = float(body.get('price_ears', 0))
+                valid_from = body.get('valid_from') or None
                 with conn.cursor() as cur:
-                    # Обновляем текущую цену
                     cur.execute(
-                        "UPDATE handbook_positions SET price=%s, updated_at=NOW() WHERE id=%s",
-                        (price, position_id)
+                        "UPDATE handbook_positions SET price_whole=%s, price_no_handle=%s, price_handle=%s, price_ears=%s, updated_at=NOW() WHERE id=%s",
+                        (price_whole, price_no_handle, price_handle, price_ears, position_id)
                     )
-                    # Записываем в историю
                     cur.execute(
-                        "INSERT INTO handbook_price_history (position_id, price, valid_from) "
-                        "VALUES (%s, %s, COALESCE(%s::date, CURRENT_DATE))",
-                        (position_id, price, valid_from)
+                        "INSERT INTO handbook_price_history (position_id, price_whole, price_no_handle, price_handle, price_ears, valid_from) "
+                        "VALUES (%s, %s, %s, %s, %s, COALESCE(%s::date, CURRENT_DATE))",
+                        (position_id, price_whole, price_no_handle, price_handle, price_ears, valid_from)
                     )
-                return {'statusCode': 200, 'headers': cors(),
-                        'body': json.dumps({'ok': True})}
+                return {'statusCode': 200, 'headers': cors(), 'body': json.dumps({'ok': True})}
 
             if b_type == 'plan':
-                staff_id       = int(body.get('staff_id'))
+                staff_id = int(body.get('staff_id'))
                 daily_plan_rub = float(body.get('daily_plan_rub', 0))
                 daily_plan_hours = float(body.get('daily_plan_hours', 8))
-                valid_from     = body.get('valid_from') or None
+                valid_from = body.get('valid_from') or None
                 with conn.cursor() as cur:
                     cur.execute(
                         "INSERT INTO staff_plans (staff_id, daily_plan_rub, daily_plan_hours, valid_from) "
@@ -234,11 +241,12 @@ def handler(event: dict, context) -> dict:
                         (staff_id, daily_plan_rub, daily_plan_hours, valid_from)
                     )
                     new_id = cur.fetchone()[0]
-                return {'statusCode': 200, 'headers': cors(),
-                        'body': json.dumps({'id': new_id})}
+                return {'statusCode': 200, 'headers': cors(), 'body': json.dumps({'id': new_id})}
 
             if b_type == 'excel_positions':
                 # Импорт позиций из Excel (base64)
+                # Колонки: catalog_name, set_catalog_names, set_staff_names, staff_name,
+                #          weave_type, price_whole, price_no_handle, price_handle, price_ears
                 try:
                     import openpyxl
                     file_b64 = body.get('file', '')
@@ -247,61 +255,79 @@ def handler(event: dict, context) -> dict:
                     ws = wb.active
                     headers = [str(c.value or '').strip().lower() for c in next(ws.iter_rows(min_row=1, max_row=1))]
 
-                    def col(row, name):
+                    HEADER_MAP = {
+                        'staff_name': ['название для зп', 'название в зп', 'название корзины для зп', 'staff_name', 'название'],
+                        'catalog_name': ['название в каталоге', 'название каталог', 'catalog_name', 'каталог'],
+                        'set_catalog_names': ['названия позиций для набора из каталога', 'набор из каталога', 'set_catalog_names'],
+                        'set_staff_names': ['названия позиций для набора из зп', 'набор из зп', 'set_staff_names'],
+                        'weave_type': ['вид плетения', 'плетение', 'weave_type'],
+                        'price_whole': ['цена за готовую корзину', 'цена готовая', 'price_whole', 'цена'],
+                        'price_no_handle': ['цена за корзину без ручки', 'цена без ручки', 'price_no_handle'],
+                        'price_handle': ['цена за ручку', 'ручка', 'price_handle'],
+                        'price_ears': ['цена за уши', 'уши', 'price_ears'],
+                    }
+
+                    def col(row, field):
+                        for name in HEADER_MAP[field]:
+                            if name in headers:
+                                return row[headers.index(name)].value
+                        return None
+
+                    def num(v):
                         try:
-                            return row[headers.index(name)].value
-                        except (ValueError, IndexError):
-                            return None
+                            return float(v)
+                        except (TypeError, ValueError):
+                            return 0.0
 
                     created, updated = 0, 0
                     with conn.cursor() as cur:
                         for row in ws.iter_rows(min_row=2):
-                            staff_name   = str(col(row, 'название') or col(row, 'staff_name') or '').strip()
-                            basket_group = str(col(row, 'корзина') or col(row, 'basket_group') or '').strip()
-                            category     = str(col(row, 'категория') or col(row, 'category') or 'whole').strip()
-                            catalog_name = str(col(row, 'каталог') or col(row, 'catalog_name') or '').strip() or None
-                            price_val    = col(row, 'цена') or col(row, 'price') or 0
-                            try:
-                                price = float(price_val)
-                            except Exception:
-                                price = 0.0
-                            if not staff_name or not basket_group:
+                            staff_name = str(col(row, 'staff_name') or '').strip()
+                            if not staff_name:
                                 continue
-                            # Upsert по staff_name + basket_group
-                            cur.execute(
-                                "SELECT id, price FROM handbook_positions WHERE staff_name=%s AND basket_group=%s LIMIT 1",
-                                (staff_name, basket_group)
-                            )
+                            catalog_name = str(col(row, 'catalog_name') or '').strip() or None
+                            set_catalog_names = str(col(row, 'set_catalog_names') or '').strip() or None
+                            set_staff_names = str(col(row, 'set_staff_names') or '').strip() or None
+                            weave_type = str(col(row, 'weave_type') or '').strip() or None
+                            price_whole = num(col(row, 'price_whole'))
+                            price_no_handle = num(col(row, 'price_no_handle'))
+                            price_handle = num(col(row, 'price_handle'))
+                            price_ears = num(col(row, 'price_ears'))
+
+                            cur.execute("SELECT id, price_whole, price_no_handle, price_handle, price_ears FROM handbook_positions WHERE staff_name=%s LIMIT 1", (staff_name,))
                             existing = cur.fetchone()
                             if existing:
-                                old_price = float(existing[1])
+                                pos_id = existing[0]
+                                price_changed = (float(existing[1]), float(existing[2]), float(existing[3]), float(existing[4])) != (price_whole, price_no_handle, price_handle, price_ears)
                                 cur.execute(
-                                    "UPDATE handbook_positions SET category=%s, catalog_name=%s, price=%s, is_active=TRUE, updated_at=NOW() WHERE id=%s",
-                                    (category, catalog_name, price, existing[0])
+                                    "UPDATE handbook_positions SET catalog_name=%s, set_catalog_names=%s, set_staff_names=%s, weave_type=%s, "
+                                    "price_whole=%s, price_no_handle=%s, price_handle=%s, price_ears=%s, is_active=TRUE, updated_at=NOW() WHERE id=%s",
+                                    (catalog_name, set_catalog_names, set_staff_names, weave_type, price_whole, price_no_handle, price_handle, price_ears, pos_id)
                                 )
-                                if price != old_price:
+                                if price_changed:
                                     cur.execute(
-                                        "INSERT INTO handbook_price_history (position_id, price, valid_from) VALUES (%s, %s, CURRENT_DATE)",
-                                        (existing[0], price)
+                                        "INSERT INTO handbook_price_history (position_id, price_whole, price_no_handle, price_handle, price_ears, valid_from) "
+                                        "VALUES (%s, %s, %s, %s, %s, CURRENT_DATE)",
+                                        (pos_id, price_whole, price_no_handle, price_handle, price_ears)
                                     )
                                 updated += 1
                             else:
                                 cur.execute(
-                                    "INSERT INTO handbook_positions (staff_name, category, basket_group, catalog_name, price) "
-                                    "VALUES (%s, %s, %s, %s, %s) RETURNING id",
-                                    (staff_name, category, basket_group, catalog_name, price)
+                                    "INSERT INTO handbook_positions (catalog_name, set_catalog_names, set_staff_names, staff_name, weave_type, "
+                                    "price_whole, price_no_handle, price_handle, price_ears) "
+                                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id",
+                                    (catalog_name, set_catalog_names, set_staff_names, staff_name, weave_type, price_whole, price_no_handle, price_handle, price_ears)
                                 )
                                 new_id = cur.fetchone()[0]
                                 cur.execute(
-                                    "INSERT INTO handbook_price_history (position_id, price, valid_from) VALUES (%s, %s, CURRENT_DATE)",
-                                    (new_id, price)
+                                    "INSERT INTO handbook_price_history (position_id, price_whole, price_no_handle, price_handle, price_ears, valid_from) "
+                                    "VALUES (%s, %s, %s, %s, %s, CURRENT_DATE)",
+                                    (new_id, price_whole, price_no_handle, price_handle, price_ears)
                                 )
                                 created += 1
-                    return {'statusCode': 200, 'headers': cors(),
-                            'body': json.dumps({'created': created, 'updated': updated})}
+                    return {'statusCode': 200, 'headers': cors(), 'body': json.dumps({'created': created, 'updated': updated})}
                 except ImportError:
-                    return {'statusCode': 500, 'headers': cors(),
-                            'body': json.dumps({'error': 'openpyxl not installed'})}
+                    return {'statusCode': 500, 'headers': cors(), 'body': json.dumps({'error': 'openpyxl not installed'})}
 
         # ── PUT ─────────────────────────────────────────────────────────────
         if method == 'PUT':
@@ -310,10 +336,10 @@ def handler(event: dict, context) -> dict:
 
             if p_type == 'position':
                 fields, values = [], []
-                for col in ('staff_name', 'category', 'basket_group', 'catalog_name', 'price'):
-                    if col in body:
-                        fields.append(f'{col} = %s')
-                        values.append(body[col])
+                for f in POSITION_FIELDS:
+                    if f in body:
+                        fields.append(f'{f} = %s')
+                        values.append(body[f])
                 if 'is_active' in body:
                     fields.append('is_active = %s')
                     values.append(bool(body['is_active']))
@@ -321,9 +347,7 @@ def handler(event: dict, context) -> dict:
                     fields.append('updated_at = NOW()')
                     values.append(rec_id)
                     with conn.cursor() as cur:
-                        cur.execute(
-                            f"UPDATE handbook_positions SET {', '.join(fields)} WHERE id = %s", values
-                        )
+                        cur.execute(f"UPDATE handbook_positions SET {', '.join(fields)} WHERE id = %s", values)
             return {'statusCode': 200, 'headers': cors(), 'body': json.dumps({'ok': True})}
 
         # ── DELETE ───────────────────────────────────────────────────────────
@@ -332,10 +356,7 @@ def handler(event: dict, context) -> dict:
             rec_id = int(params.get('id'))
             if p_type == 'position':
                 with conn.cursor() as cur:
-                    cur.execute(
-                        "UPDATE handbook_positions SET is_active=FALSE, updated_at=NOW() WHERE id=%s",
-                        (rec_id,)
-                    )
+                    cur.execute("UPDATE handbook_positions SET is_active=FALSE, updated_at=NOW() WHERE id=%s", (rec_id,))
             return {'statusCode': 200, 'headers': cors(), 'body': json.dumps({'ok': True})}
 
         return {'statusCode': 405, 'headers': cors(), 'body': json.dumps({'error': 'method not allowed'})}

@@ -226,6 +226,34 @@ def handler(event: dict, context) -> dict:
                 return {'statusCode': 200, 'headers': cors(),
                         'body': json.dumps({'id': report_id})}
 
+            if b_type == 'warehouse_consume':
+                # Списание ГОТОВЫХ (с ручкой) корзин со склада под заказ (Производство)
+                # delta > 0 — списываем со склада (при вводе "сделано"), delta < 0 — возвращаем на склад (отмена)
+                catalog_name = body.get('catalog_name', '').strip()
+                delta        = int(body.get('delta', 0))
+                comment      = body.get('comment', '')
+                created_by   = body.get('created_by', '')
+                if not catalog_name or delta == 0:
+                    return {'statusCode': 200, 'headers': cors(), 'body': json.dumps({'ok': True, 'skipped': True})}
+
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """INSERT INTO warehouse (catalog_name, qty_full, qty_no_handle)
+                           VALUES (%s, %s, 0)
+                           ON CONFLICT (catalog_name)
+                           DO UPDATE SET
+                             qty_full = GREATEST(0, warehouse.qty_full - %s),
+                             updated_at = NOW()""",
+                        (catalog_name, max(0, -delta), delta)
+                    )
+                    cur.execute(
+                        """INSERT INTO warehouse_log
+                           (catalog_name, operation, qty_full, qty_no_handle, comment, created_by)
+                           VALUES (%s, 'order_consume', %s, 0, %s, %s)""",
+                        (catalog_name, -delta, comment, created_by)
+                    )
+                return {'statusCode': 200, 'headers': cors(), 'body': json.dumps({'ok': True})}
+
             if b_type == 'warehouse_manual':
                 # Ручное добавление / списание / брак
                 catalog_name = body.get('catalog_name', '').strip()
