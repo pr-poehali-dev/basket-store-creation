@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import Icon from '@/components/ui/icon';
 import urls from '../../../backend/func2url.json';
 
 export interface AuthData {
@@ -16,21 +17,35 @@ function getAuthFromSession(): AuthData {
   return { is_admin: false, pages: [] };
 }
 
+type Category = 'whole' | 'no_handle' | 'handle' | 'ears';
+const CATEGORY_KEYS: Category[] = ['whole', 'no_handle', 'handle', 'ears'];
+const CATEGORY_LABEL: Record<Category, string> = {
+  whole: 'С ручкой', no_handle: 'Без ручки', handle: 'Ручка', ears: 'Уши',
+};
+
 interface Position {
   id: number;
-  staff_name: string;
-  category: string;
-  basket_group: string;
+  group_name: string;
   catalog_name: string;
-  price: number;
+  staff_name: string;
+  weave_type: string;
+  sort_order: number;
+  price_whole: number;
+  price_no_handle: number;
+  price_handle: number;
+  price_ears: number;
 }
+const CATEGORY_FIELD: Record<Category, keyof Position> = {
+  whole: 'price_whole', no_handle: 'price_no_handle', handle: 'price_handle', ears: 'price_ears',
+};
 
 interface ReportPosition {
   position_id: number;
+  group_name: string;
   staff_name: string;
   catalog_name: string;
-  category: string;
-  basket_group: string;
+  weave_type: string;
+  category: Category;
   price: number;
   qty: number;
 }
@@ -47,7 +62,6 @@ interface DayReport {
 interface Plan {
   daily_plan_rub: number;
   daily_plan_hours: number;
-  daily_plan_qty: number;
 }
 
 interface VacationEntry {
@@ -62,7 +76,7 @@ function isoToday(): string {
 }
 
 function fmtRub(n: number): string {
-  return n.toLocaleString('ru-RU') + ' ₽';
+  return Math.round(n).toLocaleString('ru-RU') + ' ₽';
 }
 
 function fmtMonth(ym: string): string {
@@ -73,15 +87,16 @@ function fmtMonth(ym: string): string {
   return `${months[parseInt(m)]} ${y}`;
 }
 
-function getPlanMonth(reports: DayReport[]): number {
-  const now = new Date();
-  const thisMonth = now.toISOString().slice(0, 7);
-  return reports
-    .filter(r => r.report_date.startsWith(thisMonth))
-    .reduce((s, r) => s + r.total_rub, 0);
+function bonusFor(sum: number, planMonthRub: number): number {
+  if (planMonthRub <= 0) return 0;
+  const pct = sum / planMonthRub * 100;
+  if (pct >= 100) return sum * 0.1;
+  if (pct >= 80) return sum * 0.05;
+  return 0;
 }
 
 const OLIVE = '#6b7c3a';
+const rowKey = (positionId: number, cat: Category) => `${positionId}__${cat}`;
 
 const AdminStaffCabinet = ({ auth }: { auth: AuthData }) => {
   const staffId = auth.staff_id!;
@@ -94,13 +109,24 @@ const AdminStaffCabinet = ({ auth }: { auth: AuthData }) => {
   const [vacation, setVacation]     = useState<{ total: number; entries: VacationEntry[] }>({ total: 0, entries: [] });
   const [loading, setLoading]       = useState(true);
 
-  // Дневной отчёт
+  // ── Внести отчёт (дневная форма) ────────────────────────────────────────
   const [selectedDate, setSelectedDate] = useState(isoToday());
   const [dayReport, setDayReport]       = useState<DayReport | null>(null);
   const [editPositions, setEditPositions] = useState<ReportPosition[]>([]);
-  const [editHours, setEditHours]         = useState(8);
   const [saving, setSaving]               = useState(false);
   const [saved, setSaved]                 = useState(false);
+  const [summaryOpen, setSummaryOpen]     = useState(true);
+
+  // Раскрытые группы / позиции + выбор вида плетения + черновик количеств
+  const [openGroups, setOpenGroups]       = useState<Record<string, boolean>>({});
+  const [openPositions, setOpenPositions] = useState<Record<number, boolean>>({});
+  const [selectedRow, setSelectedRow]     = useState<Record<number, number>>({});
+  const [draftQty, setDraftQty]           = useState<Record<string, number>>({});
+
+  // Редактирование прошлого дня из статистики
+  const [editingDay, setEditingDay] = useState<DayReport | null>(null);
+  const [editingDayPositions, setEditingDayPositions] = useState<ReportPosition[]>([]);
+  const [editingDaySaving, setEditingDaySaving] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -133,11 +159,9 @@ const AdminStaffCabinet = ({ auth }: { auth: AuthData }) => {
       if (data.report) {
         setDayReport(data.report);
         setEditPositions(data.report.positions || []);
-        setEditHours(data.report.hours || 8);
       } else {
         setDayReport(null);
         setEditPositions([]);
-        setEditHours(8);
       }
     } catch { /* fallback */ }
   }, [staffId]);
@@ -145,35 +169,62 @@ const AdminStaffCabinet = ({ auth }: { auth: AuthData }) => {
   useEffect(() => { load(); }, [load]);
   useEffect(() => { loadDay(selectedDate); }, [selectedDate, loadDay]);
 
-  // Группируем позиции по корзине
-  const grouped: Record<string, Position[]> = {};
+  // Группировка позиций по «Группа», сортировка по sort_order
+  const groupsMap: Record<string, Position[]> = {};
   for (const p of positions) {
-    if (!grouped[p.basket_group]) grouped[p.basket_group] = [];
-    grouped[p.basket_group].push(p);
+    const g = p.group_name || p.staff_name;
+    if (!groupsMap[g]) groupsMap[g] = [];
+    groupsMap[g].push(p);
   }
-
-  const setQty = (posId: number, qty: number, pos: Position) => {
-    setEditPositions(prev => {
-      const exists = prev.find(p => p.position_id === posId);
-      if (qty <= 0) return prev.filter(p => p.position_id !== posId);
-      if (exists) return prev.map(p => p.position_id === posId ? { ...p, qty } : p);
-      return [...prev, {
-        position_id: posId,
-        staff_name: pos.staff_name,
-        catalog_name: pos.catalog_name,
-        category: pos.category,
-        basket_group: pos.basket_group,
-        price: pos.price,
-        qty,
-      }];
-    });
-  };
-
-  const getQty = (posId: number) => editPositions.find(p => p.position_id === posId)?.qty || 0;
-  const totalRub = editPositions.reduce((s, p) => s + p.price * p.qty, 0);
+  for (const g of Object.keys(groupsMap)) {
+    groupsMap[g].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.staff_name.localeCompare(b.staff_name, 'ru'));
+  }
+  const groupNames = Object.keys(groupsMap).sort((a, b) => {
+    const sa = Math.min(...groupsMap[a].map(p => p.sort_order ?? 0));
+    const sb = Math.min(...groupsMap[b].map(p => p.sort_order ?? 0));
+    return sa - sb || a.localeCompare(b, 'ru');
+  });
 
   const isToday = selectedDate === isoToday();
   const canEdit = !dayReport?.locked && isToday;
+  const totalRub = editPositions.reduce((s, p) => s + p.price * p.qty, 0);
+
+  const getDraft = (positionId: number, cat: Category) => draftQty[rowKey(positionId, cat)] || 0;
+  const setDraft = (positionId: number, cat: Category, qty: number) =>
+    setDraftQty(prev => ({ ...prev, [rowKey(positionId, cat)]: Math.max(0, qty) }));
+
+  const addToReport = (row: Position) => {
+    const cats = CATEGORY_KEYS.filter(c => (row[CATEGORY_FIELD[c]] as number) > 0);
+    let changed = false;
+    const next = [...editPositions];
+    for (const c of cats) {
+      const qty = getDraft(row.id, c);
+      if (qty <= 0) continue;
+      changed = true;
+      const idx = next.findIndex(p => p.position_id === row.id && p.category === c);
+      if (idx >= 0) next[idx] = { ...next[idx], qty: next[idx].qty + qty };
+      else next.push({
+        position_id: row.id, group_name: row.group_name || row.staff_name, staff_name: row.staff_name,
+        catalog_name: row.catalog_name, weave_type: row.weave_type, category: c,
+        price: row[CATEGORY_FIELD[c]] as number, qty,
+      });
+    }
+    if (!changed) return;
+    setEditPositions(next);
+    setDraftQty(prev => {
+      const copy = { ...prev };
+      for (const c of cats) delete copy[rowKey(row.id, c)];
+      return copy;
+    });
+  };
+
+  const removeSummaryItem = (positionId: number, cat: Category) =>
+    setEditPositions(prev => prev.filter(p => !(p.position_id === positionId && p.category === cat)));
+
+  const editSummaryQty = (positionId: number, cat: Category, qty: number) =>
+    setEditPositions(prev => qty <= 0
+      ? prev.filter(p => !(p.position_id === positionId && p.category === cat))
+      : prev.map(p => (p.position_id === positionId && p.category === cat) ? { ...p, qty } : p));
 
   const saveReport = async () => {
     if (!canEdit) return;
@@ -183,12 +234,8 @@ const AdminStaffCabinet = ({ auth }: { auth: AuthData }) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          type: 'report',
-          staff_id: staffId,
-          report_date: selectedDate,
-          positions: editPositions,
-          total_rub: totalRub,
-          hours: editHours,
+          type: 'report', staff_id: staffId, report_date: selectedDate,
+          positions: editPositions, total_rub: totalRub, hours: 0,
         }),
       });
       setSaved(true);
@@ -199,18 +246,19 @@ const AdminStaffCabinet = ({ auth }: { auth: AuthData }) => {
     setSaving(false);
   };
 
-  // Статистика по дням/месяцам
+  const scrollTop = () => window.scrollTo({ top: 0, behavior: 'smooth' });
+
+  // ── Статистика по дням/месяцам ───────────────────────────────────────────
   const now = new Date();
   const currentMonth = now.toISOString().slice(0, 7);
   const monthReports = reports.filter(r => r.report_date.startsWith(currentMonth));
   const monthEarned  = monthReports.reduce((s, r) => s + r.total_rub, 0);
-  const monthHours   = monthReports.reduce((s, r) => s + r.hours, 0);
   const monthDays    = monthReports.length;
-  const planMonthRub = plan ? plan.daily_plan_rub * 22 : 0; // ~22 рабочих дня
+  const planMonthRub = plan ? plan.daily_plan_rub * 22 : 0;
   const planPct      = planMonthRub > 0 ? Math.min(100, Math.round(monthEarned / planMonthRub * 100)) : 0;
-  const bonus        = planPct >= 100 ? monthEarned * 0.1 : planPct >= 80 ? monthEarned * 0.05 : 0;
+  const remainingToPlan = Math.max(0, planMonthRub - monthEarned);
+  const bonus        = bonusFor(monthEarned, planMonthRub);
 
-  // Статистика по месяцам
   const monthsMap: Record<string, number> = {};
   for (const r of reports) {
     const ym = r.report_date.slice(0, 7);
@@ -218,16 +266,40 @@ const AdminStaffCabinet = ({ auth }: { auth: AuthData }) => {
   }
   const monthsList = Object.entries(monthsMap).sort((a, b) => b[0].localeCompare(a[0]));
 
-  // Текущая неделя
   const weekStart = new Date(now);
   weekStart.setDate(now.getDate() - now.getDay() + 1);
   const weekReports = reports.filter(r => new Date(r.report_date + 'T00:00:00') >= weekStart);
   const weekEarned  = weekReports.reduce((s, r) => s + r.total_rub, 0);
 
+  // ── Редактирование прошлого дня (из статистики) ─────────────────────────
+  const openDayEdit = (r: DayReport) => {
+    if (r.locked) return;
+    setEditingDay(r);
+    setEditingDayPositions(r.positions || []);
+  };
+  const editingDayTotal = editingDayPositions.reduce((s, p) => s + p.price * p.qty, 0);
+  const saveEditingDay = async () => {
+    if (!editingDay) return;
+    setEditingDaySaving(true);
+    try {
+      await fetch(urls['reports'], {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'report', staff_id: staffId, report_date: editingDay.report_date,
+          positions: editingDayPositions, total_rub: editingDayTotal, hours: editingDay.hours || 0,
+        }),
+      });
+      setEditingDay(null);
+      await load();
+      if (editingDay.report_date === selectedDate) await loadDay(selectedDate);
+    } catch { /* ignore */ }
+    setEditingDaySaving(false);
+  };
+
   if (loading) return <div className="p-8 text-muted-foreground">Загружаю...</div>;
 
   return (
-    <div className="p-6 max-w-3xl">
+    <div className="p-6 max-w-3xl relative">
       {/* Приветствие */}
       <h1 className="font-display text-2xl font-semibold text-primary mb-1">
         Привет, {auth.full_name?.split(' ')[0]} 👋
@@ -235,26 +307,39 @@ const AdminStaffCabinet = ({ auth }: { auth: AuthData }) => {
       <p className="text-sm text-muted-foreground mb-5">{new Date().toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
 
       {/* Вкладки */}
-      <div className="flex gap-2 mb-6">
-        {([['day', 'Мой день'], ['stats', 'Статистика ЗП'], ['vacation', 'Отпускные']] as const).map(([key, label]) => (
-          <button key={key} onClick={() => setTab(key)}
-            className={`px-4 py-1.5 rounded-xl border text-sm font-medium transition-colors ${
-              tab === key ? 'bg-primary text-white border-primary' : 'border-primary/40 text-primary hover:border-primary'
-            }`}>
-            {label}
-          </button>
-        ))}
+      <div className="flex items-center gap-2 mb-6 flex-wrap">
+        <button onClick={() => setTab('day')}
+          className={`px-5 py-2.5 rounded-xl text-base font-bold transition-colors ${
+            tab === 'day' ? 'bg-primary text-white' : 'bg-primary/10 text-primary hover:bg-primary/20'
+          }`}>
+          Внести отчёт
+        </button>
+        <button onClick={() => setTab('stats')}
+          className={`px-5 py-2.5 rounded-xl text-base font-bold transition-colors ${
+            tab === 'stats' ? 'bg-primary text-white' : 'bg-primary/10 text-primary hover:bg-primary/20'
+          }`}>
+          Статистика ЗП
+        </button>
+        <button onClick={() => setTab('vacation')}
+          className={`px-3 py-1.5 rounded-xl border text-xs font-medium transition-colors ${
+            tab === 'vacation' ? 'bg-primary text-white border-primary' : 'border-primary/40 text-primary hover:border-primary'
+          }`}>
+          Отпускные
+        </button>
       </div>
 
-      {/* ── МОЙ ДЕНЬ ──────────────────────────────────────────── */}
+      {/* ── ВНЕСТИ ОТЧЁТ ──────────────────────────────────────── */}
       {tab === 'day' && (
         <div>
-          {/* Выбор даты */}
-          <div className="flex items-center gap-3 mb-4">
+          {/* Дата — обязательна */}
+          <div className="flex items-center gap-3 mb-4 flex-wrap">
             <input type="date" value={selectedDate}
               max={isoToday()}
               onChange={e => setSelectedDate(e.target.value)}
               className="border border-primary/30 rounded-xl px-3 py-2 text-sm outline-none focus:border-accent" />
+            <span className="text-xs text-muted-foreground">
+              {new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
+            </span>
             {!isToday && (
               <span className="text-xs text-muted-foreground">Прошлые дни только для просмотра</span>
             )}
@@ -263,82 +348,154 @@ const AdminStaffCabinet = ({ auth }: { auth: AuthData }) => {
             )}
           </div>
 
-          {/* Часы работы */}
-          {canEdit && (
-            <div className="mb-4 flex items-center gap-3">
-              <label className="text-sm font-semibold text-primary">Отработано часов:</label>
-              <input type="number" min={0} max={24} step={0.5} value={editHours}
-                onChange={e => setEditHours(parseFloat(e.target.value) || 0)}
-                className="w-20 border border-primary/30 rounded-xl px-3 py-1.5 text-sm outline-none focus:border-accent text-center" />
-            </div>
-          )}
-
-          {/* Позиции по корзинам */}
-          <div className="space-y-3 mb-5">
-            {Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b)).map(([group, poses]) => (
-              <div key={group} className="border border-primary/30 rounded-2xl overflow-hidden">
-                <div className="bg-primary/5 px-4 py-2 font-bold text-primary text-sm border-b border-primary/20">
-                  {group}
-                </div>
-                <div className="divide-y divide-primary/10">
-                  {poses.map(pos => {
-                    const qty = getQty(pos.id);
-                    return (
-                      <div key={pos.id} className="flex items-center justify-between px-4 py-2.5 gap-3">
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm text-primary font-medium truncate">{pos.staff_name}</div>
-                          <div className="text-xs text-muted-foreground">{pos.price.toLocaleString('ru-RU')} ₽/шт</div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {canEdit ? (
-                            <>
-                              <button onClick={() => setQty(pos.id, qty - 1, pos)}
-                                className="w-7 h-7 rounded-lg border border-primary/30 text-primary font-bold hover:bg-primary/5 flex items-center justify-center">−</button>
-                              <input type="number" min={0} value={qty}
-                                onChange={e => setQty(pos.id, parseInt(e.target.value) || 0, pos)}
-                                className="w-14 text-center border border-primary/30 rounded-lg px-1 py-1 text-sm outline-none focus:border-accent [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
-                              <button onClick={() => setQty(pos.id, qty + 1, pos)}
-                                className="w-7 h-7 rounded-lg border border-primary/30 text-primary font-bold hover:bg-primary/5 flex items-center justify-center">+</button>
-                            </>
-                          ) : (
-                            <span className="text-sm font-bold text-primary w-10 text-center">{qty}</span>
-                          )}
-                          {qty > 0 && (
-                            <span className="text-xs font-semibold text-right w-20" style={{ color: OLIVE }}>
-                              {fmtRub(qty * pos.price)}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+          {/* Итого — сворачиваемый блок */}
+          <div className="border border-primary/30 rounded-2xl mb-5 overflow-hidden">
+            <button onClick={() => setSummaryOpen(v => !v)}
+              className="w-full flex items-center justify-between px-4 py-3 bg-primary/5 hover:bg-primary/8 transition-colors">
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-semibold text-primary">Итого за день</span>
+                <span className="text-lg font-bold text-primary">{fmtRub(totalRub)}</span>
+                {plan && plan.daily_plan_rub > 0 && (
+                  <span className="text-xs text-muted-foreground">План: {fmtRub(plan.daily_plan_rub)} · {Math.round(totalRub / plan.daily_plan_rub * 100)}%</span>
+                )}
               </div>
-            ))}
+              <Icon name={summaryOpen ? 'ChevronUp' : 'ChevronDown'} size={18} className="text-primary/60" />
+            </button>
+
+            {summaryOpen && (
+              <div className="divide-y divide-primary/10">
+                {editPositions.length === 0 ? (
+                  <p className="text-sm text-muted-foreground p-4">Пока ничего не добавлено</p>
+                ) : editPositions.map(item => (
+                  <div key={rowKey(item.position_id, item.category)} className="flex items-center justify-between gap-3 px-4 py-2.5">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-medium text-primary truncate">{item.group_name || item.staff_name}</div>
+                      <div className="text-xs text-muted-foreground truncate">
+                        {CATEGORY_LABEL[item.category]}{item.weave_type ? ` · ${item.weave_type}` : ''} · {item.price.toLocaleString('ru-RU')} ₽/шт
+                      </div>
+                    </div>
+                    {canEdit ? (
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <input type="number" min={0} value={item.qty}
+                          onChange={e => editSummaryQty(item.position_id, item.category, parseInt(e.target.value, 10) || 0)}
+                          className="w-14 text-center border border-primary/30 rounded-lg px-1 py-1 text-sm outline-none focus:border-accent [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                        <span className="text-sm font-semibold w-20 text-right" style={{ color: OLIVE }}>{fmtRub(item.qty * item.price)}</span>
+                        <button onClick={() => removeSummaryItem(item.position_id, item.category)} className="text-red-400 hover:text-red-600">
+                          <Icon name="Trash2" size={16} />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <span className="text-sm font-bold text-primary w-10 text-center">{item.qty}</span>
+                        <span className="text-sm font-semibold w-20 text-right" style={{ color: OLIVE }}>{fmtRub(item.qty * item.price)}</span>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {canEdit && (
+              <div className="px-4 py-3 border-t border-primary/10 flex justify-end">
+                <button onClick={saveReport} disabled={saving || editPositions.length === 0}
+                  className="px-6 py-2.5 rounded-xl font-semibold text-sm transition-colors disabled:opacity-50 bg-accent hover:bg-accent/90 text-accent-foreground">
+                  {saving ? 'Отправляю...' : saved ? '✓ Отправлено!' : 'Отправить отчёт'}
+                </button>
+              </div>
+            )}
           </div>
 
-          {/* Итог и кнопка */}
-          <div className="sticky bottom-0 bg-background border-t border-primary/20 py-4 flex items-center justify-between gap-4">
-            <div>
-              <div className="text-xs text-muted-foreground">Итого за день</div>
-              <div className="text-2xl font-bold text-primary">{fmtRub(totalRub)}</div>
-              {plan && (
-                <div className="text-xs text-muted-foreground">
-                  План: {fmtRub(plan.daily_plan_rub)} · {Math.round(totalRub / plan.daily_plan_rub * 100)}%
+          {/* Позиции по группам */}
+          <div className="space-y-2.5 mb-5">
+            {groupNames.map(group => {
+              const rows = groupsMap[group];
+              const isGroupOpen = !!openGroups[group];
+              return (
+                <div key={group} className="border border-primary/30 rounded-2xl overflow-hidden">
+                  <button onClick={() => setOpenGroups(p => ({ ...p, [group]: !p[group] }))}
+                    className="w-full flex items-center justify-between px-4 py-2.5 bg-primary/5 hover:bg-primary/8 transition-colors">
+                    <span className="font-bold text-primary text-sm">{group}</span>
+                    <Icon name={isGroupOpen ? 'ChevronUp' : 'ChevronDown'} size={16} className="text-primary/50" />
+                  </button>
+
+                  {isGroupOpen && (
+                    <div className="divide-y divide-primary/10">
+                      {rows.map(row => {
+                        const isPosOpen = !!openPositions[row.id];
+                        const distinctWeaves = Array.from(new Set(rows.map(r => r.weave_type).filter(Boolean)));
+                        const showWeaveButtons = distinctWeaves.length > 1;
+                        const selectedId = selectedRow[row.id] ?? row.id;
+                        const activeRow = rows.find(r => r.id === selectedId) || row;
+                        const cats = CATEGORY_KEYS.filter(c => (activeRow[CATEGORY_FIELD[c]] as number) > 0);
+
+                        return (
+                          <div key={row.id}>
+                            <button onClick={() => setOpenPositions(p => ({ ...p, [row.id]: !p[row.id] }))}
+                              className="w-full flex items-center justify-between px-4 py-2 hover:bg-primary/3 transition-colors">
+                              <span className="text-sm font-medium text-primary">{row.staff_name}</span>
+                              <Icon name={isPosOpen ? 'ChevronUp' : 'ChevronDown'} size={14} className="text-primary/40" />
+                            </button>
+
+                            {isPosOpen && (
+                              <div className="px-4 pb-3">
+                                {showWeaveButtons && (
+                                  <div className="flex flex-wrap gap-2 mb-3">
+                                    {rows.filter(r => r.weave_type).map(r => (
+                                      <button key={r.id}
+                                        onClick={() => setSelectedRow(p => ({ ...p, [row.id]: r.id }))}
+                                        className={`px-3 py-1.5 rounded-xl border text-xs font-medium transition-colors ${
+                                          selectedId === r.id ? 'bg-primary text-white border-primary' : 'border-primary/30 text-primary hover:border-primary'
+                                        }`}>
+                                        {r.weave_type}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+
+                                {cats.length === 0 ? (
+                                  <p className="text-xs text-muted-foreground">Нет цен для этой позиции</p>
+                                ) : (
+                                  <div className="space-y-2">
+                                    {cats.map(cat => {
+                                      const price = activeRow[CATEGORY_FIELD[cat]] as number;
+                                      const qty   = getDraft(activeRow.id, cat);
+                                      return (
+                                        <div key={cat} className="flex items-center gap-3">
+                                          <span className="text-sm text-primary flex-1">{CATEGORY_LABEL[cat]}</span>
+                                          <input type="number" min={0} placeholder="0" value={qty || ''}
+                                            onChange={e => setDraft(activeRow.id, cat, parseInt(e.target.value, 10) || 0)}
+                                            className="w-16 text-center border border-primary/30 rounded-lg px-1 py-1.5 text-sm outline-none focus:border-accent [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                                          <span className="text-xs text-muted-foreground w-20 text-right">{price.toLocaleString('ru-RU')} ₽</span>
+                                          <span className="text-sm font-semibold w-20 text-right" style={{ color: OLIVE }}>{qty > 0 ? fmtRub(qty * price) : '—'}</span>
+                                        </div>
+                                      );
+                                    })}
+                                    <div className="flex justify-end pt-1">
+                                      <button onClick={() => addToReport(activeRow)}
+                                        className="px-4 py-1.5 rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground text-xs font-semibold transition-colors">
+                                        + Добавить в отчёт
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-            {canEdit && (
-              <button onClick={saveReport} disabled={saving || editPositions.length === 0}
-                className="px-6 py-3 rounded-xl font-semibold text-sm transition-colors disabled:opacity-50 bg-accent hover:bg-accent/90 text-accent-foreground">
-                {saving ? 'Отправляю...' : saved ? '✓ Отправлено!' : 'Отправить отчёт'}
-              </button>
+              );
+            })}
+            {groupNames.length === 0 && (
+              <p className="text-sm text-muted-foreground">Позиции ещё не добавлены в справочник</p>
             )}
           </div>
 
           {/* % выполнения дня */}
-          {dayReport && plan && (
-            <div className="mt-4 p-4 bg-card border border-primary/30 rounded-2xl">
+          {dayReport && plan && plan.daily_plan_rub > 0 && (
+            <div className="p-4 bg-card border border-primary/30 rounded-2xl">
               <div className="text-sm font-semibold text-primary mb-2">Выполнение дневного плана</div>
               <div className="flex items-center gap-3">
                 <div className="flex-1 h-3 rounded-full bg-primary/10 overflow-hidden">
@@ -360,7 +517,6 @@ const AdminStaffCabinet = ({ auth }: { auth: AuthData }) => {
       {/* ── СТАТИСТИКА ЗП ─────────────────────────────────────── */}
       {tab === 'stats' && (
         <div>
-          {/* Переключатель периода */}
           <div className="flex gap-2 mb-5">
             <button onClick={() => setStatsPeriod('days')}
               className={`px-3 py-1.5 rounded-xl border text-sm transition-colors ${statsPeriod === 'days' ? 'bg-primary text-white border-primary' : 'border-primary/40 text-primary hover:border-primary'}`}>
@@ -372,25 +528,30 @@ const AdminStaffCabinet = ({ auth }: { auth: AuthData }) => {
             </button>
           </div>
 
-          {/* Карточки-сводки */}
           <div className="grid grid-cols-2 gap-3 mb-5">
             <div className="bg-card border border-primary/30 rounded-2xl p-4">
               <div className="text-xs text-muted-foreground mb-1">Этот месяц</div>
               <div className="text-xl font-bold text-primary">{fmtRub(monthEarned)}</div>
-              <div className="text-xs text-muted-foreground">{monthDays} дней · {monthHours.toFixed(1)} ч</div>
+              <div className="text-xs text-muted-foreground">{monthDays} дней</div>
             </div>
             <div className="bg-card border border-primary/30 rounded-2xl p-4">
               <div className="text-xs text-muted-foreground mb-1">Эта неделя</div>
               <div className="text-xl font-bold text-primary">{fmtRub(weekEarned)}</div>
               <div className="text-xs text-muted-foreground">{weekReports.length} дней</div>
             </div>
-            {plan && (
+            {plan && plan.daily_plan_rub > 0 && (
               <div className="bg-card border border-primary/30 rounded-2xl p-4">
                 <div className="text-xs text-muted-foreground mb-1">Выполнение плана</div>
                 <div className="text-xl font-bold" style={{ color: OLIVE }}>{planPct}%</div>
                 <div className="h-2 rounded-full bg-primary/10 mt-1.5 overflow-hidden">
                   <div className="h-full rounded-full" style={{ width: `${planPct}%`, backgroundColor: '#8a9a5a' }} />
                 </div>
+              </div>
+            )}
+            {plan && plan.daily_plan_rub > 0 && (
+              <div className="bg-card border border-primary/30 rounded-2xl p-4">
+                <div className="text-xs text-muted-foreground mb-1">Осталось до плана</div>
+                <div className="text-xl font-bold text-primary">{fmtRub(remainingToPlan)}</div>
               </div>
             )}
             {bonus > 0 && (
@@ -402,40 +563,45 @@ const AdminStaffCabinet = ({ auth }: { auth: AuthData }) => {
             )}
           </div>
 
-          {/* Таблица */}
           {statsPeriod === 'days' ? (
             <div className="border border-primary/30 rounded-2xl overflow-hidden">
-              <div className="bg-primary/5 px-4 py-2 grid grid-cols-4 text-xs font-semibold text-primary/70 border-b border-primary/20">
-                <span>Дата</span><span className="text-right">Заработано</span>
-                <span className="text-right">Часы</span><span className="text-right">% плана</span>
+              <div className="bg-primary/5 px-4 py-2 grid grid-cols-3 text-xs font-semibold text-primary/70 border-b border-primary/20">
+                <span>Дата</span><span className="text-right">Заработано</span><span className="text-right">% плана</span>
               </div>
               {monthReports.length === 0 ? (
                 <p className="text-sm text-muted-foreground p-4">Нет данных за этот месяц</p>
               ) : monthReports.map(r => (
-                <div key={r.id} className="px-4 py-2.5 grid grid-cols-4 border-b border-primary/10 last:border-0 text-sm hover:bg-primary/3">
-                  <span className="text-primary/70">{new Date(r.report_date + 'T00:00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', weekday: 'short' })}</span>
-                  <span className="text-right font-semibold text-primary">{fmtRub(r.total_rub)}</span>
-                  <span className="text-right text-primary/70">{r.hours}ч</span>
-                  <span className="text-right font-semibold" style={{ color: OLIVE }}>
-                    {plan ? Math.round(r.total_rub / plan.daily_plan_rub * 100) : '—'}%
+                <button key={r.id} onClick={() => openDayEdit(r)}
+                  className="w-full px-4 py-2.5 grid grid-cols-3 border-b border-primary/10 last:border-0 text-sm hover:bg-primary/3 transition-colors text-left">
+                  <span className="text-primary/70 flex items-center gap-1.5">
+                    {new Date(r.report_date + 'T00:00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', weekday: 'short' })}
+                    {r.locked && <Icon name="Lock" size={11} className="text-muted-foreground" />}
                   </span>
-                </div>
+                  <span className="text-right font-semibold text-primary">{fmtRub(r.total_rub)}</span>
+                  <span className="text-right font-semibold" style={{ color: OLIVE }}>
+                    {plan && plan.daily_plan_rub > 0 ? Math.round(r.total_rub / plan.daily_plan_rub * 100) : '—'}%
+                  </span>
+                </button>
               ))}
             </div>
           ) : (
             <div className="border border-primary/30 rounded-2xl overflow-hidden">
-              <div className="bg-primary/5 px-4 py-2 grid grid-cols-3 text-xs font-semibold text-primary/70 border-b border-primary/20">
-                <span>Месяц</span><span className="text-right">Заработано</span><span className="text-right">% плана</span>
+              <div className="bg-primary/5 px-4 py-2 grid grid-cols-4 text-xs font-semibold text-primary/70 border-b border-primary/20">
+                <span>Месяц</span><span className="text-right">Заработано</span><span className="text-right">% плана</span><span className="text-right">Премия</span>
               </div>
-              {monthsList.map(([ym, sum]) => (
-                <div key={ym} className="px-4 py-2.5 grid grid-cols-3 border-b border-primary/10 last:border-0 text-sm hover:bg-primary/3">
-                  <span className="text-primary">{fmtMonth(ym)}</span>
-                  <span className="text-right font-semibold text-primary">{fmtRub(sum)}</span>
-                  <span className="text-right font-semibold" style={{ color: OLIVE }}>
-                    {plan ? Math.round(sum / (plan.daily_plan_rub * 22) * 100) : '—'}%
-                  </span>
-                </div>
-              ))}
+              {monthsList.map(([ym, sum]) => {
+                const monthBonus = bonusFor(sum, planMonthRub);
+                return (
+                  <div key={ym} className="px-4 py-2.5 grid grid-cols-4 border-b border-primary/10 last:border-0 text-sm hover:bg-primary/3">
+                    <span className="text-primary">{fmtMonth(ym)}</span>
+                    <span className="text-right font-semibold text-primary">{fmtRub(sum)}</span>
+                    <span className="text-right font-semibold" style={{ color: OLIVE }}>
+                      {planMonthRub > 0 ? Math.round(sum / planMonthRub * 100) : '—'}%
+                    </span>
+                    <span className="text-right font-semibold text-primary">{monthBonus > 0 ? fmtRub(monthBonus) : '—'}</span>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -468,6 +634,68 @@ const AdminStaffCabinet = ({ auth }: { auth: AuthData }) => {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Кнопка "наверх" */}
+      <button onClick={scrollTop}
+        className="fixed bottom-6 right-6 w-10 h-10 rounded-full bg-primary text-white shadow-lg flex items-center justify-center hover:bg-primary/90 transition-colors z-40">
+        <Icon name="ArrowUp" size={18} />
+      </button>
+
+      {/* Модалка редактирования прошлого дня (из статистики) */}
+      {editingDay && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setEditingDay(null)}>
+          <div className="bg-background rounded-2xl border border-primary/30 p-6 w-full max-w-md max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-primary text-lg">
+                {new Date(editingDay.report_date + 'T00:00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}
+              </h3>
+              <button onClick={() => setEditingDay(null)} className="text-muted-foreground hover:text-primary text-xl">✕</button>
+            </div>
+
+            {editingDayPositions.length === 0 ? (
+              <p className="text-sm text-muted-foreground mb-4">Позиций нет</p>
+            ) : (
+              <div className="space-y-2 mb-4">
+                {editingDayPositions.map((item, i) => (
+                  <div key={rowKey(item.position_id, item.category) + i} className="flex items-center justify-between gap-2 border-b border-primary/10 pb-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-medium text-primary truncate">{item.group_name || item.staff_name}</div>
+                      <div className="text-xs text-muted-foreground truncate">
+                        {CATEGORY_LABEL[item.category]}{item.weave_type ? ` · ${item.weave_type}` : ''} · {item.price.toLocaleString('ru-RU')} ₽/шт
+                      </div>
+                    </div>
+                    <input type="number" min={0} value={item.qty}
+                      onChange={e => {
+                        const qty = parseInt(e.target.value, 10) || 0;
+                        setEditingDayPositions(prev => qty <= 0
+                          ? prev.filter((_, idx) => idx !== i)
+                          : prev.map((p, idx) => idx === i ? { ...p, qty } : p));
+                      }}
+                      className="w-14 text-center border border-primary/30 rounded-lg px-1 py-1 text-sm outline-none focus:border-accent [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                    <span className="text-sm font-semibold w-20 text-right" style={{ color: OLIVE }}>{fmtRub(item.qty * item.price)}</span>
+                    <button onClick={() => setEditingDayPositions(prev => prev.filter((_, idx) => idx !== i))} className="text-red-400 hover:text-red-600">
+                      <Icon name="Trash2" size={15} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-sm text-muted-foreground">Итого</span>
+              <span className="text-lg font-bold text-primary">{fmtRub(editingDayTotal)}</span>
+            </div>
+
+            <div className="flex gap-2">
+              <button onClick={saveEditingDay} disabled={editingDaySaving}
+                className="flex-1 bg-accent hover:bg-accent/90 text-accent-foreground font-semibold py-2.5 rounded-xl text-sm disabled:opacity-50">
+                {editingDaySaving ? 'Сохраняю...' : 'Сохранить'}
+              </button>
+              <button onClick={() => setEditingDay(null)} className="px-4 py-2.5 rounded-xl border border-primary/30 text-primary text-sm">Отмена</button>
+            </div>
+          </div>
         </div>
       )}
     </div>

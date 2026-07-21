@@ -5,11 +5,13 @@ import urls from '../../../backend/func2url.json';
 
 interface Position {
   id: number;
+  group_name: string;
   catalog_name: string;
   set_catalog_names: string;
   set_staff_names: string;
   staff_name: string;
   weave_type: string;
+  sort_order: number;
   price_whole: number;
   price_no_handle: number;
   price_handle: number;
@@ -21,6 +23,7 @@ interface StaffMember { id: number; full_name: string; group_name: string; }
 interface Plan { id: number; staff_id: number; full_name: string; daily_plan_rub: number; daily_plan_hours: number; valid_from: string; }
 
 const ALL_COLUMNS = [
+  { key: 'group_name',         label: 'Группа' },
   { key: 'staff_name',         label: 'Название для ЗП' },
   { key: 'catalog_name',       label: 'Название в каталоге' },
   { key: 'set_catalog_names',  label: 'Набор из каталога' },
@@ -30,12 +33,13 @@ const ALL_COLUMNS = [
   { key: 'price_no_handle',    label: 'Без ручки, ₽' },
   { key: 'price_handle',       label: 'Ручка, ₽' },
   { key: 'price_ears',         label: 'Уши, ₽' },
+  { key: 'sort_order',         label: 'Сортировка' },
 ];
-const DEFAULT_VISIBLE = ['staff_name', 'catalog_name', 'weave_type', 'price_whole', 'price_no_handle', 'price_handle', 'price_ears'];
+const DEFAULT_VISIBLE = ['group_name', 'staff_name', 'catalog_name', 'weave_type', 'price_whole', 'price_no_handle', 'price_handle', 'price_ears', 'sort_order'];
 
 const EMPTY_POS: Omit<Position, 'id' | 'is_active'> = {
-  catalog_name: '', set_catalog_names: '', set_staff_names: '', staff_name: '',
-  weave_type: '', price_whole: 0, price_no_handle: 0, price_handle: 0, price_ears: 0,
+  group_name: '', catalog_name: '', set_catalog_names: '', set_staff_names: '', staff_name: '',
+  weave_type: '', sort_order: 0, price_whole: 0, price_no_handle: 0, price_handle: 0, price_ears: 0,
 };
 
 function fmtMonth(ym: string): string {
@@ -128,8 +132,8 @@ const AdminHandbook = () => {
   const openEditPos = (p: Position) => {
     setEditPosId(p.id);
     setPosForm({
-      catalog_name: p.catalog_name, set_catalog_names: p.set_catalog_names, set_staff_names: p.set_staff_names,
-      staff_name: p.staff_name, weave_type: p.weave_type,
+      group_name: p.group_name, catalog_name: p.catalog_name, set_catalog_names: p.set_catalog_names, set_staff_names: p.set_staff_names,
+      staff_name: p.staff_name, weave_type: p.weave_type, sort_order: p.sort_order,
       price_whole: p.price_whole, price_no_handle: p.price_no_handle, price_handle: p.price_handle, price_ears: p.price_ears,
     });
     setShowPosForm(true);
@@ -213,7 +217,7 @@ const AdminHandbook = () => {
             <div className="bg-card border border-border p-6 mb-8 rounded-2xl">
               <h2 className="font-display text-xl font-semibold mb-4">Excel</h2>
               <p className="text-sm text-muted-foreground mb-4">
-                Колонки: <code className="bg-secondary px-1">название для зп, название в каталоге, названия позиций для набора из каталога, названия позиций для набора из зп, вид плетения, цена за готовую корзину, цена за корзину без ручки, цена за ручку, цена за уши</code>
+                Колонки: <code className="bg-secondary px-1">группа, название для зп, название в каталоге, названия позиций для набора из каталога, названия позиций для набора из зп, вид плетения, цена за готовую корзину, цена за корзину без ручки, цена за ручку, цена за уши, сортировка</code>
               </p>
               <p className="text-xs text-muted-foreground mb-4">
                 Позиции набора перечисляются через «;». Обновление происходит по совпадению «название для зп».
@@ -300,6 +304,7 @@ const AdminHandbook = () => {
                   <tbody>
                     {filteredPositions.map(pos => (
                       <tr key={pos.id} className={`border-b border-border last:border-0 hover:bg-secondary/20 ${!pos.is_active ? 'opacity-40' : ''}`}>
+                        {col('group_name')        && <td className="px-4 py-3 text-muted-foreground">{pos.group_name || '—'}</td>}
                         {col('staff_name')        && <td className="px-4 py-3 font-medium">{pos.staff_name}</td>}
                         {col('catalog_name')      && <td className="px-4 py-3 text-muted-foreground">{pos.catalog_name || '—'}</td>}
                         {col('set_catalog_names') && <td className="px-4 py-3 text-muted-foreground text-xs">{pos.set_catalog_names || '—'}</td>}
@@ -308,6 +313,7 @@ const AdminHandbook = () => {
                         {PRICE_KEYS.map(k => col(k) && (
                           <td key={k} className="px-4 py-3 text-right font-bold">{pos[k] ? `${pos[k].toLocaleString('ru-RU')} ₽` : '—'}</td>
                         ))}
+                        {col('sort_order')        && <td className="px-4 py-3 text-right text-muted-foreground">{pos.sort_order ?? 0}</td>}
                         <td className="px-4 py-3">
                           <div className="flex gap-2 justify-center">
                             <Button size="sm" variant="outline" className="rounded-lg h-8" onClick={() => openEditPos(pos)}>
@@ -397,6 +403,10 @@ const AdminHandbook = () => {
             </div>
             <div className="space-y-4">
               <div>
+                <label className={labelCls}>Группа</label>
+                <input value={posForm.group_name} onChange={e => setPosForm(f => ({...f, group_name: e.target.value}))} placeholder="напр. Анталия (объединяющее название)" className={inputCls} />
+              </div>
+              <div>
                 <label className={labelCls}>Название для ЗП *</label>
                 <input value={posForm.staff_name} onChange={e => setPosForm(f => ({...f, staff_name: e.target.value}))} placeholder="напр. Анталия 50/33" className={inputCls} />
               </div>
@@ -424,6 +434,10 @@ const AdminHandbook = () => {
                       onChange={e => setPosForm(f => ({...f, [c.key]: parseFloat(e.target.value) || 0}))} className={inputCls} />
                   </div>
                 ))}
+              </div>
+              <div>
+                <label className={labelCls}>Сортировка (меньше — выше в списке)</label>
+                <input type="number" value={posForm.sort_order} onChange={e => setPosForm(f => ({...f, sort_order: parseInt(e.target.value, 10) || 0}))} className={inputCls} />
               </div>
             </div>
             <div className="flex gap-3 mt-6">
