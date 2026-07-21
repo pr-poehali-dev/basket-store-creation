@@ -191,7 +191,7 @@ const AdminHandbook = () => {
     });
 
   const hbTh = (key: string, label: string) => (
-    <th className="text-left px-4 py-3 font-medium cursor-pointer hover:text-primary select-none whitespace-nowrap"
+    <th key={key} className="text-left px-4 py-3 font-medium cursor-pointer hover:text-primary select-none whitespace-nowrap"
       onClick={() => { if (sortCol === key) setSortAsc(v => !v); else { setSortCol(key); setSortAsc(true); } }}>
       {label}{sortCol === key ? (sortAsc ? ' ↑' : ' ↓') : <span className="opacity-30"> ↕</span>}
     </th>
@@ -296,7 +296,7 @@ const AdminHandbook = () => {
                               onClick={() => { if (sortCol === c.key) setSortAsc(v => !v); else { setSortCol(c.key); setSortAsc(true); } }}>
                               {c.label}{sortCol === c.key ? (sortAsc ? ' ↑' : ' ↓') : <span className="opacity-30"> ↕</span>}
                             </th>
-                          : <th key={c.key}>{hbTh(c.key, c.label)}</th>
+                          : hbTh(c.key, c.label)
                       ))}
                       <th className="text-center px-4 py-3 font-medium w-36"></th>
                     </tr>
