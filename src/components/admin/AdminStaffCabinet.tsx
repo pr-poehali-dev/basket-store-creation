@@ -1,181 +1,17 @@
 import { useState, useEffect, useCallback } from 'react';
-import Icon from '@/components/ui/icon';
 import urls from '../../../backend/func2url.json';
+import {
+  AuthData, getAuthFromSession, Category, Position, MergedPosition, DayReport, Plan, ReportPosition, VacationEntry,
+  isoToday, bonusFor, hoursBetween, rowKey,
+  mergePositions, categoryPrice, categoryCatalog, CATEGORY_KEYS,
+} from './staffCabinetUtils';
+import StaffCabinetDayTab from './StaffCabinetDayTab';
+import StaffCabinetStatsTab from './StaffCabinetStatsTab';
+import StaffCabinetVacationTab from './StaffCabinetVacationTab';
+import StaffCabinetEditDayModal from './StaffCabinetEditDayModal';
+import Icon from '@/components/ui/icon';
 
-export interface AuthData {
-  is_admin: boolean;
-  staff_id?: number;
-  full_name?: string;
-  pages: string[];
-}
-
-function getAuthFromSession(): AuthData {
-  try {
-    const raw = sessionStorage.getItem('admin_auth');
-    if (raw) return JSON.parse(raw) as AuthData;
-  } catch { /* ignore */ }
-  return { is_admin: false, pages: [] };
-}
-
-type Category = 'whole' | 'whole_ears' | 'no_handle' | 'handle' | 'ears';
-const CATEGORY_KEYS: Category[] = ['whole', 'whole_ears', 'no_handle', 'handle', 'ears'];
-const CATEGORY_LABEL: Record<Category, string> = {
-  whole: 'С ручкой', whole_ears: 'С ушами', no_handle: 'Без ручки', handle: 'Ручка', ears: 'Уши',
-};
-
-interface Position {
-  id: number;
-  catalog_name: string;
-  staff_name: string;
-  weave_type: string;
-  sort_order: number;
-  price_whole: number;
-  price_no_handle: number;
-  price_handle: number;
-  price_ears: number;
-  price_whole_ears: number;
-}
-
-// Объединённая позиция — если в справочнике 2 строки с одинаковым «Название для ЗП»
-// (одна с ценой за ручку, другая с ценой за уши — по сути одна и та же корзина),
-// они схлопываются в одну карточку. У «ручечного» и «ушастого» вариантов может
-// быть РАЗНОЕ название в каталоге — поэтому храним оба, чтобы списание склада
-// шло на правильный товар.
-interface MergedPosition {
-  id: number;
-  catalog_name: string;
-  catalog_name_ears: string;
-  staff_name: string;
-  weave_type: string;
-  sort_order: number;
-  price_whole: number;
-  price_no_handle: number;
-  price_handle: number;
-  price_ears: number;
-  price_whole_ears: number;
-}
-
-function categoryPrice(row: MergedPosition, cat: Category): number {
-  switch (cat) {
-    case 'whole': return row.price_whole;
-    case 'whole_ears': return row.price_whole_ears;
-    case 'no_handle': return row.price_no_handle;
-    case 'handle': return row.price_handle;
-    case 'ears': return row.price_ears;
-  }
-}
-
-function categoryCatalog(row: MergedPosition, cat: Category): string {
-  return (cat === 'ears' || cat === 'whole_ears') ? row.catalog_name_ears : row.catalog_name;
-}
-
-// Схлопываем дубли по staff_name в одну карточку для личного кабинета
-function mergePositions(rows: Position[]): MergedPosition[] {
-  const groups = new Map<string, Position[]>();
-  for (const r of rows) {
-    if (!groups.has(r.staff_name)) groups.set(r.staff_name, []);
-    groups.get(r.staff_name)!.push(r);
-  }
-  const result: MergedPosition[] = [];
-  for (const [staffName, group] of groups) {
-    if (group.length === 1) {
-      const r = group[0];
-      result.push({
-        id: r.id, catalog_name: r.catalog_name, catalog_name_ears: r.catalog_name,
-        staff_name: r.staff_name, weave_type: r.weave_type, sort_order: r.sort_order,
-        price_whole: r.price_whole, price_no_handle: r.price_no_handle,
-        price_handle: r.price_handle, price_ears: r.price_ears, price_whole_ears: r.price_whole_ears,
-      });
-      continue;
-    }
-    const mainRow = group.find(r => r.price_handle > 0) || group[0];
-    const earsRow = group.find(r => r.price_ears > 0 || r.price_whole_ears > 0) || group[group.length - 1];
-    result.push({
-      id: mainRow.id,
-      catalog_name: mainRow.catalog_name,
-      catalog_name_ears: earsRow.catalog_name,
-      staff_name: staffName,
-      weave_type: mainRow.weave_type || earsRow.weave_type,
-      sort_order: mainRow.sort_order,
-      price_whole: Math.max(...group.map(r => r.price_whole)),
-      price_no_handle: Math.max(...group.map(r => r.price_no_handle)),
-      price_handle: mainRow.price_handle,
-      price_ears: earsRow.price_ears,
-      price_whole_ears: earsRow.price_whole_ears,
-    });
-  }
-  return result;
-}
-
-interface ReportPosition {
-  position_id: number;
-  staff_name: string;
-  catalog_name: string;
-  weave_type: string;
-  category: Category;
-  price: number;
-  qty: number;
-}
-
-interface DayReport {
-  id?: number;
-  report_date: string;
-  positions: ReportPosition[];
-  total_rub: number;
-  hours: number;
-  time_start?: string;
-  time_end?: string;
-  locked: boolean;
-}
-
-interface Plan {
-  daily_plan_rub: number;
-  daily_plan_hours: number;
-}
-
-interface VacationEntry {
-  id: number;
-  month: string;
-  amount: number;
-  comment: string;
-}
-
-function isoToday(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function fmtRub(n: number): string {
-  return Math.round(n).toLocaleString('ru-RU') + ' ₽';
-}
-
-function fmtMonth(ym: string): string {
-  if (!ym) return '';
-  const [y, m] = ym.split('-');
-  const months = ['', 'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
-    'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
-  return `${months[parseInt(m)]} ${y}`;
-}
-
-function bonusFor(sum: number, planMonthRub: number): number {
-  if (planMonthRub <= 0) return 0;
-  const pct = sum / planMonthRub * 100;
-  if (pct >= 100) return sum * 0.1;
-  if (pct >= 80) return sum * 0.05;
-  return 0;
-}
-
-// Часы между временем начала и окончания (учитывает переход через полночь)
-function hoursBetween(start: string, end: string): number {
-  if (!start || !end) return 0;
-  const [sh, sm] = start.split(':').map(Number);
-  const [eh, em] = end.split(':').map(Number);
-  let diff = (eh * 60 + em) - (sh * 60 + sm);
-  if (diff < 0) diff += 24 * 60;
-  return Math.round((diff / 60) * 100) / 100;
-}
-
-const OLIVE = '#6b7c3a';
-const rowKey = (positionId: number, cat: Category) => `${positionId}__${cat}`;
+export type { AuthData };
 
 const AdminStaffCabinet = ({ auth }: { auth: AuthData }) => {
   const staffId = auth.staff_id!;
@@ -412,310 +248,62 @@ const AdminStaffCabinet = ({ auth }: { auth: AuthData }) => {
 
       {/* ── ВНЕСТИ ОТЧЁТ ──────────────────────────────────────── */}
       {tab === 'day' && (
-        <div>
-          {/* Дата и время — обязательны */}
-          <div className="flex items-end gap-3 mb-4 flex-wrap">
-            <div>
-              <label className="text-xs text-muted-foreground block mb-1">Дата *</label>
-              <input type="date" value={selectedDate}
-                max={isoToday()}
-                onChange={e => setSelectedDate(e.target.value)}
-                className="border border-primary/30 rounded-xl px-3 py-2 text-sm outline-none focus:border-accent" />
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground block mb-1">Начало работы *</label>
-              <input type="time" value={timeStart} disabled={!canEdit}
-                onChange={e => setTimeStart(e.target.value)}
-                className="border border-primary/30 rounded-xl px-3 py-2 text-sm outline-none focus:border-accent disabled:opacity-60" />
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground block mb-1">Окончание работы *</label>
-              <input type="time" value={timeEnd} disabled={!canEdit}
-                onChange={e => setTimeEnd(e.target.value)}
-                className="border border-primary/30 rounded-xl px-3 py-2 text-sm outline-none focus:border-accent disabled:opacity-60" />
-            </div>
-            {hoursWorked > 0 && (
-              <span className="text-xs text-muted-foreground pb-2.5">{hoursWorked} ч</span>
-            )}
-            {!isToday && (
-              <span className="text-xs text-muted-foreground pb-2.5">Прошлые дни только для просмотра</span>
-            )}
-            {dayReport?.locked && (
-              <span className="text-xs text-amber-600 bg-amber-50 border border-amber-200 px-2 py-1 rounded-lg mb-0.5">Заблокирован для редактирования</span>
-            )}
-          </div>
-          {submitError && <p className="text-xs text-red-500 mb-4">{submitError}</p>}
-
-          {/* Итого — сворачиваемый блок */}
-          <div className="border border-primary/30 rounded-2xl mb-5 overflow-hidden">
-            <button onClick={() => setSummaryOpen(v => !v)}
-              className="w-full flex items-center justify-between px-4 py-3 bg-primary/5 hover:bg-primary/8 transition-colors">
-              <div className="flex items-center gap-3">
-                <span className="text-sm font-semibold text-primary">Итого за день</span>
-                <span className="text-lg font-bold text-primary">{fmtRub(totalRub)}</span>
-                {plan && plan.daily_plan_rub > 0 && (
-                  <span className="text-xs text-muted-foreground">План: {fmtRub(plan.daily_plan_rub)} · {Math.round(totalRub / plan.daily_plan_rub * 100)}%</span>
-                )}
-              </div>
-              <Icon name={summaryOpen ? 'ChevronUp' : 'ChevronDown'} size={18} className="text-primary/60" />
-            </button>
-
-            {summaryOpen && (
-              <div className="divide-y divide-primary/10">
-                {editPositions.length === 0 ? (
-                  <p className="text-sm text-muted-foreground p-4">Пока ничего не добавлено</p>
-                ) : editPositions.map(item => (
-                  <div key={rowKey(item.position_id, item.category)} className="flex items-center justify-between gap-3 px-4 py-2.5">
-                    <div className="min-w-0 flex-1">
-                      <div className="text-sm font-medium text-primary truncate">{item.staff_name}</div>
-                      <div className="text-xs text-muted-foreground truncate">
-                        {CATEGORY_LABEL[item.category]}{item.weave_type ? ` · ${item.weave_type}` : ''} · {item.price.toLocaleString('ru-RU')} ₽/шт
-                      </div>
-                    </div>
-                    {canEdit ? (
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <input type="number" min={0} value={item.qty}
-                          onChange={e => editSummaryQty(item.position_id, item.category, parseInt(e.target.value, 10) || 0)}
-                          className="w-14 text-center border border-primary/30 rounded-lg px-1 py-1 text-sm outline-none focus:border-accent [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
-                        <span className="text-sm font-semibold w-20 text-right" style={{ color: OLIVE }}>{fmtRub(item.qty * item.price)}</span>
-                        <button onClick={() => removeSummaryItem(item.position_id, item.category)} className="text-red-400 hover:text-red-600">
-                          <Icon name="Trash2" size={16} />
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <span className="text-sm font-bold text-primary w-10 text-center">{item.qty}</span>
-                        <span className="text-sm font-semibold w-20 text-right" style={{ color: OLIVE }}>{fmtRub(item.qty * item.price)}</span>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {canEdit && (
-              <div className="px-4 py-3 border-t border-primary/10 flex justify-end">
-                <button onClick={saveReport} disabled={saving || editPositions.length === 0}
-                  className="px-6 py-2.5 rounded-xl font-semibold text-sm transition-colors disabled:opacity-50 bg-accent hover:bg-accent/90 text-accent-foreground">
-                  {saving ? 'Отправляю...' : saved ? '✓ Отправлено!' : 'Отправить отчёт'}
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Позиции — плоский список, сортировка по sort_order из справочника */}
-          <div className="space-y-2 mb-5">
-            {sortedPositions.map(row => {
-              const isPosOpen = !!openPositions[row.id];
-              const selectedId = selectedRow[row.id] ?? row.id;
-              const activeRow = sortedPositions.find(r => r.id === selectedId) || row;
-              const cats = CATEGORY_KEYS.filter(c => categoryPrice(activeRow, c) > 0);
-              // Другие варианты плетения для этой же позиции (совпадающие по catalog_name)
-              const weaveVariants = sortedPositions.filter(r => r.catalog_name && r.catalog_name === row.catalog_name && r.weave_type);
-              const showWeaveButtons = weaveVariants.length > 1;
-
-              return (
-                <div key={row.id} className="border border-primary/30 rounded-2xl overflow-hidden">
-                  <button onClick={() => setOpenPositions(p => ({ ...p, [row.id]: !p[row.id] }))}
-                    className="w-full flex items-center justify-between px-4 py-2.5 bg-primary/5 hover:bg-primary/8 transition-colors">
-                    <span className="font-semibold text-primary text-sm">{row.staff_name}</span>
-                    <Icon name={isPosOpen ? 'ChevronUp' : 'ChevronDown'} size={16} className="text-primary/50" />
-                  </button>
-
-                  {isPosOpen && (
-                    <div className="px-4 py-3">
-                      {showWeaveButtons && (
-                        <div className="flex flex-wrap gap-2 mb-3">
-                          {weaveVariants.map(r => (
-                            <button key={r.id}
-                              onClick={() => setSelectedRow(p => ({ ...p, [row.id]: r.id }))}
-                              className={`px-3 py-1.5 rounded-xl border text-xs font-medium transition-colors ${
-                                selectedId === r.id ? 'bg-primary text-white border-primary' : 'border-primary/30 text-primary hover:border-primary'
-                              }`}>
-                              {r.weave_type}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-
-                      {cats.length === 0 ? (
-                        <p className="text-xs text-muted-foreground">Нет цен для этой позиции</p>
-                      ) : (
-                        <div className="space-y-2">
-                          {cats.map(cat => {
-                            const price = categoryPrice(activeRow, cat);
-                            const qty   = getDraft(activeRow.id, cat);
-                            return (
-                              <div key={cat} className="flex items-center gap-3">
-                                <span className="text-sm text-primary flex-1">{CATEGORY_LABEL[cat]}</span>
-                                <input type="number" min={0} placeholder="0" value={qty || ''}
-                                  onChange={e => setDraft(activeRow.id, cat, parseInt(e.target.value, 10) || 0)}
-                                  className="w-16 text-center border border-primary/30 rounded-lg px-1 py-1.5 text-sm outline-none focus:border-accent [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
-                                <span className="text-xs text-muted-foreground w-20 text-right">{price.toLocaleString('ru-RU')} ₽</span>
-                                <span className="text-sm font-semibold w-20 text-right" style={{ color: OLIVE }}>{qty > 0 ? fmtRub(qty * price) : '—'}</span>
-                              </div>
-                            );
-                          })}
-                          <div className="flex justify-end pt-1">
-                            <button onClick={() => addToReport(activeRow)}
-                              className="px-4 py-1.5 rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground text-xs font-semibold transition-colors">
-                              + Добавить в отчёт
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-            {sortedPositions.length === 0 && (
-              <p className="text-sm text-muted-foreground">Позиции ещё не добавлены в справочник</p>
-            )}
-          </div>
-
-          {/* % выполнения дня */}
-          {dayReport && plan && plan.daily_plan_rub > 0 && (
-            <div className="p-4 bg-card border border-primary/30 rounded-2xl">
-              <div className="text-sm font-semibold text-primary mb-2">Выполнение дневного плана</div>
-              <div className="flex items-center gap-3">
-                <div className="flex-1 h-3 rounded-full bg-primary/10 overflow-hidden">
-                  <div className="h-full rounded-full transition-all"
-                    style={{ width: `${Math.min(100, Math.round(dayReport.total_rub / plan.daily_plan_rub * 100))}%`, backgroundColor: '#8a9a5a' }} />
-                </div>
-                <span className="text-sm font-bold" style={{ color: OLIVE }}>
-                  {Math.round(dayReport.total_rub / plan.daily_plan_rub * 100)}%
-                </span>
-              </div>
-              <div className="text-xs text-muted-foreground mt-1">
-                {fmtRub(dayReport.total_rub)} из {fmtRub(plan.daily_plan_rub)}
-              </div>
-            </div>
-          )}
-        </div>
+        <StaffCabinetDayTab
+          selectedDate={selectedDate}
+          setSelectedDate={setSelectedDate}
+          timeStart={timeStart}
+          setTimeStart={setTimeStart}
+          timeEnd={timeEnd}
+          setTimeEnd={setTimeEnd}
+          hoursWorked={hoursWorked}
+          isToday={isToday}
+          canEdit={canEdit}
+          dayReport={dayReport}
+          submitError={submitError}
+          summaryOpen={summaryOpen}
+          setSummaryOpen={setSummaryOpen}
+          totalRub={totalRub}
+          plan={plan}
+          editPositions={editPositions}
+          editSummaryQty={editSummaryQty}
+          removeSummaryItem={removeSummaryItem}
+          saving={saving}
+          saved={saved}
+          saveReport={saveReport}
+          sortedPositions={sortedPositions}
+          openPositions={openPositions}
+          setOpenPositions={setOpenPositions}
+          selectedRow={selectedRow}
+          setSelectedRow={setSelectedRow}
+          getDraft={getDraft}
+          setDraft={setDraft}
+          addToReport={addToReport}
+        />
       )}
 
       {/* ── СТАТИСТИКА ЗП ─────────────────────────────────────── */}
       {tab === 'stats' && (
-        <div>
-          <div className="flex gap-2 mb-5">
-            <button onClick={() => setStatsPeriod('days')}
-              className={`px-3 py-1.5 rounded-xl border text-sm transition-colors ${statsPeriod === 'days' ? 'bg-primary text-white border-primary' : 'border-primary/40 text-primary hover:border-primary'}`}>
-              По дням
-            </button>
-            <button onClick={() => setStatsPeriod('months')}
-              className={`px-3 py-1.5 rounded-xl border text-sm transition-colors ${statsPeriod === 'months' ? 'bg-primary text-white border-primary' : 'border-primary/40 text-primary hover:border-primary'}`}>
-              По месяцам
-            </button>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 mb-5">
-            <div className="bg-card border border-primary/30 rounded-2xl p-4">
-              <div className="text-xs text-muted-foreground mb-1">Этот месяц</div>
-              <div className="text-xl font-bold text-primary">{fmtRub(monthEarned)}</div>
-              <div className="text-xs text-muted-foreground">{monthDays} дней</div>
-            </div>
-            <div className="bg-card border border-primary/30 rounded-2xl p-4">
-              <div className="text-xs text-muted-foreground mb-1">Эта неделя</div>
-              <div className="text-xl font-bold text-primary">{fmtRub(weekEarned)}</div>
-              <div className="text-xs text-muted-foreground">{weekReports.length} дней</div>
-            </div>
-            {plan && plan.daily_plan_rub > 0 && (
-              <div className="bg-card border border-primary/30 rounded-2xl p-4">
-                <div className="text-xs text-muted-foreground mb-1">Выполнение плана</div>
-                <div className="text-xl font-bold" style={{ color: OLIVE }}>{planPct}%</div>
-                <div className="h-2 rounded-full bg-primary/10 mt-1.5 overflow-hidden">
-                  <div className="h-full rounded-full" style={{ width: `${planPct}%`, backgroundColor: '#8a9a5a' }} />
-                </div>
-              </div>
-            )}
-            {plan && plan.daily_plan_rub > 0 && (
-              <div className="bg-card border border-primary/30 rounded-2xl p-4">
-                <div className="text-xs text-muted-foreground mb-1">Осталось до плана</div>
-                <div className="text-xl font-bold text-primary">{fmtRub(remainingToPlan)}</div>
-              </div>
-            )}
-            {bonus > 0 && (
-              <div className="bg-card border border-accent/40 rounded-2xl p-4">
-                <div className="text-xs text-muted-foreground mb-1">Премия</div>
-                <div className="text-xl font-bold text-primary">{fmtRub(bonus)}</div>
-                <div className="text-xs text-muted-foreground">{planPct >= 100 ? '10% за выполнение' : '5% за 80%+'}</div>
-              </div>
-            )}
-          </div>
-
-          {statsPeriod === 'days' ? (
-            <div className="border border-primary/30 rounded-2xl overflow-hidden">
-              <div className="bg-primary/5 px-4 py-2 grid grid-cols-3 text-xs font-semibold text-primary/70 border-b border-primary/20">
-                <span>Дата</span><span className="text-right">Заработано</span><span className="text-right">% плана</span>
-              </div>
-              {monthReports.length === 0 ? (
-                <p className="text-sm text-muted-foreground p-4">Нет данных за этот месяц</p>
-              ) : monthReports.map(r => (
-                <button key={r.id} onClick={() => openDayEdit(r)}
-                  className="w-full px-4 py-2.5 grid grid-cols-3 border-b border-primary/10 last:border-0 text-sm hover:bg-primary/3 transition-colors text-left">
-                  <span className="text-primary/70 flex items-center gap-1.5">
-                    {new Date(r.report_date + 'T00:00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', weekday: 'short' })}
-                    {r.locked && <Icon name="Lock" size={11} className="text-muted-foreground" />}
-                  </span>
-                  <span className="text-right font-semibold text-primary">{fmtRub(r.total_rub)}</span>
-                  <span className="text-right font-semibold" style={{ color: OLIVE }}>
-                    {plan && plan.daily_plan_rub > 0 ? Math.round(r.total_rub / plan.daily_plan_rub * 100) : '—'}%
-                  </span>
-                </button>
-              ))}
-            </div>
-          ) : (
-            <div className="border border-primary/30 rounded-2xl overflow-hidden">
-              <div className="bg-primary/5 px-4 py-2 grid grid-cols-4 text-xs font-semibold text-primary/70 border-b border-primary/20">
-                <span>Месяц</span><span className="text-right">Заработано</span><span className="text-right">% плана</span><span className="text-right">Премия</span>
-              </div>
-              {monthsList.map(([ym, sum]) => {
-                const monthBonus = bonusFor(sum, planMonthRub);
-                return (
-                  <div key={ym} className="px-4 py-2.5 grid grid-cols-4 border-b border-primary/10 last:border-0 text-sm hover:bg-primary/3">
-                    <span className="text-primary">{fmtMonth(ym)}</span>
-                    <span className="text-right font-semibold text-primary">{fmtRub(sum)}</span>
-                    <span className="text-right font-semibold" style={{ color: OLIVE }}>
-                      {planMonthRub > 0 ? Math.round(sum / planMonthRub * 100) : '—'}%
-                    </span>
-                    <span className="text-right font-semibold text-primary">{monthBonus > 0 ? fmtRub(monthBonus) : '—'}</span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+        <StaffCabinetStatsTab
+          statsPeriod={statsPeriod}
+          setStatsPeriod={setStatsPeriod}
+          monthEarned={monthEarned}
+          monthDays={monthDays}
+          weekEarned={weekEarned}
+          weekReports={weekReports}
+          plan={plan}
+          planPct={planPct}
+          remainingToPlan={remainingToPlan}
+          bonus={bonus}
+          monthReports={monthReports}
+          monthsList={monthsList}
+          planMonthRub={planMonthRub}
+          openDayEdit={openDayEdit}
+        />
       )}
 
       {/* ── ОТПУСКНЫЕ ─────────────────────────────────────────── */}
       {tab === 'vacation' && (
-        <div>
-          <div className="bg-card border border-primary/30 rounded-2xl p-5 mb-4 flex items-center justify-between">
-            <div>
-              <div className="text-sm text-muted-foreground mb-1">Накоплено отпускных</div>
-              <div className="text-3xl font-bold text-primary">{fmtRub(vacation.total)}</div>
-            </div>
-            <div className="text-5xl">🏖️</div>
-          </div>
-
-          {vacation.entries.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Начислений пока нет</p>
-          ) : (
-            <div className="border border-primary/30 rounded-2xl overflow-hidden">
-              <div className="bg-primary/5 px-4 py-2 grid grid-cols-3 text-xs font-semibold text-primary/70 border-b border-primary/20">
-                <span>Месяц</span><span className="text-right">Сумма</span><span>Комментарий</span>
-              </div>
-              {vacation.entries.map(e => (
-                <div key={e.id} className="px-4 py-2.5 grid grid-cols-3 border-b border-primary/10 last:border-0 text-sm">
-                  <span className="text-primary">{fmtMonth(e.month)}</span>
-                  <span className="text-right font-semibold" style={{ color: OLIVE }}>{fmtRub(e.amount)}</span>
-                  <span className="text-primary/60 pl-2 text-xs truncate">{e.comment}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        <StaffCabinetVacationTab vacation={vacation} />
       )}
 
       {/* Кнопка "наверх" */}
@@ -726,58 +314,15 @@ const AdminStaffCabinet = ({ auth }: { auth: AuthData }) => {
 
       {/* Модалка редактирования прошлого дня (из статистики) */}
       {editingDay && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setEditingDay(null)}>
-          <div className="bg-background rounded-2xl border border-primary/30 p-6 w-full max-w-md max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-primary text-lg">
-                {new Date(editingDay.report_date + 'T00:00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}
-              </h3>
-              <button onClick={() => setEditingDay(null)} className="text-muted-foreground hover:text-primary text-xl">✕</button>
-            </div>
-
-            {editingDayPositions.length === 0 ? (
-              <p className="text-sm text-muted-foreground mb-4">Позиций нет</p>
-            ) : (
-              <div className="space-y-2 mb-4">
-                {editingDayPositions.map((item, i) => (
-                  <div key={rowKey(item.position_id, item.category) + i} className="flex items-center justify-between gap-2 border-b border-primary/10 pb-2">
-                    <div className="min-w-0 flex-1">
-                      <div className="text-sm font-medium text-primary truncate">{item.staff_name}</div>
-                      <div className="text-xs text-muted-foreground truncate">
-                        {CATEGORY_LABEL[item.category]}{item.weave_type ? ` · ${item.weave_type}` : ''} · {item.price.toLocaleString('ru-RU')} ₽/шт
-                      </div>
-                    </div>
-                    <input type="number" min={0} value={item.qty}
-                      onChange={e => {
-                        const qty = parseInt(e.target.value, 10) || 0;
-                        setEditingDayPositions(prev => qty <= 0
-                          ? prev.filter((_, idx) => idx !== i)
-                          : prev.map((p, idx) => idx === i ? { ...p, qty } : p));
-                      }}
-                      className="w-14 text-center border border-primary/30 rounded-lg px-1 py-1 text-sm outline-none focus:border-accent [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
-                    <span className="text-sm font-semibold w-20 text-right" style={{ color: OLIVE }}>{fmtRub(item.qty * item.price)}</span>
-                    <button onClick={() => setEditingDayPositions(prev => prev.filter((_, idx) => idx !== i))} className="text-red-400 hover:text-red-600">
-                      <Icon name="Trash2" size={15} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="flex items-center justify-between mb-4">
-              <span className="text-sm text-muted-foreground">Итого</span>
-              <span className="text-lg font-bold text-primary">{fmtRub(editingDayTotal)}</span>
-            </div>
-
-            <div className="flex gap-2">
-              <button onClick={saveEditingDay} disabled={editingDaySaving}
-                className="flex-1 bg-accent hover:bg-accent/90 text-accent-foreground font-semibold py-2.5 rounded-xl text-sm disabled:opacity-50">
-                {editingDaySaving ? 'Сохраняю...' : 'Сохранить'}
-              </button>
-              <button onClick={() => setEditingDay(null)} className="px-4 py-2.5 rounded-xl border border-primary/30 text-primary text-sm">Отмена</button>
-            </div>
-          </div>
-        </div>
+        <StaffCabinetEditDayModal
+          editingDay={editingDay}
+          setEditingDay={setEditingDay}
+          editingDayPositions={editingDayPositions}
+          setEditingDayPositions={setEditingDayPositions}
+          editingDayTotal={editingDayTotal}
+          editingDaySaving={editingDaySaving}
+          saveEditingDay={saveEditingDay}
+        />
       )}
     </div>
   );
