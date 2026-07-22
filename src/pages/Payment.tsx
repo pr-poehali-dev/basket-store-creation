@@ -111,7 +111,7 @@ const Payment = () => {
       )}
 
       <main className="pt-32 pb-24 px-6">
-        <div className="container mx-auto max-w-2xl">
+        <div className="container mx-auto max-w-2xl px-0">
 
           {/* Прогресс */}
           <div className="flex items-center gap-2 text-sm mb-8 flex-wrap">
@@ -155,7 +155,7 @@ const Payment = () => {
                 <Icon name="QrCode" size={28} className="text-accent flex-shrink-0" />
                 <div>
                   <p className="font-medium">Оплата по QR-коду</p>
-                  <p className="text-sm text-muted-foreground mt-0.5">QR-код для оплаты пришлёт менеджер после подтверждения заказа</p>
+                  <p className="text-sm text-muted-foreground my-[1px]">QR-код для оплаты пришлёт менеджер после подтверждения заказа</p>
                 </div>
               </div>
             </button>
