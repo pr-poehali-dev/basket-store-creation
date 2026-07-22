@@ -1,7 +1,7 @@
 """
-API справочника корзин FABRICA. v7
+API справочника корзин FABRICA. v8
 Столбцы позиции (без группы): catalog_name, set_catalog_names, set_staff_names,
-staff_name, weave_type, sort_order, price_whole, price_no_handle, price_handle, price_ears
+staff_name, weave_type, sort_order, price_whole, price_no_handle, price_handle, price_ears, price_whole_ears
 
 GET  ?type=positions|plans|staff|price_history|plans_month  — данные
 POST { type, ...data }  — создать позицию/план/история цены/excel-импорт (mode=append|replace)
@@ -14,24 +14,25 @@ Excel-импорт читает колонки СТРОГО ПО ПОРЯДКУ 
 3. Названия позиций для набора из зп
 4. Название для зп (название корзины)
 5. Вид плетения
-6. Цена за готовую корзину
+6. Цена за готовую корзину (с ручкой)
 7. Цена за корзину без ручки
 8. Цена за ручку
 9. Цена за уши
 10. Сортировка
+11. Цена за готовую корзину с ушами
 """
 import os, json, base64, io
 from decimal import Decimal
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
-PRICE_FIELDS = ('price_whole', 'price_no_handle', 'price_handle', 'price_ears')
+PRICE_FIELDS = ('price_whole', 'price_no_handle', 'price_handle', 'price_ears', 'price_whole_ears')
 # Поля позиции, редактируемые из админки (group_name больше не выставляется пользователем — заполняется автоматически)
 POSITION_FIELDS = ('catalog_name', 'set_catalog_names', 'set_staff_names', 'staff_name', 'weave_type', 'sort_order', *PRICE_FIELDS)
 
 EXCEL_COLUMN_ORDER = (
     'catalog_name', 'set_catalog_names', 'set_staff_names', 'staff_name',
-    'weave_type', 'price_whole', 'price_no_handle', 'price_handle', 'price_ears', 'sort_order',
+    'weave_type', 'price_whole', 'price_no_handle', 'price_handle', 'price_ears', 'sort_order', 'price_whole_ears',
 )
 
 
@@ -66,6 +67,7 @@ def row_to_position(r):
         'price_no_handle': to_float(r['price_no_handle']),
         'price_handle': to_float(r['price_handle']),
         'price_ears': to_float(r['price_ears']),
+        'price_whole_ears': to_float(r['price_whole_ears']),
         'sort_order': r['sort_order'] if r['sort_order'] is not None else 0,
         'is_active': bool(r['is_active']),
     }
@@ -121,6 +123,7 @@ def handler(event: dict, context) -> dict:
                         'price_no_handle': to_float(r['price_no_handle']),
                         'price_handle': to_float(r['price_handle']),
                         'price_ears': to_float(r['price_ears']),
+                        'price_whole_ears': to_float(r['price_whole_ears']),
                         'valid_from': r['valid_from'].isoformat() if r['valid_from'] else '',
                         'created_at': r['created_at'].isoformat() if r['created_at'] else '',
                     } for r in rows]
@@ -221,16 +224,16 @@ def handler(event: dict, context) -> dict:
                     cur.execute(
                         "INSERT INTO handbook_positions "
                         "(group_name, catalog_name, set_catalog_names, set_staff_names, staff_name, weave_type, sort_order, "
-                        "price_whole, price_no_handle, price_handle, price_ears, category, price) "
+                        "price_whole, price_no_handle, price_handle, price_ears, price_whole_ears, category, price) "
                         "VALUES (%(group_name)s, %(catalog_name)s, %(set_catalog_names)s, %(set_staff_names)s, %(staff_name)s, %(weave_type)s, %(sort_order)s, "
-                        "%(price_whole)s, %(price_no_handle)s, %(price_handle)s, %(price_ears)s, %(category)s, %(price)s) RETURNING id",
+                        "%(price_whole)s, %(price_no_handle)s, %(price_handle)s, %(price_ears)s, %(price_whole_ears)s, %(category)s, %(price)s) RETURNING id",
                         vals
                     )
                     new_id = cur.fetchone()[0]
                     cur.execute(
-                        "INSERT INTO handbook_price_history (position_id, price_whole, price_no_handle, price_handle, price_ears, price, valid_from) "
-                        "VALUES (%s, %s, %s, %s, %s, %s, COALESCE(%s::date, CURRENT_DATE))",
-                        (new_id, vals['price_whole'], vals['price_no_handle'], vals['price_handle'], vals['price_ears'], vals['price_whole'], valid_from)
+                        "INSERT INTO handbook_price_history (position_id, price_whole, price_no_handle, price_handle, price_ears, price_whole_ears, price, valid_from) "
+                        "VALUES (%s, %s, %s, %s, %s, %s, %s, COALESCE(%s::date, CURRENT_DATE))",
+                        (new_id, vals['price_whole'], vals['price_no_handle'], vals['price_handle'], vals['price_ears'], vals['price_whole_ears'], vals['price_whole'], valid_from)
                     )
                 return {'statusCode': 200, 'headers': cors(), 'body': json.dumps({'id': new_id})}
 
@@ -240,16 +243,17 @@ def handler(event: dict, context) -> dict:
                 price_no_handle = float(body.get('price_no_handle', 0))
                 price_handle = float(body.get('price_handle', 0))
                 price_ears = float(body.get('price_ears', 0))
+                price_whole_ears = float(body.get('price_whole_ears', 0))
                 valid_from = body.get('valid_from') or None
                 with conn.cursor() as cur:
                     cur.execute(
-                        "UPDATE handbook_positions SET price_whole=%s, price_no_handle=%s, price_handle=%s, price_ears=%s, price=%s, updated_at=NOW() WHERE id=%s",
-                        (price_whole, price_no_handle, price_handle, price_ears, price_whole, position_id)
+                        "UPDATE handbook_positions SET price_whole=%s, price_no_handle=%s, price_handle=%s, price_ears=%s, price_whole_ears=%s, price=%s, updated_at=NOW() WHERE id=%s",
+                        (price_whole, price_no_handle, price_handle, price_ears, price_whole_ears, price_whole, position_id)
                     )
                     cur.execute(
-                        "INSERT INTO handbook_price_history (position_id, price_whole, price_no_handle, price_handle, price_ears, price, valid_from) "
-                        "VALUES (%s, %s, %s, %s, %s, %s, COALESCE(%s::date, CURRENT_DATE))",
-                        (position_id, price_whole, price_no_handle, price_handle, price_ears, price_whole, valid_from)
+                        "INSERT INTO handbook_price_history (position_id, price_whole, price_no_handle, price_handle, price_ears, price_whole_ears, price, valid_from) "
+                        "VALUES (%s, %s, %s, %s, %s, %s, %s, COALESCE(%s::date, CURRENT_DATE))",
+                        (position_id, price_whole, price_no_handle, price_handle, price_ears, price_whole_ears, price_whole, valid_from)
                     )
                 return {'statusCode': 200, 'headers': cors(), 'body': json.dumps({'ok': True})}
 
@@ -314,6 +318,7 @@ def handler(event: dict, context) -> dict:
                             'price_handle': num(rec.get('price_handle')),
                             'price_ears': num(rec.get('price_ears')),
                             'sort_order': num_int(rec.get('sort_order')),
+                            'price_whole_ears': num(rec.get('price_whole_ears')),
                         })
 
                     created, updated, errors = 0, 0, []
@@ -328,7 +333,7 @@ def handler(event: dict, context) -> dict:
                                 existing = None
                                 if mode != 'replace':
                                     cur.execute(
-                                        "SELECT id, price_whole, price_no_handle, price_handle, price_ears "
+                                        "SELECT id, price_whole, price_no_handle, price_handle, price_ears, price_whole_ears "
                                         "FROM handbook_positions WHERE staff_name=%s LIMIT 1",
                                         (staff_name,)
                                     )
@@ -337,35 +342,35 @@ def handler(event: dict, context) -> dict:
                                 if existing:
                                     pos_id = existing[0]
                                     price_changed = (
-                                        (float(existing[1]), float(existing[2]), float(existing[3]), float(existing[4]))
-                                        != (pr['price_whole'], pr['price_no_handle'], pr['price_handle'], pr['price_ears'])
+                                        (float(existing[1]), float(existing[2]), float(existing[3]), float(existing[4]), float(existing[5]))
+                                        != (pr['price_whole'], pr['price_no_handle'], pr['price_handle'], pr['price_ears'], pr['price_whole_ears'])
                                     )
                                     cur.execute(
                                         "UPDATE handbook_positions SET group_name=%s, catalog_name=%s, set_catalog_names=%s, set_staff_names=%s, weave_type=%s, sort_order=%s, "
-                                        "price_whole=%s, price_no_handle=%s, price_handle=%s, price_ears=%s, price=%s, is_active=TRUE, updated_at=NOW() WHERE id=%s",
+                                        "price_whole=%s, price_no_handle=%s, price_handle=%s, price_ears=%s, price_whole_ears=%s, price=%s, is_active=TRUE, updated_at=NOW() WHERE id=%s",
                                         (staff_name, pr['catalog_name'], pr['set_catalog_names'], pr['set_staff_names'], pr['weave_type'], pr['sort_order'],
-                                         pr['price_whole'], pr['price_no_handle'], pr['price_handle'], pr['price_ears'], pr['price_whole'], pos_id)
+                                         pr['price_whole'], pr['price_no_handle'], pr['price_handle'], pr['price_ears'], pr['price_whole_ears'], pr['price_whole'], pos_id)
                                     )
                                     if price_changed:
                                         cur.execute(
-                                            "INSERT INTO handbook_price_history (position_id, price_whole, price_no_handle, price_handle, price_ears, price, valid_from) "
-                                            "VALUES (%s, %s, %s, %s, %s, %s, CURRENT_DATE)",
-                                            (pos_id, pr['price_whole'], pr['price_no_handle'], pr['price_handle'], pr['price_ears'], pr['price_whole'])
+                                            "INSERT INTO handbook_price_history (position_id, price_whole, price_no_handle, price_handle, price_ears, price_whole_ears, price, valid_from) "
+                                            "VALUES (%s, %s, %s, %s, %s, %s, %s, CURRENT_DATE)",
+                                            (pos_id, pr['price_whole'], pr['price_no_handle'], pr['price_handle'], pr['price_ears'], pr['price_whole_ears'], pr['price_whole'])
                                         )
                                     updated += 1
                                 else:
                                     cur.execute(
                                         "INSERT INTO handbook_positions (group_name, catalog_name, set_catalog_names, set_staff_names, staff_name, weave_type, sort_order, "
-                                        "price_whole, price_no_handle, price_handle, price_ears, category, price) "
-                                        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id",
+                                        "price_whole, price_no_handle, price_handle, price_ears, price_whole_ears, category, price) "
+                                        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id",
                                         (staff_name, pr['catalog_name'], pr['set_catalog_names'], pr['set_staff_names'], staff_name, pr['weave_type'], pr['sort_order'],
-                                         pr['price_whole'], pr['price_no_handle'], pr['price_handle'], pr['price_ears'], 'whole', pr['price_whole'])
+                                         pr['price_whole'], pr['price_no_handle'], pr['price_handle'], pr['price_ears'], pr['price_whole_ears'], 'whole', pr['price_whole'])
                                     )
                                     new_id = cur.fetchone()[0]
                                     cur.execute(
-                                        "INSERT INTO handbook_price_history (position_id, price_whole, price_no_handle, price_handle, price_ears, price, valid_from) "
-                                        "VALUES (%s, %s, %s, %s, %s, %s, CURRENT_DATE)",
-                                        (new_id, pr['price_whole'], pr['price_no_handle'], pr['price_handle'], pr['price_ears'], pr['price_whole'])
+                                        "INSERT INTO handbook_price_history (position_id, price_whole, price_no_handle, price_handle, price_ears, price_whole_ears, price, valid_from) "
+                                        "VALUES (%s, %s, %s, %s, %s, %s, %s, CURRENT_DATE)",
+                                        (new_id, pr['price_whole'], pr['price_no_handle'], pr['price_handle'], pr['price_ears'], pr['price_whole_ears'], pr['price_whole'])
                                     )
                                     created += 1
                             except Exception as row_err:

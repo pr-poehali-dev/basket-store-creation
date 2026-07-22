@@ -17,10 +17,10 @@ function getAuthFromSession(): AuthData {
   return { is_admin: false, pages: [] };
 }
 
-type Category = 'whole' | 'no_handle' | 'handle' | 'ears';
-const CATEGORY_KEYS: Category[] = ['whole', 'no_handle', 'handle', 'ears'];
+type Category = 'whole' | 'whole_ears' | 'no_handle' | 'handle' | 'ears';
+const CATEGORY_KEYS: Category[] = ['whole', 'whole_ears', 'no_handle', 'handle', 'ears'];
 const CATEGORY_LABEL: Record<Category, string> = {
-  whole: 'С ручкой', no_handle: 'Без ручки', handle: 'Ручка', ears: 'Уши',
+  whole: 'С ручкой', whole_ears: 'С ушами', no_handle: 'Без ручки', handle: 'Ручка', ears: 'Уши',
 };
 
 interface Position {
@@ -33,10 +33,79 @@ interface Position {
   price_no_handle: number;
   price_handle: number;
   price_ears: number;
+  price_whole_ears: number;
 }
-const CATEGORY_FIELD: Record<Category, keyof Position> = {
-  whole: 'price_whole', no_handle: 'price_no_handle', handle: 'price_handle', ears: 'price_ears',
-};
+
+// Объединённая позиция — если в справочнике 2 строки с одинаковым «Название для ЗП»
+// (одна с ценой за ручку, другая с ценой за уши — по сути одна и та же корзина),
+// они схлопываются в одну карточку. У «ручечного» и «ушастого» вариантов может
+// быть РАЗНОЕ название в каталоге — поэтому храним оба, чтобы списание склада
+// шло на правильный товар.
+interface MergedPosition {
+  id: number;
+  catalog_name: string;
+  catalog_name_ears: string;
+  staff_name: string;
+  weave_type: string;
+  sort_order: number;
+  price_whole: number;
+  price_no_handle: number;
+  price_handle: number;
+  price_ears: number;
+  price_whole_ears: number;
+}
+
+function categoryPrice(row: MergedPosition, cat: Category): number {
+  switch (cat) {
+    case 'whole': return row.price_whole;
+    case 'whole_ears': return row.price_whole_ears;
+    case 'no_handle': return row.price_no_handle;
+    case 'handle': return row.price_handle;
+    case 'ears': return row.price_ears;
+  }
+}
+
+function categoryCatalog(row: MergedPosition, cat: Category): string {
+  return (cat === 'ears' || cat === 'whole_ears') ? row.catalog_name_ears : row.catalog_name;
+}
+
+// Схлопываем дубли по staff_name в одну карточку для личного кабинета
+function mergePositions(rows: Position[]): MergedPosition[] {
+  const groups = new Map<string, Position[]>();
+  for (const r of rows) {
+    if (!groups.has(r.staff_name)) groups.set(r.staff_name, []);
+    groups.get(r.staff_name)!.push(r);
+  }
+  const result: MergedPosition[] = [];
+  for (const [staffName, group] of groups) {
+    if (group.length === 1) {
+      const r = group[0];
+      result.push({
+        id: r.id, catalog_name: r.catalog_name, catalog_name_ears: r.catalog_name,
+        staff_name: r.staff_name, weave_type: r.weave_type, sort_order: r.sort_order,
+        price_whole: r.price_whole, price_no_handle: r.price_no_handle,
+        price_handle: r.price_handle, price_ears: r.price_ears, price_whole_ears: r.price_whole_ears,
+      });
+      continue;
+    }
+    const mainRow = group.find(r => r.price_handle > 0) || group[0];
+    const earsRow = group.find(r => r.price_ears > 0 || r.price_whole_ears > 0) || group[group.length - 1];
+    result.push({
+      id: mainRow.id,
+      catalog_name: mainRow.catalog_name,
+      catalog_name_ears: earsRow.catalog_name,
+      staff_name: staffName,
+      weave_type: mainRow.weave_type || earsRow.weave_type,
+      sort_order: mainRow.sort_order,
+      price_whole: Math.max(...group.map(r => r.price_whole)),
+      price_no_handle: Math.max(...group.map(r => r.price_no_handle)),
+      price_handle: mainRow.price_handle,
+      price_ears: earsRow.price_ears,
+      price_whole_ears: earsRow.price_whole_ears,
+    });
+  }
+  return result;
+}
 
 interface ReportPosition {
   position_id: number;
@@ -185,8 +254,9 @@ const AdminStaffCabinet = ({ auth }: { auth: AuthData }) => {
   useEffect(() => { load(); }, [load]);
   useEffect(() => { loadDay(selectedDate); }, [selectedDate, loadDay]);
 
-  // Позиции справочника, отсортированные по sort_order — один плоский список без группировки
-  const sortedPositions = [...positions].sort((a, b) =>
+  // Позиции справочника, схлопнутые по «Название для ЗП» (дубли ручка/уши — одна карточка),
+  // отсортированные по sort_order
+  const sortedPositions = mergePositions(positions).sort((a, b) =>
     (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.staff_name.localeCompare(b.staff_name, 'ru'));
 
   const isToday = selectedDate === isoToday();
@@ -198,8 +268,8 @@ const AdminStaffCabinet = ({ auth }: { auth: AuthData }) => {
   const setDraft = (positionId: number, cat: Category, qty: number) =>
     setDraftQty(prev => ({ ...prev, [rowKey(positionId, cat)]: Math.max(0, qty) }));
 
-  const addToReport = (row: Position) => {
-    const cats = CATEGORY_KEYS.filter(c => (row[CATEGORY_FIELD[c]] as number) > 0);
+  const addToReport = (row: MergedPosition) => {
+    const cats = CATEGORY_KEYS.filter(c => categoryPrice(row, c) > 0);
     let changed = false;
     const next = [...editPositions];
     for (const c of cats) {
@@ -210,8 +280,8 @@ const AdminStaffCabinet = ({ auth }: { auth: AuthData }) => {
       if (idx >= 0) next[idx] = { ...next[idx], qty: next[idx].qty + qty };
       else next.push({
         position_id: row.id, staff_name: row.staff_name,
-        catalog_name: row.catalog_name, weave_type: row.weave_type, category: c,
-        price: row[CATEGORY_FIELD[c]] as number, qty,
+        catalog_name: categoryCatalog(row, c), weave_type: row.weave_type, category: c,
+        price: categoryPrice(row, c), qty,
       });
     }
     if (!changed) return;
@@ -439,7 +509,7 @@ const AdminStaffCabinet = ({ auth }: { auth: AuthData }) => {
               const isPosOpen = !!openPositions[row.id];
               const selectedId = selectedRow[row.id] ?? row.id;
               const activeRow = sortedPositions.find(r => r.id === selectedId) || row;
-              const cats = CATEGORY_KEYS.filter(c => (activeRow[CATEGORY_FIELD[c]] as number) > 0);
+              const cats = CATEGORY_KEYS.filter(c => categoryPrice(activeRow, c) > 0);
               // Другие варианты плетения для этой же позиции (совпадающие по catalog_name)
               const weaveVariants = sortedPositions.filter(r => r.catalog_name && r.catalog_name === row.catalog_name && r.weave_type);
               const showWeaveButtons = weaveVariants.length > 1;
@@ -473,7 +543,7 @@ const AdminStaffCabinet = ({ auth }: { auth: AuthData }) => {
                       ) : (
                         <div className="space-y-2">
                           {cats.map(cat => {
-                            const price = activeRow[CATEGORY_FIELD[cat]] as number;
+                            const price = categoryPrice(activeRow, cat);
                             const qty   = getDraft(activeRow.id, cat);
                             return (
                               <div key={cat} className="flex items-center gap-3">

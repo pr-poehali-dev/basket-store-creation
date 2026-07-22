@@ -15,6 +15,7 @@ interface Position {
   price_no_handle: number;
   price_handle: number;
   price_ears: number;
+  price_whole_ears: number;
   is_active: boolean;
 }
 
@@ -27,17 +28,18 @@ const ALL_COLUMNS = [
   { key: 'set_catalog_names',  label: 'Набор из каталога' },
   { key: 'set_staff_names',    label: 'Набор из ЗП' },
   { key: 'weave_type',         label: 'Плетение' },
-  { key: 'price_whole',        label: 'Готовая, ₽' },
+  { key: 'price_whole',        label: 'Готовая с ручкой, ₽' },
   { key: 'price_no_handle',    label: 'Без ручки, ₽' },
   { key: 'price_handle',       label: 'Ручка, ₽' },
   { key: 'price_ears',         label: 'Уши, ₽' },
   { key: 'sort_order',         label: 'Сортировка' },
+  { key: 'price_whole_ears',   label: 'Готовая с ушами, ₽' },
 ];
-const DEFAULT_VISIBLE = ['staff_name', 'catalog_name', 'weave_type', 'price_whole', 'price_no_handle', 'price_handle', 'price_ears', 'sort_order'];
+const DEFAULT_VISIBLE = ['staff_name', 'catalog_name', 'weave_type', 'price_whole', 'price_no_handle', 'price_handle', 'price_ears', 'sort_order', 'price_whole_ears'];
 
 const EMPTY_POS: Omit<Position, 'id' | 'is_active'> = {
   catalog_name: '', set_catalog_names: '', set_staff_names: '', staff_name: '',
-  weave_type: '', sort_order: 0, price_whole: 0, price_no_handle: 0, price_handle: 0, price_ears: 0,
+  weave_type: '', sort_order: 0, price_whole: 0, price_no_handle: 0, price_handle: 0, price_ears: 0, price_whole_ears: 0,
 };
 
 function fmtMonth(ym: string): string {
@@ -134,6 +136,7 @@ const AdminHandbook = () => {
       catalog_name: p.catalog_name, set_catalog_names: p.set_catalog_names, set_staff_names: p.set_staff_names,
       staff_name: p.staff_name, weave_type: p.weave_type, sort_order: p.sort_order,
       price_whole: p.price_whole, price_no_handle: p.price_no_handle, price_handle: p.price_handle, price_ears: p.price_ears,
+      price_whole_ears: p.price_whole_ears,
     });
     setShowPosForm(true);
   };
@@ -220,7 +223,7 @@ const AdminHandbook = () => {
             <div className="bg-card border border-border p-6 mb-8 rounded-2xl">
               <h2 className="font-display text-xl font-semibold mb-4">Excel</h2>
               <p className="text-sm text-muted-foreground mb-4">
-                Колонки строго по порядку (первая строка — заголовки, не важны): <code className="bg-secondary px-1">название в каталоге, названия позиций для набора из каталога, названия позиций для набора из зп, название для зп, вид плетения, цена за готовую корзину, цена за корзину без ручки, цена за ручку, цена за уши, сортировка</code>
+                Колонки строго по порядку (первая строка — заголовки, не важны): <code className="bg-secondary px-1">название в каталоге, названия позиций для набора из каталога, названия позиций для набора из зп, название для зп, вид плетения, цена за готовую корзину (с ручкой), цена за корзину без ручки, цена за ручку, цена за уши, сортировка, цена за готовую корзину с ушами</code>
               </p>
               <p className="text-xs text-muted-foreground mb-4">
                 Позиции набора перечисляются через «;». В режиме «Добавить/обновить» — обновление происходит по совпадению «название для зп».
@@ -326,6 +329,7 @@ const AdminHandbook = () => {
                           <td key={k} className="px-4 py-3 text-right font-bold">{pos[k] ? `${pos[k].toLocaleString('ru-RU')} ₽` : '—'}</td>
                         ))}
                         {col('sort_order')        && <td className="px-4 py-3 text-right text-muted-foreground">{pos.sort_order ?? 0}</td>}
+                        {col('price_whole_ears')  && <td className="px-4 py-3 text-right font-bold">{pos.price_whole_ears ? `${pos.price_whole_ears.toLocaleString('ru-RU')} ₽` : '—'}</td>}
                         <td className="px-4 py-3">
                           <div className="flex gap-2 justify-center">
                             <Button size="sm" variant="outline" className="rounded-lg h-8" onClick={() => openEditPos(pos)}>
