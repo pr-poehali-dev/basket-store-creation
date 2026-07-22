@@ -31,7 +31,7 @@ const Delivery = () => {
     <div className="min-h-screen bg-background text-foreground">
       <Header />
       <main className="pt-32 pb-24 px-6">
-        <div className="container mx-auto max-w-5xl">
+        <div className="container mx-auto max-w-5xl px-0">
 
           {/* Hero — текст слева, фото справа */}
           <div className="grid md:grid-cols-2 gap-12 items-center mb-24">
@@ -57,7 +57,7 @@ const Delivery = () => {
           {/* Варианты доставки — горизонтальный список */}
           <div className="space-y-6 mb-20">
             {DELIVERY_OPTIONS.map(opt => (
-              <div key={opt.num} className="border border-border rounded-3xl p-8 flex flex-col md:flex-row md:items-start gap-6">
+              <div key={opt.num} className="border border-border rounded-3xl p-8 flex flex-col md:flex-row md:items-start gap-6 px-8">
                 <div className="flex items-center gap-4 md:flex-col md:items-center md:w-24 flex-shrink-0">
                   <div className="w-12 h-12 rounded-full bg-accent/15 flex items-center justify-center">
                     <Icon name={opt.icon} size={22} className="text-accent" />
@@ -80,7 +80,7 @@ const Delivery = () => {
           </div>
 
           {/* Нижний баннер */}
-          <div className="bg-secondary/50 rounded-3xl p-10 flex flex-col md:flex-row gap-8 items-center">
+          <div className="bg-secondary/50 rounded-3xl p-10 flex flex-col md:flex-row gap-8 items-center px-[25px] py-[19px]">
             <div className="flex-1">
               <h2 className="text-2xl font-bold mb-3">Стоимость доставки уточняется индивидуально</h2>
               <p className="text-muted-foreground leading-relaxed">
@@ -88,7 +88,7 @@ const Delivery = () => {
               </p>
             </div>
             <div className="text-center flex-shrink-0">
-              <div className="text-4xl font-bold text-accent">8 (927) 120-00-07</div>
+              <div className="text-4xl font-bold text-accent px-0">8 (927) 120-00-07</div>
               <p className="text-sm text-muted-foreground mt-1">звоните или пишите</p>
             </div>
           </div>
