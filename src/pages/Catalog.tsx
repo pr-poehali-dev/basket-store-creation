@@ -108,7 +108,7 @@ const ProductCard = ({ card, cardIndex }: { card: Card; cardIndex: number }) => 
 
   return (
     <article
-      className="group bg-card border border-border hover-lift cursor-pointer flex flex-col"
+      className="group bg-card border border-border hover-lift cursor-pointer flex flex-col py-0 my-0 px-0 mx-0"
       onClick={goToProduct}
     >
       {/* Фото */}
@@ -125,7 +125,7 @@ const ProductCard = ({ card, cardIndex }: { card: Card; cardIndex: number }) => 
         </div>
       </div>
 
-      <div className="p-5 flex flex-col flex-1">
+      <div className="p-5 flex flex-col flex-1 mx-0 px-2.5 py-2.5">
         <h3 className="text-xl font-semibold mb-2">{active.name}</h3>
         <div className="flex items-center flex-wrap gap-2 mb-3">
           <span className="text-[11px] uppercase tracking-wider text-accent border border-accent/40 px-2 py-0.5 rounded-full">{active.shape}</span>
@@ -336,7 +336,7 @@ const Catalog = () => {
       <Header />
 
       <main className="pt-32 pb-24 px-6">
-        <div className="container mx-auto">
+        <div className="container mx-auto px-0">
           <div className="mb-12 max-w-xl">
             <p className="text-accent text-sm tracking-[0.3em] uppercase mb-3">Продукция</p>
             <h1 className="text-3xl sm:text-5xl font-semibold">Каталог корзин</h1>
@@ -344,9 +344,9 @@ const Catalog = () => {
 
           <div className="grid lg:grid-cols-[280px_1fr] gap-10">
             <aside className="space-y-8 lg:sticky lg:top-24 self-start">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between rounded-none">
                 <h3 className="text-2xl font-semibold">Фильтры</h3>
-                <button onClick={reset} className="text-xs text-muted-foreground hover:text-accent">
+                <button onClick={reset} className="text-xs text-muted-foreground hover:text-accent px-3">
                   Сбросить
                 </button>
               </div>
