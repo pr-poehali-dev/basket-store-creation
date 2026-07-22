@@ -15,7 +15,7 @@ const Index = () => {
 
       {/* Hero */}
       <section id="home" className="pt-32 pb-24 px-6">
-        <div className="container mx-auto grid md:grid-cols-2 gap-12 items-center">
+        <div className="container mx-auto grid md:grid-cols-2 gap-12 items-center px-0">
           <div className="animate-fade-in">
             <p className="text-accent text-sm tracking-[0.3em] uppercase mb-6">Оптовое производство</p>
             <h1 className="text-4xl sm:text-5xl md:text-7xl font-semibold leading-[1.05] mb-6">
