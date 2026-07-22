@@ -20,7 +20,7 @@ const Contacts = () => {
     <div className="min-h-screen bg-background text-foreground">
       <Header />
       <main className="pt-32 pb-0 px-6">
-        <div className="container mx-auto max-w-5xl">
+        <div className="container mx-auto max-w-5xl px-0">
 
           {/* Hero — крупная цитата + фото */}
           <div className="grid md:grid-cols-5 gap-12 items-center mb-24">
@@ -46,7 +46,7 @@ const Contacts = () => {
           </div>
 
           {/* Преимущества — горизонтальная лента */}
-          <div className="bg-secondary/40 rounded-3xl p-10 mb-24">
+          <div className="bg-secondary/40 rounded-3xl p-10 mb-24 px-[11px]">
             <h2 className="text-3xl font-bold mb-10">Качество на всех этапах</h2>
             <div className="grid md:grid-cols-2 gap-6">
               {ADVANTAGES.map(item => (
@@ -70,7 +70,7 @@ const Contacts = () => {
               alt="Производство корзин"
               className="w-full aspect-[21/9] object-cover"
             />
-            <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-transparent to-transparent flex items-center p-12">
+            <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-transparent to-transparent flex items-center p-12 px-11 py-[41px] my-0 mx-0 rounded-none">
               <div className="text-white max-w-sm">
                 <p className="text-3xl font-bold mb-3">С 2015 года</p>
                 <p className="text-base opacity-80 leading-relaxed">Делаем корзины из натуральной ивовой лозы для оптовых покупателей по всей России</p>
@@ -79,7 +79,7 @@ const Contacts = () => {
           </div>
 
           {/* Наши соцсети */}
-          <div className="mb-24">
+          <div className="my-[30px]">
             <h2 className="text-4xl font-bold mb-12">Наши соцсети</h2>
             <div className="grid md:grid-cols-3 gap-6">
               {SOCIALS.map(s => (
@@ -105,10 +105,10 @@ const Contacts = () => {
           </div>
 
           {/* Контакты */}
-          <div className="pb-24">
+          <div className="py-0">
             <h2 className="text-4xl font-bold mb-12">Контакты</h2>
             <div className="grid md:grid-cols-3 gap-6 mb-12">
-              <div className="border border-border rounded-3xl p-8">
+              <div className="border border-border rounded-3xl p-8 py-[9px] px-8">
                 <div className="w-10 h-10 rounded-full bg-accent/15 flex items-center justify-center mb-4">
                   <Icon name="MapPin" size={18} className="text-accent" />
                 </div>
@@ -116,7 +116,7 @@ const Contacts = () => {
                 <p className="font-semibold">Саратов</p>
                 <p className="text-muted-foreground text-sm mt-1">ул. Зенитная, д. 25</p>
               </div>
-              <div className="border border-border rounded-3xl p-8">
+              <div className="border border-border rounded-3xl p-8 py-[9px]">
                 <div className="w-10 h-10 rounded-full bg-accent/15 flex items-center justify-center mb-4">
                   <Icon name="Clock" size={18} className="text-accent" />
                 </div>
@@ -124,7 +124,7 @@ const Contacts = () => {
                 <p className="font-semibold">Пн–Пт: 10:00–18:00</p>
                 <p className="text-muted-foreground text-sm mt-1">Сб–Вс: выходной</p>
               </div>
-              <div className="border border-border rounded-3xl p-8">
+              <div className="border border-border rounded-3xl p-8 py-[9px]">
                 <div className="w-10 h-10 rounded-full bg-accent/15 flex items-center justify-center mb-4">
                   <Icon name="MessageCircle" size={18} className="text-accent" />
                 </div>
