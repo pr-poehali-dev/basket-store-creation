@@ -11,7 +11,7 @@ const SOCIALS = [
 ];
 
 const Footer = () => (
-  <footer className="border-t border-border px-3 py-3">
+  <footer className="border-t border-border px-0 py-2">
     <div className="container mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
       {/* Лого */}
       <div className="flex items-center gap-2">

@@ -111,8 +111,8 @@ const Checkout = () => {
     <div className="min-h-screen bg-background text-foreground">
       <Header />
 
-      <main className="pt-32 pb-24 px-6">
-        <div className="container mx-auto max-w-2xl">
+      <main className="px-6 py-28">
+        <div className="container mx-auto max-w-2xl px-0">
 
           {/* Прогресс */}
           <div className="flex items-center gap-2 text-sm mb-8 flex-wrap">
