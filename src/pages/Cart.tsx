@@ -103,7 +103,7 @@ const Cart = () => {
       <Header />
 
       <main className="pt-32 pb-24 px-6">
-        <div className="container mx-auto">
+        <div className="container mx-auto px-0">
           <div className="mb-10">
             <p className="text-accent text-sm tracking-[0.3em] uppercase mb-3">Оформление</p>
             <h1 className="text-3xl sm:text-5xl font-semibold">Корзина</h1>
