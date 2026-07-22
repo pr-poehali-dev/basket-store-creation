@@ -117,8 +117,8 @@ const Faq = () => {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <Header />
-      <main className="pt-32 pb-24 px-6">
-        <div className="container mx-auto max-w-5xl">
+      <main className="py-[88px] px-6">
+        <div className="container mx-auto max-w-5xl px-0">
 
           {/* Hero — фото слева, текст справа */}
           <div className="grid md:grid-cols-2 gap-12 items-center mb-20">
