@@ -5,7 +5,6 @@ import urls from '../../../backend/func2url.json';
 
 interface Position {
   id: number;
-  group_name: string;
   catalog_name: string;
   set_catalog_names: string;
   set_staff_names: string;
@@ -23,7 +22,6 @@ interface StaffMember { id: number; full_name: string; group_name: string; }
 interface Plan { id: number; staff_id: number; full_name: string; daily_plan_rub: number; daily_plan_hours: number; valid_from: string; }
 
 const ALL_COLUMNS = [
-  { key: 'group_name',         label: 'Группа' },
   { key: 'staff_name',         label: 'Название для ЗП' },
   { key: 'catalog_name',       label: 'Название в каталоге' },
   { key: 'set_catalog_names',  label: 'Набор из каталога' },
@@ -35,10 +33,10 @@ const ALL_COLUMNS = [
   { key: 'price_ears',         label: 'Уши, ₽' },
   { key: 'sort_order',         label: 'Сортировка' },
 ];
-const DEFAULT_VISIBLE = ['group_name', 'staff_name', 'catalog_name', 'weave_type', 'price_whole', 'price_no_handle', 'price_handle', 'price_ears', 'sort_order'];
+const DEFAULT_VISIBLE = ['staff_name', 'catalog_name', 'weave_type', 'price_whole', 'price_no_handle', 'price_handle', 'price_ears', 'sort_order'];
 
 const EMPTY_POS: Omit<Position, 'id' | 'is_active'> = {
-  group_name: '', catalog_name: '', set_catalog_names: '', set_staff_names: '', staff_name: '',
+  catalog_name: '', set_catalog_names: '', set_staff_names: '', staff_name: '',
   weave_type: '', sort_order: 0, price_whole: 0, price_no_handle: 0, price_handle: 0, price_ears: 0,
 };
 
@@ -86,6 +84,7 @@ const AdminHandbook = () => {
   const [saving, setSaving]           = useState(false);
 
   const [importing, setImporting]       = useState(false);
+  const [importMode, setImportMode]     = useState<'append' | 'replace'>('append');
   const [importResult, setImportResult] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -132,7 +131,7 @@ const AdminHandbook = () => {
   const openEditPos = (p: Position) => {
     setEditPosId(p.id);
     setPosForm({
-      group_name: p.group_name, catalog_name: p.catalog_name, set_catalog_names: p.set_catalog_names, set_staff_names: p.set_staff_names,
+      catalog_name: p.catalog_name, set_catalog_names: p.set_catalog_names, set_staff_names: p.set_staff_names,
       staff_name: p.staff_name, weave_type: p.weave_type, sort_order: p.sort_order,
       price_whole: p.price_whole, price_no_handle: p.price_no_handle, price_handle: p.price_handle, price_ears: p.price_ears,
     });
@@ -156,11 +155,15 @@ const AdminHandbook = () => {
   const handleExcelImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (importMode === 'replace' && !confirm('Все текущие позиции справочника будут удалены и заменены данными из файла. Продолжить?')) {
+      e.target.value = '';
+      return;
+    }
     setImporting(true); setImportResult('');
     const reader = new FileReader();
     reader.onload = async (ev) => {
       const b64 = (ev.target?.result as string).split(',')[1];
-      const res  = await fetch(urls['handbook'], { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'excel_positions', file: b64 }) });
+      const res  = await fetch(urls['handbook'], { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'excel_positions', file: b64, mode: importMode }) });
       const data = await res.json();
       setImporting(false);
       setImportResult(data.error ? `Ошибка: ${data.error}` : `Создано: ${data.created}, обновлено: ${data.updated}`);
@@ -217,11 +220,21 @@ const AdminHandbook = () => {
             <div className="bg-card border border-border p-6 mb-8 rounded-2xl">
               <h2 className="font-display text-xl font-semibold mb-4">Excel</h2>
               <p className="text-sm text-muted-foreground mb-4">
-                Колонки: <code className="bg-secondary px-1">группа, название для зп, название в каталоге, названия позиций для набора из каталога, названия позиций для набора из зп, вид плетения, цена за готовую корзину, цена за корзину без ручки, цена за ручку, цена за уши, сортировка</code>
+                Колонки строго по порядку (первая строка — заголовки, не важны): <code className="bg-secondary px-1">название в каталоге, названия позиций для набора из каталога, названия позиций для набора из зп, название для зп, вид плетения, цена за готовую корзину, цена за корзину без ручки, цена за ручку, цена за уши, сортировка</code>
               </p>
               <p className="text-xs text-muted-foreground mb-4">
-                Позиции набора перечисляются через «;». Обновление происходит по совпадению «название для зп».
+                Позиции набора перечисляются через «;». В режиме «Добавить/обновить» — обновление происходит по совпадению «название для зп».
               </p>
+              <div className="flex flex-wrap items-center gap-4 mb-4">
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input type="radio" checked={importMode === 'append'} onChange={() => setImportMode('append')} />
+                  Добавить / обновить по названию
+                </label>
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input type="radio" checked={importMode === 'replace'} onChange={() => setImportMode('replace')} />
+                  Заменить все позиции
+                </label>
+              </div>
               <div className="flex flex-wrap items-center gap-3">
                 <Button onClick={() => fileRef.current?.click()} disabled={importing} className="rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground">
                   <Icon name="Upload" size={16} className="mr-2" />
@@ -304,7 +317,6 @@ const AdminHandbook = () => {
                   <tbody>
                     {filteredPositions.map(pos => (
                       <tr key={pos.id} className={`border-b border-border last:border-0 hover:bg-secondary/20 ${!pos.is_active ? 'opacity-40' : ''}`}>
-                        {col('group_name')        && <td className="px-4 py-3 text-muted-foreground">{pos.group_name || '—'}</td>}
                         {col('staff_name')        && <td className="px-4 py-3 font-medium">{pos.staff_name}</td>}
                         {col('catalog_name')      && <td className="px-4 py-3 text-muted-foreground">{pos.catalog_name || '—'}</td>}
                         {col('set_catalog_names') && <td className="px-4 py-3 text-muted-foreground text-xs">{pos.set_catalog_names || '—'}</td>}
@@ -402,10 +414,6 @@ const AdminHandbook = () => {
               <button onClick={() => setShowPosForm(false)}><Icon name="X" size={20} /></button>
             </div>
             <div className="space-y-4">
-              <div>
-                <label className={labelCls}>Группа</label>
-                <input value={posForm.group_name} onChange={e => setPosForm(f => ({...f, group_name: e.target.value}))} placeholder="напр. Анталия (объединяющее название)" className={inputCls} />
-              </div>
               <div>
                 <label className={labelCls}>Название для ЗП *</label>
                 <input value={posForm.staff_name} onChange={e => setPosForm(f => ({...f, staff_name: e.target.value}))} placeholder="напр. Анталия 50/33" className={inputCls} />

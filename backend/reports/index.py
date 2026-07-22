@@ -69,6 +69,8 @@ def handler(event: dict, context) -> dict:
                         'positions': row['positions'] or [],
                         'total_rub': to_float(row['total_rub']),
                         'hours': to_float(row['hours']),
+                        'time_start': row['time_start'].strftime('%H:%M') if row.get('time_start') else '',
+                        'time_end': row['time_end'].strftime('%H:%M') if row.get('time_end') else '',
                         'locked': bool(row['locked']),
                     }})}
 
@@ -94,6 +96,8 @@ def handler(event: dict, context) -> dict:
                         'positions': r['positions'] or [],
                         'total_rub': to_float(r['total_rub']),
                         'hours': to_float(r['hours']),
+                        'time_start': r['time_start'].strftime('%H:%M') if r.get('time_start') else '',
+                        'time_end': r['time_end'].strftime('%H:%M') if r.get('time_end') else '',
                         'locked': bool(r['locked']),
                     } for r in rows]
                     return {'statusCode': 200, 'headers': cors(),
@@ -170,15 +174,17 @@ def handler(event: dict, context) -> dict:
                 positions   = json.dumps(body.get('positions', []), ensure_ascii=False)
                 total_rub   = float(body.get('total_rub', 0))
                 hours       = float(body.get('hours', 0))
+                time_start  = body.get('time_start') or None
+                time_end    = body.get('time_end') or None
                 with conn.cursor() as cur:
                     cur.execute(
-                        """INSERT INTO staff_reports (staff_id, report_date, positions, total_rub, hours)
-                           VALUES (%s, %s, %s, %s, %s)
+                        """INSERT INTO staff_reports (staff_id, report_date, positions, total_rub, hours, time_start, time_end)
+                           VALUES (%s, %s, %s, %s, %s, %s, %s)
                            ON CONFLICT (staff_id, report_date)
-                           DO UPDATE SET positions=%s, total_rub=%s, hours=%s, updated_at=NOW()
+                           DO UPDATE SET positions=%s, total_rub=%s, hours=%s, time_start=%s, time_end=%s, updated_at=NOW()
                            RETURNING id""",
-                        (staff_id, report_date, positions, total_rub, hours,
-                         positions, total_rub, hours)
+                        (staff_id, report_date, positions, total_rub, hours, time_start, time_end,
+                         positions, total_rub, hours, time_start, time_end)
                     )
                     report_id = cur.fetchone()[0]
 
