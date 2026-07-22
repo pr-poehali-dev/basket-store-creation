@@ -21,9 +21,8 @@ const Index = () => {
             <h1 className="text-4xl sm:text-5xl md:text-7xl font-semibold leading-[1.05] mb-6">
               Плетёные корзины из натуральных материалов
             </h1>
-            <p className="text-muted-foreground text-lg mb-8 max-w-md">
-              Собственное производство полного цикла. Поставки для розничных сетей, маркетплейсов и HoReCa по всей России.
-            </p>
+            <p className="text-muted-foreground text-lg mb-8 max-w-md">Собственное производство полного цикла. 
+Поставки для частных лиц, розничных сетей и крупных оптовых баз по всей России.</p>
             <div className="flex flex-wrap gap-4">
               <Link to="/catalog">
                 <Button className="bg-primary hover:bg-primary/90 text-primary-foreground px-8 h-12">
