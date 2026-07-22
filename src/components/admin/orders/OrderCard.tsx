@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  Order, groupPositions, fmtMoney, fmtDateShort,
+  Order, groupPositions, displayTitle, fmtMoney, fmtDateShort,
   RESPONSIBLES, responsibleStyle, DELIVERY_TYPES, DELIVERY_LABELS,
   getDeadlineStatus, weavingPct, paintingPct, CLOSED_STAGE, canAdvanceStage,
 } from '../orderUtils';
@@ -163,7 +163,7 @@ export const OrderCard = ({ order, onDragStart, onUpdate, onOpenFull }: OrderCar
                 {positions.map(pos => (
                   <div key={pos.key}>
                     <div className="flex justify-between items-center gap-2 px-2 py-1 bg-primary/5 border-b border-primary/20">
-                      <span className="font-bold text-primary text-xs break-words">{pos.title}</span>
+                      <span className="font-bold text-primary text-xs break-words">{displayTitle(pos.title)}</span>
                       <span className="font-bold text-primary text-xs flex-shrink-0">{pos.total}</span>
                     </div>
                     {showColors && pos.colors.map((c, i) => (

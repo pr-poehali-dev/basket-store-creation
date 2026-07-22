@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import urls from '../../../backend/func2url.json';
+import { displayTitle } from './orderUtils';
 
 interface WarehouseItem {
   id: number;
@@ -235,7 +236,7 @@ const AdminWarehouse = () => {
                 return (
                   <tr key={item.id > 0 ? item.id : `virtual-${idx}`}
                     className={`border-b border-primary/10 last:border-0 hover:bg-primary/3 ${total === 0 ? 'opacity-50' : ''}`}>
-                    <td className="px-4 py-2.5 text-primary font-medium">{item.catalog_name}</td>
+                    <td className="px-4 py-2.5 text-primary font-medium">{displayTitle(item.catalog_name)}</td>
                     <td className="px-4 py-2.5 text-right font-bold text-primary">{item.qty_full}</td>
                     <td className="px-4 py-2.5 text-right text-primary/70">{item.qty_no_handle}</td>
                     <td className="px-4 py-2.5 text-right font-bold" style={{ color: total > 0 ? '#6b7c3a' : undefined }}>
@@ -328,7 +329,7 @@ const AdminWarehouse = () => {
           <div className="bg-background rounded-2xl border border-primary/30 p-6 w-full max-w-2xl max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold text-primary text-lg">
-                История {logItem ? `— ${logItem}` : '(все позиции)'}
+                История {logItem ? `— ${displayTitle(logItem)}` : '(все позиции)'}
               </h3>
               <button onClick={() => setShowLog(false)} className="text-muted-foreground hover:text-primary text-xl">✕</button>
             </div>
@@ -351,7 +352,7 @@ const AdminWarehouse = () => {
                     {log.map(e => (
                       <tr key={e.id} className="border-b border-primary/10 last:border-0">
                         <td className="py-2 text-xs text-muted-foreground pr-3 whitespace-nowrap">{fmtDt(e.created_at)}</td>
-                        {!logItem && <td className="py-2 text-primary font-medium pr-3 max-w-[160px] truncate">{e.catalog_name}</td>}
+                        {!logItem && <td className="py-2 text-primary font-medium pr-3 max-w-[160px] truncate">{displayTitle(e.catalog_name)}</td>}
                         <td className={`py-2 pr-3 font-medium text-xs ${OP_COLORS[e.operation] || 'text-primary'}`}>
                           {OP_LABELS[e.operation] || e.operation}
                         </td>

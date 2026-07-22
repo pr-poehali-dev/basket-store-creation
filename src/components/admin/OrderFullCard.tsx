@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Order, groupPositions, fmtMoney, fmtDateShort, RESPONSIBLES, DELIVERY_LABELS } from './orderUtils';
+import { Order, groupPositions, displayTitle, fmtMoney, fmtDateShort, RESPONSIBLES, DELIVERY_LABELS } from './orderUtils';
 import urls from '../../../backend/func2url.json';
 
 interface Props {
@@ -366,7 +366,7 @@ const OrderFullCard = ({ order, onClose, onUpdate, onOpenClient }: Props) => {
                   <tbody>
                     {posGroups.map((g, i) => (
                       <tr key={i} className="border-b border-primary/10 last:border-0">
-                        <td className="px-3 py-2 text-primary font-medium">{g.title}</td>
+                        <td className="px-3 py-2 text-primary font-medium">{displayTitle(g.title)}</td>
                         <td className="px-3 py-2 text-right font-bold text-primary">{g.total}</td>
                       </tr>
                     ))}
@@ -385,7 +385,7 @@ const OrderFullCard = ({ order, onClose, onUpdate, onOpenClient }: Props) => {
                     <div key={gi}>
                       {/* Строка позиции — шапка */}
                       <div className="flex justify-between items-center px-3 py-2 bg-primary/5 border-b border-primary/20">
-                        <span className="font-bold text-primary text-sm">{g.title}</span>
+                        <span className="font-bold text-primary text-sm">{displayTitle(g.title)}</span>
                         <span className="font-bold text-primary text-sm">{g.total} шт</span>
                       </div>
                       {/* Строки цветов */}
@@ -425,7 +425,7 @@ const OrderFullCard = ({ order, onClose, onUpdate, onOpenClient }: Props) => {
                   return (
                     <div key={pos.key} className="text-sm">
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-primary/80">{pos.title}</span>
+                        <span className="text-primary/80">{displayTitle(pos.title)}</span>
                         <span className="text-xs text-muted-foreground">{pos.total} шт</span>
                       </div>
                       <div className="flex gap-3">

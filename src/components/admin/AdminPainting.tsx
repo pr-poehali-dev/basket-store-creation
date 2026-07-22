@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import urls from '../../../backend/func2url.json';
-import { Order, OrderItem, fmtDate, fmtMoney, fmtDateShort, STAGES, CLOSED_STAGE, canAdvanceStage } from './orderUtils';
+import { Order, OrderItem, displayTitle, fmtDate, fmtMoney, fmtDateShort, STAGES, CLOSED_STAGE, canAdvanceStage } from './orderUtils';
 import OrderFullCard from './OrderFullCard';
 
 const PAINT_COLORS: { name: string; hex: string }[] = [
@@ -171,7 +171,7 @@ const PaintingCard = ({ order, colorFilter, onUpdatePainted, onUpdateStage, onOp
                       return (
                         <tr key={pos.posKey}>
                           <td className="px-2 py-1.5 text-center text-primary font-semibold border border-primary/10">{i+1}</td>
-                          <td className="px-3 py-1.5 text-primary border border-primary/10 break-words">{pos.posTitle}</td>
+                          <td className="px-3 py-1.5 text-primary border border-primary/10 break-words">{displayTitle(pos.posTitle)}</td>
                           <td className="px-2 py-1.5 text-center text-primary font-bold border border-primary/10">{pos.qty}</td>
                           <td className="px-2 py-1.5 text-center text-primary/60 border border-primary/10">{woven}</td>
                           <td className="px-1 py-1 text-center border border-primary/10">

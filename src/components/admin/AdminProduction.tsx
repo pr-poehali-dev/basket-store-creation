@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import urls from '../../../backend/func2url.json';
-import { Order, groupPositions, fmtDate, fmtMoney, fmtDateShort, STAGES, CLOSED_STAGE, canAdvanceStage } from './orderUtils';
+import { Order, groupPositions, displayTitle, fmtDate, fmtMoney, fmtDateShort, STAGES, CLOSED_STAGE, canAdvanceStage } from './orderUtils';
 import OrderFullCard from './OrderFullCard';
 
 const PROD_STAGES = STAGES.slice(STAGES.indexOf('В очереди на плетение'));
@@ -116,7 +116,7 @@ const ProductionCard = ({ order, warehouseMap, onUpdateProduced, onUpdateStage, 
                 return (
                   <tr key={pos.key}>
                     <td className="px-2 py-1.5 text-center text-primary font-semibold border border-primary/10">{i+1}</td>
-                    <td className="px-3 py-1.5 text-primary border border-primary/10 break-words">{pos.title}</td>
+                    <td className="px-3 py-1.5 text-primary border border-primary/10 break-words">{displayTitle(pos.title)}</td>
                     {showColors && (
                       <td className="px-2 py-1.5 border border-primary/10">
                         {pos.colors.map((c,ci) => <div key={ci} className="text-[10px] text-primary/70">{c.color}: {c.qty}</div>)}

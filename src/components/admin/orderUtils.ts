@@ -49,6 +49,12 @@ export interface Position {
   colors: { color: string; qty: number }[];
 }
 
+// Отображаемое название позиции без размера в скобках (только для UI —
+// сам title остаётся с размером и используется как ключ сопоставления со складом)
+export function displayTitle(title: string): string {
+  return title.replace(/\s*\([^)]*\)\s*$/, '').trim();
+}
+
 export function groupPositions(items: OrderItem[]): Position[] {
   const map = new Map<string, Position>();
   for (const it of items) {
