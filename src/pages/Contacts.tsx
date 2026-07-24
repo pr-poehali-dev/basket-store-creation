@@ -46,7 +46,7 @@ const Contacts = () => {
           </div>
 
           {/* Преимущества — горизонтальная лента */}
-          <div className="bg-secondary/40 rounded-3xl p-10 mb-24 px-[11px]">
+          <div className="bg-secondary/40 rounded-3xl p-10 mb-24 px-[27px]">
             <h2 className="text-3xl font-bold mb-10">Качество на всех этапах</h2>
             <div className="grid md:grid-cols-2 gap-6">
               {ADVANTAGES.map(item => (
