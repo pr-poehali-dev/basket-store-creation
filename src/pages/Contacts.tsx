@@ -107,7 +107,7 @@ const Contacts = () => {
           {/* Контакты */}
           <div className="py-0">
             <h2 className="text-4xl font-bold mb-12">Контакты</h2>
-            <div className="grid md:grid-cols-3 gap-6 mb-12">
+            <div className="grid md:grid-cols-3 gap-6 my-6 py-[25px]">
               <div className="border border-border rounded-3xl p-8 py-[9px] px-8">
                 <div className="w-10 h-10 rounded-full bg-accent/15 flex items-center justify-center mb-4">
                   <Icon name="MapPin" size={18} className="text-accent" />
