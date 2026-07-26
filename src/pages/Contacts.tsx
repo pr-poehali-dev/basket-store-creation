@@ -79,8 +79,8 @@ const Contacts = () => {
           </div>
 
           {/* Наши соцсети */}
-          <div className="my-[30px]">
-            <h2 className="text-4xl font-bold mb-12">Наши соцсети</h2>
+          <div className="my-[60px]">
+            <h2 className="text-4xl font-bold my-[15px]">Наши соцсети</h2>
             <div className="grid md:grid-cols-3 gap-6">
               {SOCIALS.map(s => (
                 <a
@@ -105,9 +105,9 @@ const Contacts = () => {
           </div>
 
           {/* Контакты */}
-          <div className="py-0">
-            <h2 className="text-4xl font-bold mb-12">Контакты</h2>
-            <div className="grid md:grid-cols-3 gap-6 my-6 py-[25px]">
+          <div className="py-0 my-[60px]">
+            <h2 className="text-4xl font-bold my-[15px]">Контакты</h2>
+            <div className="grid md:grid-cols-3 gap-6 py-0 my-0">
               <div className="border border-border rounded-3xl p-8 py-[9px] px-8">
                 <div className="w-10 h-10 rounded-full bg-accent/15 flex items-center justify-center mb-4">
                   <Icon name="MapPin" size={18} className="text-accent" />
