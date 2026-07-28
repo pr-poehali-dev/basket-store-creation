@@ -120,18 +120,18 @@ const PaintingCard = ({ order, colorFilter, onUpdatePainted, onUpdateStage, onOp
             </div>
           </div>
           <div className="border-t border-primary/20 md:border-t-0 md:border-l md:border-primary/20 pt-3 md:pt-0 md:pl-4 min-w-[220px]" onClick={e => e.stopPropagation()}>
-            <table className="w-full text-xs border-collapse">
+            <table className="w-full text-xs border-collapse table-fixed">
               <thead><tr className="bg-primary/5">
-                <th className="px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">Кол-во</th>
-                <th className="px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">Покрашено</th>
-                <th className="px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">Остаток</th>
-                <th className="px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">%</th>
+                <th className="w-16 px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">Кол-во</th>
+                <th className="w-20 px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">Покра-<br />шено</th>
+                <th className="w-16 px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">Оста-<br />ток</th>
+                <th className="w-14 px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">%</th>
               </tr></thead>
               <tbody><tr>
-                <td className="px-2 py-1.5 text-center font-bold text-primary border border-primary/20">{sumQty}</td>
-                <td className="px-2 py-1.5 text-center font-bold text-primary border border-primary/20">{sumPainted}</td>
-                <td className="px-2 py-1.5 text-center font-bold text-primary border border-primary/20">{sumQty-sumPainted}</td>
-                <td className="px-2 py-1.5 text-center font-bold border border-primary/20" style={{color:OLIVE}}>{totalPct}%</td>
+                <td className="w-16 px-2 py-1.5 text-center font-bold text-primary border border-primary/20">{sumQty}</td>
+                <td className="w-20 px-2 py-1.5 text-center font-bold text-primary border border-primary/20">{sumPainted}</td>
+                <td className="w-16 px-2 py-1.5 text-center font-bold text-primary border border-primary/20">{sumQty-sumPainted}</td>
+                <td className="w-14 px-2 py-1.5 text-center font-bold border border-primary/20" style={{color:OLIVE}}>{totalPct}%</td>
               </tr></tbody>
             </table>
           </div>
@@ -151,52 +151,54 @@ const PaintingCard = ({ order, colorFilter, onUpdatePainted, onUpdateStage, onOp
                   <span className="w-4 h-4 rounded-full border border-black/10" style={{backgroundColor:colorDef?.hex||'#ccc'}} />
                   <span className="uppercase tracking-wide">{color}</span>
                 </div>
-                <table className="w-full text-xs border-collapse">
-                  <thead>
-                    <tr className="bg-primary/5">
-                      <th className="px-2 py-1.5 text-center font-semibold text-primary border border-primary/20 w-8">№</th>
-                      <th className="px-3 py-1.5 text-left font-semibold text-primary border border-primary/20">Позиция</th>
-                      <th className="px-2 py-1.5 text-center font-semibold text-primary border border-primary/20 w-16">Кол-во</th>
-                      <th className="px-2 py-1.5 text-center font-semibold text-primary border border-primary/20 w-20">Сплетено</th>
-                      <th className="px-2 py-1.5 text-center font-semibold text-primary border border-primary/20 w-20">Покрашено</th>
-                      <th className="px-2 py-1.5 text-center font-semibold text-primary border border-primary/20 w-16">Остаток</th>
-                      <th className="px-2 py-1.5 text-center font-semibold text-primary border border-primary/20 w-14">%</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {positions.map((pos, i) => {
-                      const woven      = produced[pos.posKey]||0;
-                      const paintedVal = Math.min(painted[pos.posKey]||0, pos.qty);
-                      const left       = pos.qty - paintedVal;
-                      return (
-                        <tr key={pos.posKey}>
-                          <td className="px-2 py-1.5 text-center text-primary font-semibold border border-primary/10">{i+1}</td>
-                          <td className="px-3 py-1.5 text-primary border border-primary/10 break-words">{displayTitle(pos.posTitle)}</td>
-                          <td className="px-2 py-1.5 text-center text-primary font-bold border border-primary/10">{pos.qty}</td>
-                          <td className="px-2 py-1.5 text-center text-primary/60 border border-primary/10">{woven}</td>
-                          <td className="px-1 py-1 text-center border border-primary/10">
-                            <input type="number" min={0} max={pos.qty}
-                              defaultValue={paintedVal} key={`${pos.posKey}-${paintedVal}`}
-                              onBlur={e => setPainted(pos.posKey, parseInt(e.target.value,10)||0, pos.qty)}
-                              onKeyDown={e => e.key==='Enter' && setPainted(pos.posKey, parseInt((e.target as HTMLInputElement).value,10)||0, pos.qty)}
-                              className="w-14 text-center border border-primary/30 rounded px-1 py-0.5 bg-background outline-none focus:border-accent [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
-                          </td>
-                          <td className="px-2 py-1.5 text-center text-primary font-bold border border-primary/10">{left}</td>
-                          <td className="px-2 py-1.5 text-center font-semibold border border-primary/10" style={{color:OLIVE}}>{pct(paintedVal,pos.qty)}%</td>
-                        </tr>
-                      );
-                    })}
-                    <tr className="bg-primary/5 border-t-2 border-primary/30">
-                      <td className="border border-primary/20" />
-                      <td className="px-3 py-1.5 text-center font-bold text-primary border border-primary/20">ИТОГО</td>
-                      <td className="px-2 py-1.5 text-center font-bold text-primary border border-primary/20">{colorQty}</td>
-                      <td className="px-2 py-1.5 text-center font-bold text-primary/50 border border-primary/20">—</td>
-                      <td className="px-2 py-1.5 text-center font-bold text-primary border border-primary/20">{colorPainted}</td>
-                      <td className="px-2 py-1.5 text-center font-bold text-primary border border-primary/20">{colorQty-colorPainted}</td>
-                      <td className="px-2 py-1.5 text-center font-bold border border-primary/20" style={{color:OLIVE}}>{pct(colorPainted,colorQty)}%</td>
-                    </tr>
-                  </tbody>
-                </table>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs border-collapse table-fixed">
+                    <thead>
+                      <tr className="bg-primary/5">
+                        <th className="sticky left-0 z-10 bg-primary/5 w-8 px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">№</th>
+                        <th className="sticky left-8 z-10 bg-primary/5 w-40 sm:w-56 px-3 py-1.5 text-left font-semibold text-primary border border-primary/20 shadow-[3px_0_5px_-3px_rgba(0,0,0,0.15)]">Позиция</th>
+                        <th className="w-16 px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">Кол-во</th>
+                        <th className="w-20 px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">Сплете-<br />но</th>
+                        <th className="w-20 px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">Покра-<br />шено</th>
+                        <th className="w-16 px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">Оста-<br />ток</th>
+                        <th className="w-14 px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">%</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {positions.map((pos, i) => {
+                        const woven      = produced[pos.posKey]||0;
+                        const paintedVal = Math.min(painted[pos.posKey]||0, pos.qty);
+                        const left       = pos.qty - paintedVal;
+                        return (
+                          <tr key={pos.posKey}>
+                            <td className="sticky left-0 z-10 bg-card w-8 px-2 py-1.5 text-center text-primary font-semibold border border-primary/10">{i+1}</td>
+                            <td className="sticky left-8 z-10 bg-card w-40 sm:w-56 px-3 py-1.5 text-primary border border-primary/10 break-words shadow-[3px_0_5px_-3px_rgba(0,0,0,0.15)]">{displayTitle(pos.posTitle)}</td>
+                            <td className="w-16 px-2 py-1.5 text-center text-primary font-bold border border-primary/10">{pos.qty}</td>
+                            <td className="w-20 px-2 py-1.5 text-center text-primary/60 border border-primary/10">{woven}</td>
+                            <td className="w-20 px-1 py-1 text-center border border-primary/10">
+                              <input type="number" min={0} max={pos.qty}
+                                defaultValue={paintedVal} key={`${pos.posKey}-${paintedVal}`}
+                                onBlur={e => setPainted(pos.posKey, parseInt(e.target.value,10)||0, pos.qty)}
+                                onKeyDown={e => e.key==='Enter' && setPainted(pos.posKey, parseInt((e.target as HTMLInputElement).value,10)||0, pos.qty)}
+                                className="w-14 text-center border border-primary/30 rounded px-1 py-0.5 bg-background outline-none focus:border-accent [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                            </td>
+                            <td className="w-16 px-2 py-1.5 text-center text-primary font-bold border border-primary/10">{left}</td>
+                            <td className="w-14 px-2 py-1.5 text-center font-semibold border border-primary/10" style={{color:OLIVE}}>{pct(paintedVal,pos.qty)}%</td>
+                          </tr>
+                        );
+                      })}
+                      <tr className="bg-primary/5 border-t-2 border-primary/30">
+                        <td className="sticky left-0 z-10 bg-primary/5 border border-primary/20" />
+                        <td className="sticky left-8 z-10 bg-primary/5 px-3 py-1.5 text-center font-bold text-primary border border-primary/20 shadow-[3px_0_5px_-3px_rgba(0,0,0,0.15)]">ИТОГО</td>
+                        <td className="w-16 px-2 py-1.5 text-center font-bold text-primary border border-primary/20">{colorQty}</td>
+                        <td className="w-20 px-2 py-1.5 text-center font-bold text-primary/50 border border-primary/20">—</td>
+                        <td className="w-20 px-2 py-1.5 text-center font-bold text-primary border border-primary/20">{colorPainted}</td>
+                        <td className="w-16 px-2 py-1.5 text-center font-bold text-primary border border-primary/20">{colorQty-colorPainted}</td>
+                        <td className="w-14 px-2 py-1.5 text-center font-bold border border-primary/20" style={{color:OLIVE}}>{pct(colorPainted,colorQty)}%</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
               </div>
             );
           })}

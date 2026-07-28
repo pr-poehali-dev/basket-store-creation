@@ -72,20 +72,20 @@ const ProductionCard = ({ order, warehouseMap, onUpdateProduced, onUpdateStage, 
             </div>
           </div>
           <div className="border-t border-primary/20 md:border-t-0 md:border-l md:border-primary/20 pt-3 md:pt-0 md:pl-4 min-w-[240px]" onClick={e => e.stopPropagation()}>
-            <table className="w-full text-xs border-collapse">
+            <table className="w-full text-xs border-collapse table-fixed">
               <thead><tr className="bg-primary/5">
-                <th className="px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">Кол-во</th>
-                <th className="px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">На складе</th>
-                <th className="px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">Готово</th>
-                <th className="px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">Остаток</th>
-                <th className="px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">%</th>
+                <th className="w-16 px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">Кол-во</th>
+                <th className="w-16 px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">На скла-<br />де</th>
+                <th className="w-16 px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">Готово</th>
+                <th className="w-16 px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">Оста-<br />ток</th>
+                <th className="w-16 px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">%</th>
               </tr></thead>
               <tbody><tr>
-                <td className="px-2 py-1.5 text-center font-bold text-primary border border-primary/20">{totalQty}</td>
-                <td className="px-2 py-1.5 text-center font-bold border border-primary/20" style={{color: totalStock>0?OLIVE:undefined}}>{totalStock}</td>
-                <td className="px-2 py-1.5 text-center font-bold text-primary border border-primary/20">{totalDone}</td>
-                <td className="px-2 py-1.5 text-center font-bold text-primary border border-primary/20">{totalLeft}</td>
-                <td className="px-2 py-1.5 text-center font-bold border border-primary/20" style={{color:OLIVE}}>{totalPct}%</td>
+                <td className="w-16 px-2 py-1.5 text-center font-bold text-primary border border-primary/20">{totalQty}</td>
+                <td className="w-16 px-2 py-1.5 text-center font-bold border border-primary/20" style={{color: totalStock>0?OLIVE:undefined}}>{totalStock}</td>
+                <td className="w-16 px-2 py-1.5 text-center font-bold text-primary border border-primary/20">{totalDone}</td>
+                <td className="w-16 px-2 py-1.5 text-center font-bold text-primary border border-primary/20">{totalLeft}</td>
+                <td className="w-16 px-2 py-1.5 text-center font-bold border border-primary/20" style={{color:OLIVE}}>{totalPct}%</td>
               </tr></tbody>
             </table>
           </div>
@@ -94,70 +94,72 @@ const ProductionCard = ({ order, warehouseMap, onUpdateProduced, onUpdateStage, 
 
       {expanded && (
         <div className="border-t border-primary/20" onClick={e => e.stopPropagation()}>
-          <table className="w-full text-xs border-collapse">
-            <thead>
-              <tr className="bg-primary/5">
-                <th className="px-2 py-1.5 text-center font-semibold text-primary border border-primary/20 w-8">№</th>
-                <th className="px-3 py-1.5 text-left font-semibold text-primary border border-primary/20">Позиция</th>
-                {showColors && <th className="px-2 py-1.5 text-left font-semibold text-primary border border-primary/20">Цвета</th>}
-                <th className="px-2 py-1.5 text-center font-semibold text-primary border border-primary/20 w-16">Кол-во</th>
-                <th className="px-2 py-1.5 text-center font-semibold text-primary border border-primary/20 w-16">На складе</th>
-                <th className="px-2 py-1.5 text-center font-semibold text-primary border border-primary/20 w-20">Сделано</th>
-                <th className="px-2 py-1.5 text-center font-semibold text-primary border border-primary/20 w-16">Готово</th>
-                <th className="px-2 py-1.5 text-center font-semibold text-primary border border-primary/20 w-16">Остаток</th>
-                <th className="px-2 py-1.5 text-center font-semibold text-primary border border-primary/20 w-14">%</th>
-              </tr>
-            </thead>
-            <tbody>
-              {positions.map((pos, i) => {
-                const done  = Math.min(produced[pos.key]||0, pos.total);
-                const left  = pos.total - done;
-                const stock = warehouseMap[pos.title] || 0;
-                return (
-                  <tr key={pos.key}>
-                    <td className="px-2 py-1.5 text-center text-primary font-semibold border border-primary/10">{i+1}</td>
-                    <td className="px-3 py-1.5 text-primary border border-primary/10 break-words">{displayTitle(pos.title)}</td>
-                    {showColors && (
-                      <td className="px-2 py-1.5 border border-primary/10">
-                        {pos.colors.map((c,ci) => <div key={ci} className="text-[10px] text-primary/70">{c.color}: {c.qty}</div>)}
-                      </td>
-                    )}
-                    <td className="px-2 py-1.5 text-center text-primary font-bold border border-primary/10">{pos.total}</td>
-                    <td className="px-2 py-1.5 text-center font-bold border border-primary/10" style={{color: stock>0?OLIVE:undefined}}>{stock}</td>
-                    <td className="px-1 py-1 text-center border border-primary/10">
-                      <input type="number" placeholder="0" key={`${pos.key}-${done}`}
-                        onBlur={e => {
-                          const delta = parseInt(e.target.value, 10) || 0;
-                          if (delta !== 0) onUpdateProduced(order, pos.key, pos.title, delta, pos.total);
-                          e.target.value = '';
-                        }}
-                        onKeyDown={e => {
-                          if (e.key === 'Enter') {
-                            const delta = parseInt((e.target as HTMLInputElement).value, 10) || 0;
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs border-collapse table-fixed">
+              <thead>
+                <tr className="bg-primary/5">
+                  <th className="sticky left-0 z-10 bg-primary/5 w-8 px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">№</th>
+                  <th className="sticky left-8 z-10 bg-primary/5 w-40 sm:w-56 px-3 py-1.5 text-left font-semibold text-primary border border-primary/20 shadow-[3px_0_5px_-3px_rgba(0,0,0,0.15)]">Позиция</th>
+                  {showColors && <th className="w-36 px-2 py-1.5 text-left font-semibold text-primary border border-primary/20">Цвета</th>}
+                  <th className="w-16 px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">Кол-во</th>
+                  <th className="w-16 px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">На скла-<br />де</th>
+                  <th className="w-20 px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">Сделано</th>
+                  <th className="w-16 px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">Готово</th>
+                  <th className="w-16 px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">Оста-<br />ток</th>
+                  <th className="w-14 px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">%</th>
+                </tr>
+              </thead>
+              <tbody>
+                {positions.map((pos, i) => {
+                  const done  = Math.min(produced[pos.key]||0, pos.total);
+                  const left  = pos.total - done;
+                  const stock = warehouseMap[pos.title] || 0;
+                  return (
+                    <tr key={pos.key}>
+                      <td className="sticky left-0 z-10 bg-card w-8 px-2 py-1.5 text-center text-primary font-semibold border border-primary/10">{i+1}</td>
+                      <td className="sticky left-8 z-10 bg-card w-40 sm:w-56 px-3 py-1.5 text-primary border border-primary/10 break-words shadow-[3px_0_5px_-3px_rgba(0,0,0,0.15)]">{displayTitle(pos.title)}</td>
+                      {showColors && (
+                        <td className="w-36 px-2 py-1.5 border border-primary/10">
+                          {pos.colors.map((c,ci) => <div key={ci} className="text-[10px] text-primary/70">{c.color}: {c.qty}</div>)}
+                        </td>
+                      )}
+                      <td className="w-16 px-2 py-1.5 text-center text-primary font-bold border border-primary/10">{pos.total}</td>
+                      <td className="w-16 px-2 py-1.5 text-center font-bold border border-primary/10" style={{color: stock>0?OLIVE:undefined}}>{stock}</td>
+                      <td className="w-20 px-1 py-1 text-center border border-primary/10">
+                        <input type="number" placeholder="0" key={`${pos.key}-${done}`}
+                          onBlur={e => {
+                            const delta = parseInt(e.target.value, 10) || 0;
                             if (delta !== 0) onUpdateProduced(order, pos.key, pos.title, delta, pos.total);
-                            (e.target as HTMLInputElement).value = '';
-                          }
-                        }}
-                        className="w-14 text-center border border-primary/30 rounded px-1 py-0.5 bg-background outline-none focus:border-accent [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
-                    </td>
-                    <td className="px-2 py-1.5 text-center text-primary font-bold border border-primary/10">{done}</td>
-                    <td className="px-2 py-1.5 text-center text-primary font-bold border border-primary/10">{left}</td>
-                    <td className="px-2 py-1.5 text-center font-semibold border border-primary/10" style={{color:OLIVE}}>{pct(done,pos.total)}%</td>
-                  </tr>
-                );
-              })}
-              <tr className="bg-primary/5 border-t-2 border-primary/30">
-                <td className="border border-primary/20" />
-                <td className="px-3 py-1.5 text-center font-bold text-primary border border-primary/20" colSpan={showColors ? 2 : 1}>ИТОГО</td>
-                <td className="px-2 py-1.5 text-center font-bold text-primary border border-primary/20">{totalQty}</td>
-                <td className="px-2 py-1.5 text-center font-bold border border-primary/20" style={{color: totalStock>0?OLIVE:undefined}}>{totalStock}</td>
-                <td className="border border-primary/20" />
-                <td className="px-2 py-1.5 text-center font-bold text-primary border border-primary/20">{totalDone}</td>
-                <td className="px-2 py-1.5 text-center font-bold text-primary border border-primary/20">{totalLeft}</td>
-                <td className="px-2 py-1.5 text-center font-bold border border-primary/20" style={{color:OLIVE}}>{totalPct}%</td>
-              </tr>
-            </tbody>
-          </table>
+                            e.target.value = '';
+                          }}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') {
+                              const delta = parseInt((e.target as HTMLInputElement).value, 10) || 0;
+                              if (delta !== 0) onUpdateProduced(order, pos.key, pos.title, delta, pos.total);
+                              (e.target as HTMLInputElement).value = '';
+                            }
+                          }}
+                          className="w-14 text-center border border-primary/30 rounded px-1 py-0.5 bg-background outline-none focus:border-accent [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                      </td>
+                      <td className="w-16 px-2 py-1.5 text-center text-primary font-bold border border-primary/10">{done}</td>
+                      <td className="w-16 px-2 py-1.5 text-center text-primary font-bold border border-primary/10">{left}</td>
+                      <td className="w-14 px-2 py-1.5 text-center font-semibold border border-primary/10" style={{color:OLIVE}}>{pct(done,pos.total)}%</td>
+                    </tr>
+                  );
+                })}
+                <tr className="bg-primary/5 border-t-2 border-primary/30">
+                  <td className="sticky left-0 z-10 bg-primary/5 border border-primary/20" />
+                  <td className="sticky left-8 z-10 bg-primary/5 px-3 py-1.5 text-center font-bold text-primary border border-primary/20 shadow-[3px_0_5px_-3px_rgba(0,0,0,0.15)]" colSpan={showColors ? 2 : 1}>ИТОГО</td>
+                  <td className="w-16 px-2 py-1.5 text-center font-bold text-primary border border-primary/20">{totalQty}</td>
+                  <td className="w-16 px-2 py-1.5 text-center font-bold border border-primary/20" style={{color: totalStock>0?OLIVE:undefined}}>{totalStock}</td>
+                  <td className="w-20 border border-primary/20" />
+                  <td className="w-16 px-2 py-1.5 text-center font-bold text-primary border border-primary/20">{totalDone}</td>
+                  <td className="w-16 px-2 py-1.5 text-center font-bold text-primary border border-primary/20">{totalLeft}</td>
+                  <td className="w-14 px-2 py-1.5 text-center font-bold border border-primary/20" style={{color:OLIVE}}>{totalPct}%</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
           <p className="text-[10px] text-primary/50 px-3 py-2">
             В «Сделано» вводите количество за один раз — оно прибавится к «Готово» и спишется со склада (готовые корзины с ручкой). Для исправления ошибки введите отрицательное число.
           </p>
