@@ -119,19 +119,19 @@ const PaintingCard = ({ order, colorFilter, onUpdatePainted, onUpdateStage, onOp
               })}
             </div>
           </div>
-          <div className="border-t border-primary/20 md:border-t-0 md:border-l md:border-primary/20 pt-3 md:pt-0 md:pl-4 min-w-[220px]" onClick={e => e.stopPropagation()}>
-            <table className="w-full text-xs border-collapse table-fixed">
-              <thead><tr className="bg-primary/5">
-                <th className="w-16 px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">Кол-во</th>
-                <th className="w-20 px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">Покра-<br />шено</th>
-                <th className="w-16 px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">Оста-<br />ток</th>
-                <th className="w-14 px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">%</th>
+          <div className="border-t border-primary/20 md:border-t-0 md:border-l md:border-primary/20 pt-3 md:pt-0 md:pl-4 md:flex-shrink-0" onClick={e => e.stopPropagation()}>
+            <table className="w-full md:w-auto text-xs border-collapse table-fixed">
+              <thead><tr className="bg-muted">
+                <th className="w-12 px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">Кол-во</th>
+                <th className="w-14 px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">Покра-<br />шено</th>
+                <th className="w-12 px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">Оста-<br />ток</th>
+                <th className="w-12 px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">%</th>
               </tr></thead>
               <tbody><tr>
-                <td className="w-16 px-2 py-1.5 text-center font-bold text-primary border border-primary/20">{sumQty}</td>
-                <td className="w-20 px-2 py-1.5 text-center font-bold text-primary border border-primary/20">{sumPainted}</td>
-                <td className="w-16 px-2 py-1.5 text-center font-bold text-primary border border-primary/20">{sumQty-sumPainted}</td>
-                <td className="w-14 px-2 py-1.5 text-center font-bold border border-primary/20" style={{color:OLIVE}}>{totalPct}%</td>
+                <td className="w-12 px-2 py-1.5 text-center font-bold text-primary border border-primary/20">{sumQty}</td>
+                <td className="w-14 px-2 py-1.5 text-center font-bold text-primary border border-primary/20">{sumPainted}</td>
+                <td className="w-12 px-2 py-1.5 text-center font-bold text-primary border border-primary/20">{sumQty-sumPainted}</td>
+                <td className="w-12 px-2 py-1.5 text-center font-bold border border-primary/20" style={{color:OLIVE}}>{totalPct}%</td>
               </tr></tbody>
             </table>
           </div>
@@ -154,9 +154,9 @@ const PaintingCard = ({ order, colorFilter, onUpdatePainted, onUpdateStage, onOp
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs border-collapse table-fixed">
                     <thead>
-                      <tr className="bg-primary/5">
-                        <th className="sticky left-0 z-10 bg-primary/5 w-8 px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">№</th>
-                        <th className="sticky left-8 z-10 bg-primary/5 w-40 sm:w-56 px-3 py-1.5 text-left font-semibold text-primary border border-primary/20 shadow-[3px_0_5px_-3px_rgba(0,0,0,0.15)]">Позиция</th>
+                      <tr className="bg-muted">
+                        <th className="sticky left-0 z-10 bg-muted w-8 px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">№</th>
+                        <th className="sticky left-8 z-10 bg-muted w-40 sm:w-56 px-3 py-1.5 text-left font-semibold text-primary border border-primary/20 shadow-[3px_0_5px_-3px_rgba(0,0,0,0.15)]">Позиция</th>
                         <th className="w-16 px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">Кол-во</th>
                         <th className="w-20 px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">Сплете-<br />но</th>
                         <th className="w-20 px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">Покра-<br />шено</th>
@@ -187,9 +187,9 @@ const PaintingCard = ({ order, colorFilter, onUpdatePainted, onUpdateStage, onOp
                           </tr>
                         );
                       })}
-                      <tr className="bg-primary/5 border-t-2 border-primary/30">
-                        <td className="sticky left-0 z-10 bg-primary/5 border border-primary/20" />
-                        <td className="sticky left-8 z-10 bg-primary/5 px-3 py-1.5 text-center font-bold text-primary border border-primary/20 shadow-[3px_0_5px_-3px_rgba(0,0,0,0.15)]">ИТОГО</td>
+                      <tr className="bg-muted border-t-2 border-primary/30">
+                        <td className="sticky left-0 z-10 bg-muted border border-primary/20" />
+                        <td className="sticky left-8 z-10 bg-muted px-3 py-1.5 text-center font-bold text-primary border border-primary/20 shadow-[3px_0_5px_-3px_rgba(0,0,0,0.15)]">ИТОГО</td>
                         <td className="w-16 px-2 py-1.5 text-center font-bold text-primary border border-primary/20">{colorQty}</td>
                         <td className="w-20 px-2 py-1.5 text-center font-bold text-primary/50 border border-primary/20">—</td>
                         <td className="w-20 px-2 py-1.5 text-center font-bold text-primary border border-primary/20">{colorPainted}</td>

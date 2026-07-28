@@ -71,21 +71,21 @@ const ProductionCard = ({ order, warehouseMap, onUpdateProduced, onUpdateStage, 
               {order.due_weaving && <span className="px-2 py-0.5 rounded-full bg-primary/8 text-primary/80 border border-primary/20">Плетение до: {fmtDateShort(order.due_weaving)}</span>}
             </div>
           </div>
-          <div className="border-t border-primary/20 md:border-t-0 md:border-l md:border-primary/20 pt-3 md:pt-0 md:pl-4 min-w-[240px]" onClick={e => e.stopPropagation()}>
-            <table className="w-full text-xs border-collapse table-fixed">
-              <thead><tr className="bg-primary/5">
-                <th className="w-16 px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">Кол-во</th>
-                <th className="w-16 px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">На скла-<br />де</th>
-                <th className="w-16 px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">Готово</th>
-                <th className="w-16 px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">Оста-<br />ток</th>
-                <th className="w-16 px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">%</th>
+          <div className="border-t border-primary/20 md:border-t-0 md:border-l md:border-primary/20 pt-3 md:pt-0 md:pl-4 md:flex-shrink-0" onClick={e => e.stopPropagation()}>
+            <table className="w-full md:w-auto text-xs border-collapse table-fixed">
+              <thead><tr className="bg-muted">
+                <th className="w-12 px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">Кол-во</th>
+                <th className="w-12 px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">На скла-<br />де</th>
+                <th className="w-12 px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">Готово</th>
+                <th className="w-12 px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">Оста-<br />ток</th>
+                <th className="w-12 px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">%</th>
               </tr></thead>
               <tbody><tr>
-                <td className="w-16 px-2 py-1.5 text-center font-bold text-primary border border-primary/20">{totalQty}</td>
-                <td className="w-16 px-2 py-1.5 text-center font-bold border border-primary/20" style={{color: totalStock>0?OLIVE:undefined}}>{totalStock}</td>
-                <td className="w-16 px-2 py-1.5 text-center font-bold text-primary border border-primary/20">{totalDone}</td>
-                <td className="w-16 px-2 py-1.5 text-center font-bold text-primary border border-primary/20">{totalLeft}</td>
-                <td className="w-16 px-2 py-1.5 text-center font-bold border border-primary/20" style={{color:OLIVE}}>{totalPct}%</td>
+                <td className="w-12 px-2 py-1.5 text-center font-bold text-primary border border-primary/20">{totalQty}</td>
+                <td className="w-12 px-2 py-1.5 text-center font-bold border border-primary/20" style={{color: totalStock>0?OLIVE:undefined}}>{totalStock}</td>
+                <td className="w-12 px-2 py-1.5 text-center font-bold text-primary border border-primary/20">{totalDone}</td>
+                <td className="w-12 px-2 py-1.5 text-center font-bold text-primary border border-primary/20">{totalLeft}</td>
+                <td className="w-12 px-2 py-1.5 text-center font-bold border border-primary/20" style={{color:OLIVE}}>{totalPct}%</td>
               </tr></tbody>
             </table>
           </div>
@@ -97,9 +97,9 @@ const ProductionCard = ({ order, warehouseMap, onUpdateProduced, onUpdateStage, 
           <div className="overflow-x-auto">
             <table className="w-full text-xs border-collapse table-fixed">
               <thead>
-                <tr className="bg-primary/5">
-                  <th className="sticky left-0 z-10 bg-primary/5 w-8 px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">№</th>
-                  <th className="sticky left-8 z-10 bg-primary/5 w-40 sm:w-56 px-3 py-1.5 text-left font-semibold text-primary border border-primary/20 shadow-[3px_0_5px_-3px_rgba(0,0,0,0.15)]">Позиция</th>
+                <tr className="bg-muted">
+                  <th className="sticky left-0 z-10 bg-muted w-8 px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">№</th>
+                  <th className="sticky left-8 z-10 bg-muted w-40 sm:w-56 px-3 py-1.5 text-left font-semibold text-primary border border-primary/20 shadow-[3px_0_5px_-3px_rgba(0,0,0,0.15)]">Позиция</th>
                   {showColors && <th className="w-36 px-2 py-1.5 text-left font-semibold text-primary border border-primary/20">Цвета</th>}
                   <th className="w-16 px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">Кол-во</th>
                   <th className="w-16 px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">На скла-<br />де</th>
@@ -147,9 +147,9 @@ const ProductionCard = ({ order, warehouseMap, onUpdateProduced, onUpdateStage, 
                     </tr>
                   );
                 })}
-                <tr className="bg-primary/5 border-t-2 border-primary/30">
-                  <td className="sticky left-0 z-10 bg-primary/5 border border-primary/20" />
-                  <td className="sticky left-8 z-10 bg-primary/5 px-3 py-1.5 text-center font-bold text-primary border border-primary/20 shadow-[3px_0_5px_-3px_rgba(0,0,0,0.15)]" colSpan={showColors ? 2 : 1}>ИТОГО</td>
+                <tr className="bg-muted border-t-2 border-primary/30">
+                  <td className="sticky left-0 z-10 bg-muted border border-primary/20" />
+                  <td className="sticky left-8 z-10 bg-muted px-3 py-1.5 text-center font-bold text-primary border border-primary/20 shadow-[3px_0_5px_-3px_rgba(0,0,0,0.15)]" colSpan={showColors ? 2 : 1}>ИТОГО</td>
                   <td className="w-16 px-2 py-1.5 text-center font-bold text-primary border border-primary/20">{totalQty}</td>
                   <td className="w-16 px-2 py-1.5 text-center font-bold border border-primary/20" style={{color: totalStock>0?OLIVE:undefined}}>{totalStock}</td>
                   <td className="w-20 border border-primary/20" />
