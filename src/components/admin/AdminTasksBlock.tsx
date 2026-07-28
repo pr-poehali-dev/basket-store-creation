@@ -1,126 +1,18 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import Icon from '@/components/ui/icon';
 import urls from '../../../backend/func2url.json';
+import { Order } from './orderUtils';
+import OrderFullCard from './OrderFullCard';
+import TaskDetailModal from './TaskDetailModal';
+import {
+  Task, TaskRequest, StaffOption, AuthData,
+  TaskStatus, TaskPriority, ReqType, ViewMode, TabKey, TaskSubTab, PeriodFilter,
+  PRIORITY_LABEL, PRIORITY_COLOR, STATUS_LABEL, STATUS_COLOR,
+  REQ_TYPE_LABEL, REQ_STATUS_LABEL, KANBAN_COLS,
+  fmtDate, isoToday, matchesPeriod,
+} from './tasksUtils';
 
-// ── Типы ──────────────────────────────────────────────────────────────────────
-type TaskStatus   = 'pending' | 'in_progress' | 'done' | 'cancelled';
-type TaskPriority = 'low' | 'normal' | 'high' | 'urgent';
-type ReqType      = 'sick' | 'dayoff' | 'vacation' | 'data_fix';
-type ReqStatus    = 'pending' | 'approved' | 'rejected';
-type ViewMode     = 'list' | 'kanban' | 'calendar';
-type TabKey       = 'tasks' | 'requests' | 'notifications';
-type TaskSubTab   = 'my' | 'by_me' | 'all';
-type PeriodFilter = 'all' | 'overdue' | 'today' | 'week' | 'next_week' | 'future';
-
-interface Task {
-  id: number;
-  title: string;
-  description: string;
-  assigned_to: number | null;
-  assignee_name: string;
-  assigned_by: number | null;
-  assigned_by_name: string;
-  due_date: string;
-  priority: TaskPriority;
-  status: TaskStatus;
-  created_at: string;
-}
-
-interface TaskRequest {
-  id: number;
-  staff_id: number;
-  staff_name: string;
-  request_type: ReqType;
-  comment: string;
-  date_from: string;
-  date_to: string;
-  status: ReqStatus;
-  reviewed_by: string;
-  review_comment: string;
-  created_at: string;
-}
-
-interface StaffOption {
-  id: number;
-  full_name: string;
-  group_name: string;
-  pages: string[];
-  is_active: boolean;
-}
-
-export interface AuthData {
-  is_admin: boolean;
-  staff_id?: number;
-  full_name?: string;
-  pages: string[];
-  role?: string;
-}
-
-// ── Константы ─────────────────────────────────────────────────────────────────
-const PRIORITY_LABEL: Record<TaskPriority, string> = {
-  low: 'Низкий', normal: 'Обычный', high: 'Высокий', urgent: 'Срочно'
-};
-const PRIORITY_COLOR: Record<TaskPriority, string> = {
-  low: 'bg-slate-100 text-slate-500',
-  normal: 'bg-blue-50 text-blue-600',
-  high: 'bg-orange-50 text-orange-600',
-  urgent: 'bg-red-50 text-red-600',
-};
-const STATUS_LABEL: Record<TaskStatus, string> = {
-  pending: 'Ожидает', in_progress: 'В работе', done: 'Выполнено', cancelled: 'Отменено'
-};
-const STATUS_COLOR: Record<TaskStatus, string> = {
-  pending: 'bg-yellow-50 text-yellow-700 border-yellow-200',
-  in_progress: 'bg-blue-50 text-blue-700 border-blue-200',
-  done: 'bg-[#f0f4e8] text-[#5a6a2a] border-[#c8d8b0]',
-  cancelled: 'bg-gray-50 text-gray-500 border-gray-200',
-};
-const REQ_TYPE_LABEL: Record<ReqType, string> = {
-  sick: 'Больничный', dayoff: 'Выходной', vacation: 'Отпуск', data_fix: 'Правка данных'
-};
-const REQ_STATUS_LABEL: Record<ReqStatus, string> = {
-  pending: 'На рассмотрении', approved: 'Одобрено', rejected: 'Отклонено'
-};
-const KANBAN_COLS: TaskStatus[] = ['pending', 'in_progress', 'done'];
-const OLIVE = '#6b7c3a';
-
-// ── Утилиты ───────────────────────────────────────────────────────────────────
-function fmtDate(iso: string): string {
-  if (!iso) return '';
-  const d = new Date(iso.length === 10 ? iso + 'T00:00:00' : iso);
-  return `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.${d.getFullYear()}`;
-}
-
-function isoToday(): string { return new Date().toISOString().slice(0,10); }
-
-function getWeekRange(offsetWeeks = 0): [string, string] {
-  const now = new Date();
-  const dow = now.getDay() === 0 ? 6 : now.getDay() - 1;
-  const mon = new Date(now); mon.setDate(now.getDate() - dow + offsetWeeks * 7);
-  const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
-  return [mon.toISOString().slice(0,10), sun.toISOString().slice(0,10)];
-}
-
-function matchesPeriod(task: Task, period: PeriodFilter): boolean {
-  if (period === 'all') return true;
-  const due = task.due_date;
-  const today = isoToday();
-  if (period === 'overdue') return !!due && due < today && task.status !== 'done';
-  if (period === 'today')   return due === today;
-  if (period === 'week') {
-    const [mon, sun] = getWeekRange(0);
-    return !!due && due >= mon && due <= sun;
-  }
-  if (period === 'next_week') {
-    const [mon, sun] = getWeekRange(1);
-    return !!due && due >= mon && due <= sun;
-  }
-  if (period === 'future') {
-    const [,sun] = getWeekRange(1);
-    return !!due && due > sun;
-  }
-  return true;
-}
+export type { AuthData };
 
 // ── Форма новой задачи ────────────────────────────────────────────────────────
 const TaskForm = ({ auth, staff, onSave, onClose }: {
@@ -270,15 +162,18 @@ const RequestForm = ({ auth, onSave, onClose }: {
 };
 
 // ── Одна карточка задачи ──────────────────────────────────────────────────────
-const TaskCard = ({ task, onUpdateStatus, compact }: {
+const TaskCard = ({ task, onUpdateStatus, onOpen, onOpenOrder, compact }: {
   task: Task;
   onUpdateStatus: (id: number, status: TaskStatus) => void;
+  onOpen?: (task: Task) => void;
+  onOpenOrder?: (orderId: number) => void;
   compact?: boolean;
 }) => {
   const today = isoToday();
   const isOverdue = task.due_date && task.due_date < today && task.status !== 'done';
   return (
-    <div className={`bg-card border rounded-2xl px-3 py-2.5 ${task.status === 'done' ? 'opacity-60' : ''} ${isOverdue ? 'border-red-300' : 'border-primary/25'}`}>
+    <div onClick={() => onOpen?.(task)}
+      className={`bg-card border rounded-2xl px-3 py-2.5 ${onOpen ? 'cursor-pointer' : ''} ${task.status === 'done' ? 'opacity-60' : ''} ${isOverdue ? 'border-red-300' : 'border-primary/25'}`}>
       <div className="flex items-start justify-between gap-2 mb-1">
         <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${PRIORITY_COLOR[task.priority]}`}>
           {PRIORITY_LABEL[task.priority]}
@@ -292,6 +187,12 @@ const TaskCard = ({ task, onUpdateStatus, compact }: {
       <div className="font-semibold text-primary text-sm leading-tight mb-1">{task.title}</div>
       {task.description && !compact && (
         <p className="text-xs text-primary/60 mb-1 line-clamp-2">{task.description}</p>
+      )}
+      {task.order_id && (
+        <button onClick={e => { e.stopPropagation(); onOpenOrder?.(task.order_id!); }}
+          className="mb-1 flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-accent/15 text-primary border border-accent/30 hover:bg-accent/25 transition-colors w-fit">
+          📦 {task.order_city} {task.order_customer_name}
+        </button>
       )}
       {/* Исполнитель и автор */}
       <div className="flex items-center justify-between mt-1.5 gap-2">
@@ -311,28 +212,40 @@ const TaskCard = ({ task, onUpdateStatus, compact }: {
 };
 
 // ── Канбан ────────────────────────────────────────────────────────────────────
-const KanbanView = ({ tasks, onUpdateStatus }: { tasks: Task[]; onUpdateStatus: (id: number, status: TaskStatus) => void }) => (
-  <div className="flex gap-4 min-w-max pb-2">
-    {KANBAN_COLS.map(col => {
-      const colTasks = tasks.filter(t => t.status === col);
-      return (
-        <div key={col} className="w-72 flex-shrink-0">
-          <div className={`px-3 py-2 mb-3 rounded-xl border text-sm font-semibold text-center ${STATUS_COLOR[col]}`}>
-            {STATUS_LABEL[col]} ({colTasks.length})
+const KanbanView = ({ tasks, onUpdateStatus, onOpen, onOpenOrder }: {
+  tasks: Task[];
+  onUpdateStatus: (id: number, status: TaskStatus) => void;
+  onOpen: (task: Task) => void;
+  onOpenOrder: (orderId: number) => void;
+}) => (
+  <div className="overflow-x-auto -mx-1 px-1">
+    <div className="flex gap-4 min-w-max pb-2">
+      {KANBAN_COLS.map(col => {
+        const colTasks = tasks.filter(t => t.status === col);
+        return (
+          <div key={col} className="w-72 flex-shrink-0">
+            <div className={`px-3 py-2 mb-3 rounded-xl border text-sm font-semibold text-center ${STATUS_COLOR[col]}`}>
+              {STATUS_LABEL[col]} ({colTasks.length})
+            </div>
+            <div className="space-y-2">
+              {colTasks.map(t => <TaskCard key={t.id} task={t} onUpdateStatus={onUpdateStatus} onOpen={onOpen} onOpenOrder={onOpenOrder} />)}
+              {colTasks.length === 0 && <p className="text-xs text-muted-foreground text-center py-4">Нет задач</p>}
+            </div>
           </div>
-          <div className="space-y-2">
-            {colTasks.map(t => <TaskCard key={t.id} task={t} onUpdateStatus={onUpdateStatus} />)}
-            {colTasks.length === 0 && <p className="text-xs text-muted-foreground text-center py-4">Нет задач</p>}
-          </div>
-        </div>
-      );
-    })}
+        );
+      })}
+    </div>
   </div>
 );
 
 // ── Список с сортировкой ───────────────────────────────────────────────────────
 type SortCol = 'title' | 'due_date' | 'assignee_name' | 'assigned_by_name' | 'status' | 'priority';
-const ListView = ({ tasks, onUpdateStatus }: { tasks: Task[]; onUpdateStatus: (id: number, status: TaskStatus) => void }) => {
+const ListView = ({ tasks, onUpdateStatus, onOpen, onOpenOrder }: {
+  tasks: Task[];
+  onUpdateStatus: (id: number, status: TaskStatus) => void;
+  onOpen: (task: Task) => void;
+  onOpenOrder: (orderId: number) => void;
+}) => {
   const [sortCol, setSortCol] = useState<SortCol>('due_date');
   const [sortAsc, setSortAsc] = useState(true);
   const today = isoToday();
@@ -349,21 +262,21 @@ const ListView = ({ tasks, onUpdateStatus }: { tasks: Task[]; onUpdateStatus: (i
     return sortAsc ? cmp : -cmp;
   });
 
-  const th = (col: SortCol, label: string) => (
-    <th className="px-3 py-2.5 text-left font-semibold cursor-pointer hover:text-primary select-none whitespace-nowrap"
+  const th = (col: SortCol, label: string, extraClass = '') => (
+    <th className={`px-3 py-2.5 text-left font-semibold cursor-pointer hover:text-primary select-none whitespace-nowrap ${extraClass}`}
       onClick={() => { if (sortCol === col) setSortAsc(v => !v); else { setSortCol(col); setSortAsc(true); } }}>
       {label} {sortCol === col ? (sortAsc ? '↑' : '↓') : <span className="opacity-30">↕</span>}
     </th>
   );
 
   return (
-    <div className="border border-primary/20 rounded-2xl overflow-hidden">
-      <table className="w-full text-sm border-collapse">
+    <div className="border border-primary/20 rounded-2xl overflow-x-auto">
+      <table className="w-full text-sm border-collapse min-w-[640px]">
         <thead>
           <tr className="bg-primary/5 text-xs text-primary/60 border-b border-primary/15">
-            {th('title', 'Задача')}
-            {th('priority', 'Приоритет')}
+            {th('title', 'Задача', 'min-w-[200px] sm:min-w-[240px]')}
             {th('due_date', 'Дедлайн')}
+            {th('priority', 'Приоритет')}
             {th('assignee_name', 'Исполнитель')}
             {th('assigned_by_name', 'Автор')}
             {th('status', 'Статус')}
@@ -373,21 +286,29 @@ const ListView = ({ tasks, onUpdateStatus }: { tasks: Task[]; onUpdateStatus: (i
           {sorted.map(t => {
             const isOverdue = t.due_date && t.due_date < today && t.status !== 'done';
             return (
-              <tr key={t.id} className={`border-b border-primary/10 last:border-0 hover:bg-primary/3 ${t.status === 'done' ? 'opacity-60' : ''}`}>
-                <td className="px-3 py-2">
+              <tr key={t.id} onClick={() => onOpen(t)}
+                className={`border-b border-primary/10 last:border-0 hover:bg-primary/3 cursor-pointer ${t.status === 'done' ? 'opacity-60' : ''}`}>
+                <td className="px-3 py-2 min-w-[200px] sm:min-w-[240px]">
                   <span className="font-medium text-primary text-sm">{t.title}</span>
                   {t.description && <p className="text-xs text-primary/50 mt-0.5 line-clamp-1">{t.description}</p>}
+                  {t.order_id && (
+                    <button onClick={e => { e.stopPropagation(); onOpenOrder(t.order_id!); }}
+                      className="mt-1 flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-accent/15 text-primary border border-accent/30 hover:bg-accent/25 transition-colors w-fit">
+                      📦 {t.order_city} {t.order_customer_name}
+                    </button>
+                  )}
                 </td>
-                <td className="px-3 py-2">
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${PRIORITY_COLOR[t.priority]}`}>{PRIORITY_LABEL[t.priority]}</span>
-                </td>
-                <td className={`px-3 py-2 text-xs font-medium ${isOverdue ? 'text-red-500 font-bold' : 'text-primary/70'}`}>
+                <td className={`px-3 py-2 text-xs font-medium whitespace-nowrap ${isOverdue ? 'text-red-500 font-bold' : 'text-primary/70'}`}>
                   {isOverdue ? '⚠️ ' : ''}{t.due_date ? fmtDate(t.due_date) : '—'}
                 </td>
-                <td className="px-3 py-2 text-xs text-primary/70">{t.assignee_name || 'Все'}</td>
-                <td className="px-3 py-2 text-xs text-primary/50">{t.assigned_by_name}</td>
-                <td className="px-3 py-2">
+                <td className="px-3 py-2 whitespace-nowrap">
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${PRIORITY_COLOR[t.priority]}`}>{PRIORITY_LABEL[t.priority]}</span>
+                </td>
+                <td className="px-3 py-2 text-xs text-primary/70 whitespace-nowrap">{t.assignee_name || 'Все'}</td>
+                <td className="px-3 py-2 text-xs text-primary/50 whitespace-nowrap">{t.assigned_by_name}</td>
+                <td className="px-3 py-2 whitespace-nowrap">
                   <select value={t.status} onChange={e => onUpdateStatus(t.id, e.target.value as TaskStatus)}
+                    onClick={e => e.stopPropagation()}
                     className="text-[10px] border border-primary/25 rounded-lg px-1.5 py-0.5 bg-background outline-none text-primary">
                     {(Object.keys(STATUS_LABEL) as TaskStatus[]).map(s => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
                   </select>
@@ -405,13 +326,13 @@ const ListView = ({ tasks, onUpdateStatus }: { tasks: Task[]; onUpdateStatus: (i
 };
 
 // ── Мини-календарь задач ──────────────────────────────────────────────────────
-function addDays(d: Date, n: number) { const r = new Date(d); r.setDate(r.getDate() + n); return r; }
-
 interface CalendarOrder { id: number; order_number: string; city: string; customer_name: string; total: number; due_date: string; stage: string; }
 
-const CalendarView = ({ tasks, onUpdateStatus, responsible }: {
+const CalendarView = ({ tasks, onUpdateStatus, onOpen, onOpenOrder, responsible }: {
   tasks: Task[];
   onUpdateStatus: (id: number, status: TaskStatus) => void;
+  onOpen: (task: Task) => void;
+  onOpenOrder: (orderId: number) => void;
   responsible?: string;
 }) => {
   const [currentMonth, setCurrentMonth] = useState(() => { const d = new Date(); d.setDate(1); return d; });
@@ -434,7 +355,7 @@ const CalendarView = ({ tasks, onUpdateStatus, responsible }: {
       try {
         const res  = await fetch(urls['orders']);
         const data = await res.json();
-        const filtered = (data.orders || []).filter((o: CalendarOrder & { responsible?: string }) =>
+        const filtered = (data.orders || []).filter((o: CalendarOrder & { responsible?: string; is_archived?: boolean; is_trashed?: boolean }) =>
           o.responsible === responsible && !o.is_archived && !o.is_trashed && o.due_date
         );
         setOrders(filtered);
@@ -453,11 +374,11 @@ const CalendarView = ({ tasks, onUpdateStatus, responsible }: {
         <span className="font-semibold text-primary capitalize">{currentMonth.toLocaleString('ru-RU',{month:'long',year:'numeric'})}</span>
         <button onClick={() => { const d = new Date(currentMonth); d.setMonth(d.getMonth()+1); setCurrentMonth(d); }} className="px-2 py-1 rounded-lg border border-primary/30 text-primary hover:border-primary text-sm">→</button>
       </div>
-      <div className="border border-primary/20 rounded-2xl overflow-hidden">
-        <div className="grid grid-cols-7 bg-primary/5 border-b border-primary/15">
+      <div className="border border-primary/20 rounded-2xl overflow-x-auto">
+        <div className="grid grid-cols-7 bg-primary/5 border-b border-primary/15 min-w-[560px]">
           {WEEKDAYS.map(wd => <div key={wd} className="text-center text-xs font-semibold text-primary/60 py-2">{wd}</div>)}
         </div>
-        <div className="grid grid-cols-7">
+        <div className="grid grid-cols-7 min-w-[560px]">
           {gridDays.map((d, i) => {
             if (!d) return <div key={i} className="min-h-[80px] border-r border-b border-primary/10 bg-primary/2" />;
             const iso = isoStr(d);
@@ -490,13 +411,14 @@ const CalendarView = ({ tasks, onUpdateStatus, responsible }: {
         <div className="mt-4 space-y-2">
           <div className="text-sm font-semibold text-primary">{selected!.toLocaleDateString('ru-RU',{day:'numeric',month:'long'})}</div>
           {selectedOrders.map(o => (
-            <div key={`o${o.id}`} className="bg-accent/10 border border-accent/30 rounded-2xl px-3 py-2 text-sm">
+            <button key={`o${o.id}`} onClick={() => onOpenOrder(o.id)}
+              className="w-full text-left bg-accent/10 border border-accent/30 rounded-2xl px-3 py-2 text-sm hover:bg-accent/15 transition-colors">
               <span className="font-bold text-primary">📦 {o.city} {o.customer_name}</span>
               <span className="ml-2 text-xs text-muted-foreground">#{o.order_number} · {o.stage}</span>
               <span className="ml-2 font-semibold text-primary">{o.total.toLocaleString('ru-RU')} ₽</span>
-            </div>
+            </button>
           ))}
-          {selectedTasks.map(t => <TaskCard key={t.id} task={t} onUpdateStatus={onUpdateStatus} />)}
+          {selectedTasks.map(t => <TaskCard key={t.id} task={t} onUpdateStatus={onUpdateStatus} onOpen={onOpen} onOpenOrder={onOpenOrder} />)}
         </div>
       )}
     </div>
@@ -519,6 +441,12 @@ const AdminTasksBlock = ({ auth, fullPage }: { auth: AuthData; fullPage?: boolea
   const [showReqForm, setShowReqForm]     = useState(false);
   const [reviewId, setReviewId]           = useState<number | null>(null);
   const [reviewComment, setReviewComment] = useState('');
+
+  // Детальная карточка задачи + связанный заказ
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [orders, setOrders]             = useState<Order[]>([]);
+  const [ordersLoaded, setOrdersLoaded] = useState(false);
+  const [fullOrder, setFullOrder]       = useState<Order | null>(null);
 
   const isAdmin   = auth.is_admin;
   const isManager = !isAdmin && auth.pages?.includes('access');
@@ -553,11 +481,45 @@ const AdminTasksBlock = ({ auth, fullPage }: { auth: AuthData; fullPage?: boolea
   };
   const updateTaskStatus = async (id: number, status: TaskStatus) => {
     setTasks(prev => prev.map(t => t.id === id ? { ...t, status } : t));
+    setSelectedTask(prev => prev && prev.id === id ? { ...prev, status } : prev);
     await fetch(urls['tasks'], { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'task', id, status }) });
   };
   const reviewRequest = async (id: number, status: 'approved' | 'rejected') => {
     await fetch(urls['tasks'], { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'request', id, status, reviewed_by: auth.full_name || 'Администратор', review_comment: reviewComment }) });
     setReviewId(null); setReviewComment(''); await load();
+  };
+
+  // ── Заказы: ленивая загрузка + открытие карточки заказа из задачи ────────
+  const ensureOrdersLoaded = useCallback(async (): Promise<Order[]> => {
+    if (ordersLoaded) return orders;
+    try {
+      const res  = await fetch(urls['orders']);
+      const data = await res.json();
+      const list: Order[] = data.orders || [];
+      setOrders(list);
+      setOrdersLoaded(true);
+      return list;
+    } catch { return orders; }
+  }, [ordersLoaded, orders]);
+
+  const openOrderFromTask = async (orderId: number) => {
+    const list = await ensureOrdersLoaded();
+    const found = list.find(o => o.id === orderId);
+    if (found) setFullOrder(found);
+  };
+
+  const patchOrder = async (id: number, patch: Partial<Order>) => {
+    setOrders(prev => prev.map(o => o.id === id ? { ...o, ...patch } : o));
+    setFullOrder(prev => prev && prev.id === id ? { ...prev, ...patch } : prev);
+    await fetch(urls['orders'], {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, ...patch }),
+    });
+  };
+
+  const setOrderDueDate = async (orderId: number, field: 'due_date' | 'due_weaving' | 'due_painting', value: string) => {
+    await patchOrder(orderId, { [field]: value } as Partial<Order>);
   };
 
   // Базовые фильтрации
@@ -818,9 +780,9 @@ const AdminTasksBlock = ({ auth, fullPage }: { auth: AuthData; fullPage?: boolea
             </div>
           )}
 
-          {view === 'list'     && <ListView     tasks={filteredTasks} onUpdateStatus={updateTaskStatus} />}
-          {view === 'kanban'   && <KanbanView   tasks={filteredTasks} onUpdateStatus={updateTaskStatus} />}
-          {view === 'calendar' && <CalendarView tasks={filteredTasks} onUpdateStatus={updateTaskStatus} responsible={auth.full_name} />}
+          {view === 'list'     && <ListView     tasks={filteredTasks} onUpdateStatus={updateTaskStatus} onOpen={setSelectedTask} onOpenOrder={openOrderFromTask} />}
+          {view === 'kanban'   && <KanbanView   tasks={filteredTasks} onUpdateStatus={updateTaskStatus} onOpen={setSelectedTask} onOpenOrder={openOrderFromTask} />}
+          {view === 'calendar' && <CalendarView tasks={filteredTasks} onUpdateStatus={updateTaskStatus} onOpen={setSelectedTask} onOpenOrder={openOrderFromTask} responsible={auth.full_name} />}
         </div>
       )}
 
@@ -884,6 +846,25 @@ const AdminTasksBlock = ({ auth, fullPage }: { auth: AuthData; fullPage?: boolea
 
       {showTaskForm && <TaskForm auth={auth} staff={staff} onSave={createTask} onClose={() => setShowTaskForm(false)} />}
       {showReqForm  && <RequestForm auth={auth} onSave={createRequest} onClose={() => setShowReqForm(false)} />}
+
+      {selectedTask && (
+        <TaskDetailModal
+          task={selectedTask}
+          auth={auth}
+          onClose={() => setSelectedTask(null)}
+          onUpdateStatus={updateTaskStatus}
+          onOpenOrder={(orderId) => { openOrderFromTask(orderId); }}
+          onSetOrderDueDate={setOrderDueDate}
+        />
+      )}
+
+      {fullOrder && (
+        <OrderFullCard
+          order={fullOrder}
+          onClose={() => setFullOrder(null)}
+          onUpdate={patchOrder}
+        />
+      )}
     </div>
   );
 };

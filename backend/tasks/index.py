@@ -1,8 +1,10 @@
 """
-API задач и заявок сотрудников FABRICA. v2
+API задач и заявок сотрудников FABRICA. v3
 GET  ?staff_id=N  — задачи конкретного сотрудника; без параметра — все задачи
-POST { action: 'task'|'request', ...data }  — создать задачу или заявку
-PUT  { id, ...fields }  — обновить статус задачи или заявки
+GET  ?type=requests  — заявки вместо задач
+GET  ?type=comments&task_id=N  — комментарии к задаче
+POST { action: 'task'|'request'|'comment', ...data }  — создать задачу/заявку/комментарий
+PUT  { id, ...fields }  — обновить статус/поля задачи или заявки
 DELETE ?id=N&type=task|request — снять задачу
 """
 import os, json
@@ -65,18 +67,45 @@ def handler(event: dict, context) -> dict:
                         })
                     return {'statusCode': 200, 'headers': cors(), 'body': json.dumps({'requests': requests})}
 
+                if req_type == 'comments':
+                    task_id = params.get('task_id')
+                    if not task_id:
+                        return {'statusCode': 400, 'headers': cors(), 'body': json.dumps({'error': 'task_id required'})}
+                    cur.execute(
+                        "SELECT * FROM task_comments WHERE task_id = %s ORDER BY created_at ASC",
+                        (int(task_id),)
+                    )
+                    rows = cur.fetchall()
+                    comments = [{
+                        'id': r['id'],
+                        'task_id': r['task_id'],
+                        'author_staff_id': r['author_staff_id'],
+                        'author_name': r['author_name'] or '',
+                        'comment': r['comment'] or '',
+                        'attachment_url': r['attachment_url'] or '',
+                        'attachment_name': r['attachment_name'] or '',
+                        'created_at': r['created_at'].isoformat() if r['created_at'] else '',
+                    } for r in rows]
+                    return {'statusCode': 200, 'headers': cors(), 'body': json.dumps({'comments': comments})}
+
                 # Tasks
                 if staff_id:
                     cur.execute(
-                        "SELECT t.*, s.full_name as assignee_name FROM tasks t "
+                        "SELECT t.*, s.full_name as assignee_name, "
+                        "o.order_number as order_number, o.city as order_city, o.customer_name as order_customer_name "
+                        "FROM tasks t "
                         "LEFT JOIN staff s ON t.assigned_to = s.id "
+                        "LEFT JOIN orders o ON t.order_id = o.id "
                         "WHERE t.assigned_to = %s ORDER BY t.due_date ASC NULLS LAST, t.created_at DESC",
                         (int(staff_id),)
                     )
                 else:
                     cur.execute(
-                        "SELECT t.*, s.full_name as assignee_name FROM tasks t "
+                        "SELECT t.*, s.full_name as assignee_name, "
+                        "o.order_number as order_number, o.city as order_city, o.customer_name as order_customer_name "
+                        "FROM tasks t "
                         "LEFT JOIN staff s ON t.assigned_to = s.id "
+                        "LEFT JOIN orders o ON t.order_id = o.id "
                         "ORDER BY t.due_date ASC NULLS LAST, t.created_at DESC"
                     )
                 rows = cur.fetchall()
@@ -94,6 +123,10 @@ def handler(event: dict, context) -> dict:
                         'priority': r['priority'],
                         'status': r['status'],
                         'created_at': r['created_at'].isoformat() if r['created_at'] else '',
+                        'order_id': r.get('order_id'),
+                        'order_number': r.get('order_number') or '',
+                        'order_city': r.get('order_city') or '',
+                        'order_customer_name': r.get('order_customer_name') or '',
                     })
                 return {'statusCode': 200, 'headers': cors(), 'body': json.dumps({'tasks': tasks})}
 
@@ -118,6 +151,24 @@ def handler(event: dict, context) -> dict:
                     new_id = cur.fetchone()[0]
                 return {'statusCode': 200, 'headers': cors(), 'body': json.dumps({'id': new_id})}
 
+            if action == 'comment':
+                task_id         = body.get('task_id')
+                author_staff_id = body.get('author_staff_id')
+                author_name     = body.get('author_name', '')
+                comment_text    = body.get('comment', '')
+                attachment_url  = body.get('attachment_url') or None
+                attachment_name = body.get('attachment_name') or None
+                if not task_id:
+                    return {'statusCode': 400, 'headers': cors(), 'body': json.dumps({'error': 'task_id required'})}
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "INSERT INTO task_comments (task_id, author_staff_id, author_name, comment, attachment_url, attachment_name) "
+                        "VALUES (%s, %s, %s, %s, %s, %s) RETURNING id",
+                        (int(task_id), author_staff_id, author_name, comment_text, attachment_url, attachment_name)
+                    )
+                    new_id = cur.fetchone()[0]
+                return {'statusCode': 200, 'headers': cors(), 'body': json.dumps({'id': new_id})}
+
             # Создать задачу
             title          = body.get('title', '').strip()
             description    = body.get('description', '')
@@ -127,13 +178,14 @@ def handler(event: dict, context) -> dict:
             due_date       = body.get('due_date') or None
             priority       = body.get('priority', 'normal')
             status         = body.get('status', 'pending')
+            order_id       = body.get('order_id') or None
             if not title:
                 return {'statusCode': 400, 'headers': cors(), 'body': json.dumps({'error': 'title required'})}
             with conn.cursor() as cur:
                 cur.execute(
-                    "INSERT INTO tasks (title, description, assigned_to, assigned_by, assigned_by_name, due_date, priority, status) "
-                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING id",
-                    (title, description, assigned_to, assigned_by, assigned_by_name, due_date, priority, status)
+                    "INSERT INTO tasks (title, description, assigned_to, assigned_by, assigned_by_name, due_date, priority, status, order_id) "
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id",
+                    (title, description, assigned_to, assigned_by, assigned_by_name, due_date, priority, status, order_id)
                 )
                 new_id = cur.fetchone()[0]
             return {'statusCode': 200, 'headers': cors(), 'body': json.dumps({'id': new_id})}
@@ -166,6 +218,8 @@ def handler(event: dict, context) -> dict:
                     fields.append('due_date = %s'); values.append(body['due_date'] or None)
                 if 'priority' in body:
                     fields.append('priority = %s'); values.append(body['priority'])
+                if 'order_id' in body:
+                    fields.append('order_id = %s'); values.append(body['order_id'] or None)
                 if fields:
                     fields.append('updated_at = NOW()')
                     values.append(rec_id)

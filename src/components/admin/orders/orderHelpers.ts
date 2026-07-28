@@ -52,6 +52,7 @@ export async function createAutoTasks(order: Order, field: 'due_date' | 'due_wea
           assigned_by_name: 'Система',
           priority: 'high',
           due_date: today,
+          order_id: order.id,
         }),
       });
     }
