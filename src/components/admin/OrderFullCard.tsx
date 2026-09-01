@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Order, groupPositions, displayTitle, fmtMoney, fmtDateShort, RESPONSIBLES, DELIVERY_LABELS } from './orderUtils';
+import { Order, groupPositions, displayTitle, fmtMoney, fmtDateShort, RESPONSIBLES, DELIVERY_LABELS, needsPainting } from './orderUtils';
 import urls from '../../../backend/func2url.json';
 
 interface Props {
@@ -175,6 +175,7 @@ ${order.comment || form.comment ? `<div class="section"><div class="section-titl
 const OrderFullCard = ({ order, onClose, onUpdate, onOpenClient }: Props) => {
   const positions = groupPositions(order.items);
   const posGroups = buildPosGroups(order.items);
+  const needsPaint = needsPainting(order);
   const [showColors, setShowColors] = useState(false);
   const [notes, setNotes]           = useState(order.notes || '');
   const [savingNotes, setSavingNotes] = useState(false);
@@ -318,7 +319,7 @@ const OrderFullCard = ({ order, onClose, onUpdate, onOpenClient }: Props) => {
           </section>
 
           {/* Сроки */}
-          {(order.due_date || order.due_weaving || order.due_painting) && (
+          {(order.due_date || order.due_weaving || (needsPaint && order.due_painting)) && (
             <section>
               <h3 className="text-xs font-bold text-primary/50 uppercase tracking-wider mb-2">Сроки</h3>
               <div className="flex gap-3 flex-wrap">
@@ -334,7 +335,7 @@ const OrderFullCard = ({ order, onClose, onUpdate, onOpenClient }: Props) => {
                     <div className="font-bold text-primary">{fmtDateShort(order.due_weaving)}</div>
                   </div>
                 )}
-                {order.due_painting && (
+                {needsPaint && order.due_painting && (
                   <div className="bg-primary/5 border border-primary/20 rounded-xl px-3 py-1.5">
                     <div className="text-xs text-muted-foreground">Срок покраски</div>
                     <div className="font-bold text-primary">{fmtDateShort(order.due_painting)}</div>
@@ -422,6 +423,10 @@ const OrderFullCard = ({ order, onClose, onUpdate, onOpenClient }: Props) => {
                 {positions.map(pos => {
                   const done    = Math.min((order.produced || {})[pos.key] || 0, pos.total);
                   const painted = Math.min((order.painted || {})[pos.key] || 0, pos.total);
+                  const posNeedsPaint = pos.colors.some(c => {
+                    const color = (c.color || '').toLowerCase().trim();
+                    return color !== '' && color !== '—' && color !== 'натуральный';
+                  });
                   return (
                     <div key={pos.key} className="text-sm">
                       <div className="flex items-center justify-between mb-1">
@@ -438,15 +443,17 @@ const OrderFullCard = ({ order, onClose, onUpdate, onOpenClient }: Props) => {
                             <div className="h-full rounded-full" style={{ width: `${pos.total?Math.round(done/pos.total*100):0}%`, backgroundColor: '#8a9a5a' }} />
                           </div>
                         </div>
-                        <div className="flex-1">
-                          <div className="flex justify-between text-xs mb-0.5">
-                            <span className="text-primary/60">Покрашено</span>
-                            <span style={{ color: OLIVE }}>{painted}/{pos.total}</span>
+                        {posNeedsPaint && (
+                          <div className="flex-1">
+                            <div className="flex justify-between text-xs mb-0.5">
+                              <span className="text-primary/60">Покрашено</span>
+                              <span style={{ color: OLIVE }}>{painted}/{pos.total}</span>
+                            </div>
+                            <div className="h-2 bg-primary/10 rounded-full overflow-hidden">
+                              <div className="h-full rounded-full" style={{ width: `${pos.total?Math.round(painted/pos.total*100):0}%`, backgroundColor: '#c4a882' }} />
+                            </div>
                           </div>
-                          <div className="h-2 bg-primary/10 rounded-full overflow-hidden">
-                            <div className="h-full rounded-full" style={{ width: `${pos.total?Math.round(painted/pos.total*100):0}%`, backgroundColor: '#c4a882' }} />
-                          </div>
-                        </div>
+                        )}
                       </div>
                     </div>
                   );

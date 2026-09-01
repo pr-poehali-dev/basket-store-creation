@@ -2,7 +2,7 @@ import { useState } from 'react';
 import {
   Order, groupPositions, displayTitle, fmtMoney, fmtDateShort,
   RESPONSIBLES, responsibleStyle, DELIVERY_TYPES, DELIVERY_LABELS,
-  getDeadlineStatus, weavingPct, paintingPct, CLOSED_STAGE, canAdvanceStage,
+  getDeadlineStatus, weavingPct, paintingPct, CLOSED_STAGE, canAdvanceStage, needsPainting,
 } from '../orderUtils';
 import { nextStage, createAutoTasks } from './orderHelpers';
 
@@ -22,6 +22,7 @@ export const OrderCard = ({ order, onDragStart, onUpdate, onOpenFull }: OrderCar
   const isApproval = order.stage === 'Согласование';
   const isClosed   = order.stage === CLOSED_STAGE;
   const respStyle  = responsibleStyle(order.responsible);
+  const needsPaint = needsPainting(order);
   const wPct = weavingPct(order);
   const pPct = paintingPct(order);
   const showProgress = ['В очереди на плетение', 'Плетение', 'Малярка', 'Упаковка', 'Доставка'].includes(order.stage);
@@ -29,7 +30,7 @@ export const OrderCard = ({ order, onDragStart, onUpdate, onOpenFull }: OrderCar
 
   const canMoveNext = (() => {
     if (order.stage === 'Согласование') return !!order.due_date;
-    if (order.stage === 'В очереди на плетение') return !!order.due_weaving && !!order.due_painting;
+    if (order.stage === 'В очереди на плетение') return !!order.due_weaving && (!needsPaint || !!order.due_painting);
     return true;
   })();
 
@@ -98,14 +99,16 @@ export const OrderCard = ({ order, onDragStart, onUpdate, onOpenFull }: OrderCar
                 <div className="h-full rounded-full" style={{ width: `${wPct}%`, backgroundColor: '#8a9a5a' }} />
               </div>
             </div>
-            <div>
-              <div className="flex justify-between text-[10px] text-primary/70 mb-0.5">
-                <span>Покрашено</span><span className="font-semibold" style={{ color: '#6b7c3a' }}>{pPct}%</span>
+            {needsPaint && (
+              <div>
+                <div className="flex justify-between text-[10px] text-primary/70 mb-0.5">
+                  <span>Покрашено</span><span className="font-semibold" style={{ color: '#6b7c3a' }}>{pPct}%</span>
+                </div>
+                <div className="h-1.5 rounded-full bg-primary/10 overflow-hidden">
+                  <div className="h-full rounded-full" style={{ width: `${pPct}%`, backgroundColor: '#8a9a5a' }} />
+                </div>
               </div>
-              <div className="h-1.5 rounded-full bg-primary/10 overflow-hidden">
-                <div className="h-full rounded-full" style={{ width: `${pPct}%`, backgroundColor: '#8a9a5a' }} />
-              </div>
-            </div>
+            )}
           </div>
         )}
       </div>
@@ -143,14 +146,16 @@ export const OrderCard = ({ order, onDragStart, onUpdate, onOpenFull }: OrderCar
                   className={`w-full text-xs border rounded-md px-2 py-1 bg-background outline-none focus:border-accent ${!order.due_weaving ? 'border-red-400' : 'border-primary/30'}`} />
                 {!order.due_weaving && <p className="text-[10px] text-red-400 mt-0.5">Обязательное поле</p>}
               </div>
-              <div>
-                <label className="text-[10px] uppercase tracking-wider text-primary/60 block mb-1">
-                  Срок окраски <span className="text-red-400">*</span>
-                </label>
-                <input type="date" value={order.due_painting || ''} onChange={e => handleUpdate({ due_painting: e.target.value })}
-                  className={`w-full text-xs border rounded-md px-2 py-1 bg-background outline-none focus:border-accent ${!order.due_painting ? 'border-red-400' : 'border-primary/30'}`} />
-                {!order.due_painting && <p className="text-[10px] text-red-400 mt-0.5">Обязательное поле</p>}
-              </div>
+              {needsPaint && (
+                <div>
+                  <label className="text-[10px] uppercase tracking-wider text-primary/60 block mb-1">
+                    Срок окраски <span className="text-red-400">*</span>
+                  </label>
+                  <input type="date" value={order.due_painting || ''} onChange={e => handleUpdate({ due_painting: e.target.value })}
+                    className={`w-full text-xs border rounded-md px-2 py-1 bg-background outline-none focus:border-accent ${!order.due_painting ? 'border-red-400' : 'border-primary/30'}`} />
+                  {!order.due_painting && <p className="text-[10px] text-red-400 mt-0.5">Обязательное поле</p>}
+                </div>
+              )}
             </div>
           )}
 
