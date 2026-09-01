@@ -198,6 +198,35 @@ def handler(event: dict, context) -> dict:
     conn.autocommit = True
 
     try:
+        params = event.get('queryStringParameters') or {}
+
+        # ── Чат комментариев к заказу ──────────────────────────────────────────
+        if method == 'GET' and params.get('type') == 'comments':
+            oid = params.get('order_id')
+            if not oid:
+                return {'statusCode': 400, 'headers': cors_headers(),
+                        'body': json.dumps({'error': 'order_id required'})}
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    "SELECT id, order_id, author_staff_id, author_name, comment, "
+                    "attachment_url, attachment_name, created_at "
+                    "FROM order_comments WHERE order_id = %s ORDER BY created_at ASC",
+                    (int(oid),)
+                )
+                rows = cur.fetchall()
+            comments = [{
+                'id': r['id'],
+                'order_id': r['order_id'],
+                'author_staff_id': r['author_staff_id'],
+                'author_name': r['author_name'] or '',
+                'comment': r['comment'] or '',
+                'attachment_url': r['attachment_url'] or '',
+                'attachment_name': r['attachment_name'] or '',
+                'created_at': r['created_at'].isoformat() if r['created_at'] else '',
+            } for r in rows]
+            return {'statusCode': 200, 'headers': cors_headers(),
+                    'body': json.dumps({'comments': comments})}
+
         if method == 'GET':
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute(
@@ -214,6 +243,24 @@ def handler(event: dict, context) -> dict:
                     'body': json.dumps({'orders': orders})}
 
         body = json.loads(event.get('body') or '{}')
+
+        # Добавить комментарий в чат заказа
+        if method == 'POST' and body.get('action') == 'comment':
+            oid = body.get('order_id')
+            if not oid:
+                return {'statusCode': 400, 'headers': cors_headers(),
+                        'body': json.dumps({'error': 'order_id required'})}
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO order_comments (order_id, author_staff_id, author_name, comment, "
+                    "attachment_url, attachment_name) VALUES (%s,%s,%s,%s,%s,%s) RETURNING id",
+                    (int(oid), body.get('author_staff_id'), body.get('author_name', ''),
+                     body.get('comment', ''), body.get('attachment_url') or None,
+                     body.get('attachment_name') or None)
+                )
+                new_cid = cur.fetchone()[0]
+            return {'statusCode': 200, 'headers': cors_headers(),
+                    'body': json.dumps({'id': new_cid})}
 
         if method == 'POST':
             order_number  = str(body.get('order_number', ''))

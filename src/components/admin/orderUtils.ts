@@ -195,8 +195,17 @@ export function paintingPct(order: Order): number {
   return Math.round((totalPainted / totalQty) * 100);
 }
 
-// Можно ли перейти на следующий этап (блокировка по 100%)
+// Можно ли перейти на следующий этап (блокировка по 100% и по обязательным срокам)
 export function canAdvanceStage(order: Order, targetStage: string): { ok: boolean; reason?: string } {
+  // Из «В очереди на плетение» нельзя двигаться дальше без проставленных сроков
+  if (order.stage === 'В очереди на плетение') {
+    if (!order.due_weaving) {
+      return { ok: false, reason: 'Не проставлен срок плетения — заполните его в карточке заказа.' };
+    }
+    if (needsPainting(order) && !order.due_painting) {
+      return { ok: false, reason: 'Не проставлен срок окраски — заполните его в карточке заказа.' };
+    }
+  }
   if (targetStage === 'Малярка') {
     const pct = weavingPct(order);
     if (pct < 100) return { ok: false, reason: `Плетение ${pct}% — нужно 100% для перехода в Малярку.` };

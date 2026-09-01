@@ -108,6 +108,19 @@ export function getDueFieldForTask(title: string): { field: 'due_date' | 'due_we
   return found ? { field: found.field, label: found.label } : null;
 }
 
+// Автозаписи из заказов, которые являются НАСТОЯЩИМИ задачами (их нужно выполнять):
+// простановка сроков и постановка АТИ.
+const ACTIONABLE_PREFIXES = [
+  'Срок готовности:', 'Срок плетения:', 'Срок окраски:', 'Поставить АТИ',
+];
+
+// Уведомления — информируют об этапах заказа, выполнять их не нужно.
+// Показываются во вкладке «Уведомления».
+export function isNotification(task: Task): boolean {
+  if (task.assigned_by_name !== 'Система') return false;
+  return !ACTIONABLE_PREFIXES.some(p => task.title.startsWith(p));
+}
+
 // ── Утилиты ───────────────────────────────────────────────────────────────────
 export function fmtDate(iso: string): string {
   if (!iso) return '';

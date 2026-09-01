@@ -206,27 +206,36 @@ def handler(event: dict, context) -> dict:
                         # whole и handle считаем как full корзина
                         warehouse_delta[cname]['full'] += qty
 
+                # Имя сотрудника для истории склада
+                staff_name = str(staff_id)
+                with conn.cursor() as cur:
+                    cur.execute("SELECT full_name FROM staff WHERE id = %s", (staff_id,))
+                    row = cur.fetchone()
+                    if row and row[0]:
+                        staff_name = row[0]
+
                 for cname, delta in warehouse_delta.items():
                     with conn.cursor() as cur:
+                        # ВАЖНО: приход от сотрудника попадает ТОЛЬКО в уже существующую
+                        # позицию склада с точно совпадающим названием. Новые позиции
+                        # склада отчётами сотрудников не создаются.
                         cur.execute(
-                            """INSERT INTO warehouse (catalog_name, qty_full, qty_no_handle)
-                               VALUES (%s, %s, %s)
-                               ON CONFLICT (catalog_name)
-                               DO UPDATE SET
-                                 qty_full = warehouse.qty_full + %s,
-                                 qty_no_handle = warehouse.qty_no_handle + %s,
-                                 updated_at = NOW()""",
-                            (cname, delta['full'], delta['no_handle'],
-                             delta['full'], delta['no_handle'])
+                            """UPDATE warehouse SET
+                                 qty_full = qty_full + %s,
+                                 qty_no_handle = qty_no_handle + %s,
+                                 updated_at = NOW()
+                               WHERE catalog_name = %s""",
+                            (delta['full'], delta['no_handle'], cname)
                         )
+                        if cur.rowcount == 0:
+                            continue  # позиции нет на складе — пропускаем
                         if delta['full'] > 0 or delta['no_handle'] > 0:
                             cur.execute(
                                 """INSERT INTO warehouse_log
                                    (catalog_name, operation, qty_full, qty_no_handle, comment, created_by)
                                    VALUES (%s, 'income_staff', %s, %s, %s, %s)""",
                                 (cname, delta['full'], delta['no_handle'],
-                                 f"Отчёт сотрудника за {report_date}",
-                                 str(staff_id))
+                                 f"Отчёт за {report_date}", staff_name)
                             )
 
                 return {'statusCode': 200, 'headers': cors(),
@@ -259,6 +268,58 @@ def handler(event: dict, context) -> dict:
                         (catalog_name, -delta, comment, created_by)
                     )
                 return {'statusCode': 200, 'headers': cors(), 'body': json.dumps({'ok': True})}
+
+            if b_type == 'warehouse_cleanup':
+                # Разовая чистка склада: схлопываем дубли вида «НАЗВАНИЕ (размер)»
+                # в «НАЗВАНИЕ» и обнуляем остатки у всех позиций.
+                import re as _re
+                with conn.cursor() as cur:
+                    cur.execute("SELECT id, catalog_name FROM warehouse")
+                    rows = cur.fetchall()
+
+                base_names = {_re.sub(r'\s*\([^)]*\)\s*$', '', n).strip() for _i, n in rows}
+                merged, renamed = 0, 0
+                for wid, name in rows:
+                    base = _re.sub(r'\s*\([^)]*\)\s*$', '', name).strip()
+                    if base == name:
+                        continue
+                    with conn.cursor() as cur:
+                        if base in base_names and any(n == base for _i, n in rows):
+                            # Такая позиция уже есть — просто удаляем дубль с размером
+                            cur.execute("DELETE FROM warehouse WHERE id = %s", (wid,))
+                            merged += 1
+                        else:
+                            # Базовой позиции нет — переименовываем, убирая размер
+                            cur.execute("UPDATE warehouse SET catalog_name = %s WHERE id = %s", (base, wid))
+                            renamed += 1
+
+                with conn.cursor() as cur:
+                    cur.execute("UPDATE warehouse SET qty_full = 0, qty_no_handle = 0, updated_at = NOW()")
+                return {'statusCode': 200, 'headers': cors(),
+                        'body': json.dumps({'ok': True, 'merged': merged, 'renamed': renamed})}
+
+            if b_type == 'warehouse_sync':
+                # Подтянуть новые позиции из каталога товаров на склад (с нулевым остатком).
+                # Названия на складе — БЕЗ размера, чтобы совпадать с отчётами сотрудников.
+                with conn.cursor() as cur:
+                    cur.execute("SELECT DISTINCT name FROM products WHERE name IS NOT NULL AND name <> ''")
+                    catalog_names = [r[0].strip() for r in cur.fetchall() if r[0] and r[0].strip()]
+                    cur.execute("SELECT catalog_name FROM warehouse")
+                    existing = {r[0] for r in cur.fetchall()}
+
+                added = 0
+                for name in catalog_names:
+                    if name in existing:
+                        continue
+                    with conn.cursor() as cur:
+                        cur.execute(
+                            """INSERT INTO warehouse (catalog_name, qty_full, qty_no_handle)
+                               VALUES (%s, 0, 0) ON CONFLICT (catalog_name) DO NOTHING""",
+                            (name,)
+                        )
+                        added += cur.rowcount
+                return {'statusCode': 200, 'headers': cors(),
+                        'body': json.dumps({'ok': True, 'added': added})}
 
             if b_type == 'warehouse_manual':
                 # Ручное добавление / списание / брак

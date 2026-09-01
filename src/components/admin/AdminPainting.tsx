@@ -64,9 +64,13 @@ const PaintingCard = ({ order, colorFilter, onUpdatePainted, onUpdateStage, onOp
   const totalPct = pct(sumPainted, sumQty);
   const next = nextStage(order);
 
-  const setPainted = (posKey: string, val: number, max: number) => {
-    const clamped = Math.max(0, Math.min(val, max));
-    onUpdatePainted(order.id, { ...painted, [posKey]: clamped });
+  // Вносим ДЕЛЬТУ: введённое количество прибавляется к накопленному «Готово»
+  const addPainted = (posKey: string, delta: number, max: number) => {
+    if (!delta) return;
+    const current = Math.min(painted[posKey] || 0, max);
+    const nextVal = Math.max(0, Math.min(current + delta, max));
+    if (nextVal === current) return;
+    onUpdatePainted(order.id, { ...painted, [posKey]: nextVal });
   };
 
   return (
@@ -156,6 +160,7 @@ const PaintingCard = ({ order, colorFilter, onUpdatePainted, onUpdateStage, onOp
                         <th className="w-16 px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">Кол-во</th>
                         <th className="w-20 px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">Сплете-<br />но</th>
                         <th className="w-20 px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">Покра-<br />шено</th>
+                        <th className="w-16 px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">Гото-<br />во</th>
                         <th className="w-16 px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">Оста-<br />ток</th>
                         <th className="w-14 px-2 py-1.5 text-center font-semibold text-primary border border-primary/20">%</th>
                       </tr>
@@ -172,12 +177,22 @@ const PaintingCard = ({ order, colorFilter, onUpdatePainted, onUpdateStage, onOp
                             <td className="w-16 px-2 py-1.5 text-center text-primary font-bold border border-primary/10">{pos.qty}</td>
                             <td className="w-20 px-2 py-1.5 text-center text-primary/60 border border-primary/10">{woven}</td>
                             <td className="w-20 px-1 py-1 text-center border border-primary/10">
-                              <input type="number" min={0} max={pos.qty}
-                                defaultValue={paintedVal} key={`${pos.posKey}-${paintedVal}`}
-                                onBlur={e => setPainted(pos.posKey, parseInt(e.target.value,10)||0, pos.qty)}
-                                onKeyDown={e => e.key==='Enter' && setPainted(pos.posKey, parseInt((e.target as HTMLInputElement).value,10)||0, pos.qty)}
+                              <input type="number" placeholder="" key={`${pos.posKey}-${paintedVal}`}
+                                onBlur={e => {
+                                  const delta = parseInt(e.target.value, 10) || 0;
+                                  if (delta !== 0) addPainted(pos.posKey, delta, pos.qty);
+                                  e.target.value = '';
+                                }}
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter') {
+                                    const delta = parseInt((e.target as HTMLInputElement).value, 10) || 0;
+                                    if (delta !== 0) addPainted(pos.posKey, delta, pos.qty);
+                                    (e.target as HTMLInputElement).value = '';
+                                  }
+                                }}
                                 className="w-14 text-center border border-primary/30 rounded px-1 py-0.5 bg-background outline-none focus:border-accent [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
                             </td>
+                            <td className="w-16 px-2 py-1.5 text-center text-primary font-bold border border-primary/10">{paintedVal}</td>
                             <td className="w-16 px-2 py-1.5 text-center text-primary font-bold border border-primary/10">{left}</td>
                             <td className="w-14 px-2 py-1.5 text-center font-semibold border border-primary/10" style={{color:OLIVE}}>{pct(paintedVal,pos.qty)}%</td>
                           </tr>
@@ -188,7 +203,8 @@ const PaintingCard = ({ order, colorFilter, onUpdatePainted, onUpdateStage, onOp
                         <td className="sticky left-8 z-10 bg-muted px-3 py-1.5 text-center font-bold text-primary border border-primary/20 shadow-[3px_0_5px_-3px_rgba(0,0,0,0.15)]">ИТОГО</td>
                         <td className="w-16 px-2 py-1.5 text-center font-bold text-primary border border-primary/20">{colorQty}</td>
                         <td className="w-20 px-2 py-1.5 text-center font-bold text-primary/50 border border-primary/20">—</td>
-                        <td className="w-20 px-2 py-1.5 text-center font-bold text-primary border border-primary/20">{colorPainted}</td>
+                        <td className="w-20 border border-primary/20" />
+                        <td className="w-16 px-2 py-1.5 text-center font-bold text-primary border border-primary/20">{colorPainted}</td>
                         <td className="w-16 px-2 py-1.5 text-center font-bold text-primary border border-primary/20">{colorQty-colorPainted}</td>
                         <td className="w-14 px-2 py-1.5 text-center font-bold border border-primary/20" style={{color:OLIVE}}>{pct(colorPainted,colorQty)}%</td>
                       </tr>
@@ -198,6 +214,9 @@ const PaintingCard = ({ order, colorFilter, onUpdatePainted, onUpdateStage, onOp
               </div>
             );
           })}
+          <p className="text-[10px] text-primary/50 px-4 py-2">
+            В «Покрашено» вводите количество за один раз — оно прибавится к «Готово». Для исправления ошибки введите отрицательное число.
+          </p>
         </div>
       )}
     </div>

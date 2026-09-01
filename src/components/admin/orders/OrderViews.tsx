@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  Order, fmtDate, fmtMoney, fmtDateShort,
+  Order, fmtDate, fmtMoney, fmtDateShort, STAGES, CLOSED_STAGE,
   responsibleStyle, getDeadlineStatus, weavingPct,
 } from '../orderUtils';
 import { OrderCard } from './OrderCard';
@@ -16,62 +16,99 @@ function fmtDayNum(d: Date) { return `${String(d.getDate()).padStart(2,'0')}.${S
 function isoDate(d: Date) { return d.toISOString().slice(0, 10); }
 
 // ── ListView ──────────────────────────────────────────────────────────────────
-export const ListView = ({ orders, onUpdate, onOpenFull }: {
+type ListSortCol = 'order' | 'stage' | 'total' | 'responsible' | 'due_date' | 'due_weaving' | 'due_painting';
+
+export const ListView = ({ orders, onOpenFull }: {
   orders: Order[];
   onUpdate: (id: number, patch: Partial<Order>) => void;
   onOpenFull: (order: Order) => void;
 }) => {
-  const activeOrders = orders.filter(o => !o.is_archived && !o.is_trashed);
+  const [sortCol, setSortCol] = useState<ListSortCol>('order');
+  const [sortAsc, setSortAsc] = useState(false);
+
+  // Показываем все этапы, КРОМЕ «Закрытые» (архив) и удалённых
+  const activeOrders = orders.filter(o => !o.is_archived && !o.is_trashed && o.stage !== CLOSED_STAGE);
+
+  const sorted = [...activeOrders].sort((a, b) => {
+    let cmp = 0;
+    if (sortCol === 'order') {
+      // Сортировка «Заказ» — по дате формирования заказа
+      cmp = (a.created_at || '').localeCompare(b.created_at || '');
+    } else if (sortCol === 'stage') {
+      cmp = STAGES.indexOf(a.stage) - STAGES.indexOf(b.stage);
+    } else if (sortCol === 'total') {
+      cmp = a.total - b.total;
+    } else if (sortCol === 'responsible') {
+      cmp = (a.responsible || '').localeCompare(b.responsible || '', 'ru');
+    } else {
+      // Даты: пустые всегда в конце
+      const av = a[sortCol] || '', bv = b[sortCol] || '';
+      if (!av && !bv) cmp = 0;
+      else if (!av) return 1;
+      else if (!bv) return -1;
+      else cmp = av.localeCompare(bv);
+    }
+    return sortAsc ? cmp : -cmp;
+  });
+
+  const th = (col: ListSortCol, label: string, extraCls = '') => (
+    <th
+      onClick={() => { if (sortCol === col) setSortAsc(v => !v); else { setSortCol(col); setSortAsc(true); } }}
+      className={`px-3 py-2.5 text-left font-semibold cursor-pointer select-none hover:text-primary whitespace-nowrap ${extraCls}`}>
+      {label}{sortCol === col ? (sortAsc ? ' ↑' : ' ↓') : <span className="opacity-30"> ↕</span>}
+    </th>
+  );
+
   return (
-    <div className="border border-primary/25 rounded-2xl overflow-hidden">
-      <table className="w-full text-sm border-collapse">
+    <div className="border border-primary/25 rounded-2xl overflow-x-auto">
+      <table className="text-sm border-collapse min-w-[860px] w-full">
         <thead>
           <tr className="bg-primary/5 text-xs text-primary/60 border-b border-primary/20">
-            <th className="px-3 py-2.5 text-left font-semibold">Заказ</th>
-            <th className="px-3 py-2.5 text-left font-semibold">Этап</th>
-            <th className="px-3 py-2.5 text-left font-semibold">Сумма</th>
-            <th className="px-3 py-2.5 text-left font-semibold">Ответственный</th>
-            <th className="px-3 py-2.5 text-left font-semibold">Готовность</th>
-            <th className="px-3 py-2.5 text-left font-semibold">Плетение</th>
-            <th className="px-3 py-2.5 text-left font-semibold">Покраска</th>
+            {th('order', 'Заказ', 'sticky left-0 z-20 bg-[#faf8f4] shadow-[3px_0_5px_-3px_rgba(0,0,0,0.15)] min-w-[190px]')}
+            {th('stage', 'Этап')}
+            {th('total', 'Сумма')}
+            {th('responsible', 'Ответственный')}
+            {th('due_date', 'Готовность')}
+            {th('due_weaving', 'Плетение')}
+            {th('due_painting', 'Покраска')}
             <th className="px-3 py-2.5 text-center font-semibold w-8"></th>
           </tr>
         </thead>
         <tbody>
-          {activeOrders.map(o => {
+          {sorted.map(o => {
             const dlStatus  = getDeadlineStatus(o);
-            const rowCls    = dlStatus === 'burn-weaving' || dlStatus === 'burn-painting' ? 'bg-red-50' :
-                              dlStatus === 'warn-weaving' || dlStatus === 'warn-painting' ? 'bg-yellow-50' : '';
+            const rowBg     = dlStatus === 'burn-weaving' || dlStatus === 'burn-painting' ? 'bg-red-50' :
+                              dlStatus === 'warn-weaving' || dlStatus === 'warn-painting' ? 'bg-yellow-50' : 'bg-background';
             const respStyle = responsibleStyle(o.responsible);
             return (
               <tr key={o.id}
-                className={`border-b border-primary/10 last:border-0 hover:bg-primary/3 cursor-pointer ${rowCls}`}
+                className={`border-b border-primary/10 last:border-0 hover:bg-primary/3 cursor-pointer ${rowBg}`}
                 onClick={() => onOpenFull(o)}>
-                <td className="px-3 py-2.5">
+                <td className={`px-3 py-2.5 sticky left-0 z-10 ${rowBg} shadow-[3px_0_5px_-3px_rgba(0,0,0,0.15)]`}>
                   <div className="font-medium text-primary">{o.city} {o.customer_name}</div>
                   <div className="text-[10px] text-muted-foreground">#{o.order_number} · {fmtDate(o.created_at)}</div>
                 </td>
-                <td className="px-3 py-2.5">
+                <td className="px-3 py-2.5 whitespace-nowrap">
                   <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary">{o.stage}</span>
                 </td>
                 <td className="px-3 py-2.5 font-bold text-primary whitespace-nowrap">{fmtMoney(o.total)}</td>
-                <td className="px-3 py-2.5">
+                <td className="px-3 py-2.5 whitespace-nowrap">
                   {respStyle ? (
                     <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ backgroundColor: respStyle.bg, color: respStyle.text }}>
                       {respStyle.name}
                     </span>
                   ) : '—'}
                 </td>
-                <td className="px-3 py-2.5 text-xs text-primary/70">{o.due_date ? fmtDateShort(o.due_date) : '—'}</td>
-                <td className="px-3 py-2.5 text-xs text-primary/70">{o.due_weaving ? fmtDateShort(o.due_weaving) : '—'}</td>
-                <td className="px-3 py-2.5 text-xs text-primary/70">{o.due_painting ? fmtDateShort(o.due_painting) : '—'}</td>
+                <td className="px-3 py-2.5 text-xs text-primary/70 whitespace-nowrap">{o.due_date ? fmtDateShort(o.due_date) : '—'}</td>
+                <td className="px-3 py-2.5 text-xs text-primary/70 whitespace-nowrap">{o.due_weaving ? fmtDateShort(o.due_weaving) : '—'}</td>
+                <td className="px-3 py-2.5 text-xs text-primary/70 whitespace-nowrap">{o.due_painting ? fmtDateShort(o.due_painting) : '—'}</td>
                 <td className="px-3 py-2.5 text-center" onClick={e => e.stopPropagation()}>
                   <button onClick={() => onOpenFull(o)} className="text-xs text-primary/50 hover:text-primary">↗</button>
                 </td>
               </tr>
             );
           })}
-          {activeOrders.length === 0 && (
+          {sorted.length === 0 && (
             <tr><td colSpan={8} className="px-3 py-6 text-center text-muted-foreground">Нет активных заказов</td></tr>
           )}
         </tbody>
@@ -174,8 +211,17 @@ export const GanttView = ({ orders, onOpenFull }: {
   onOpenFull: (o: Order) => void;
 }) => {
   const today = new Date(); today.setHours(0, 0, 0, 0);
-  const calOrders = orders.filter(o => !o.is_trashed && !o.is_archived);
-  const sorted = [...calOrders].sort((a, b) => (!a.due_date ? 1 : !b.due_date ? -1 : a.due_date.localeCompare(b.due_date)));
+  const [ganttAsc, setGanttAsc] = useState(true);
+  // Показываем все этапы, КРОМЕ «Закрытые» (архив) и удалённых
+  const calOrders = orders.filter(o => !o.is_trashed && !o.is_archived && o.stage !== CLOSED_STAGE);
+  // Сортировка по дате готовности (заказы без даты — всегда в конце)
+  const sorted = [...calOrders].sort((a, b) => {
+    if (!a.due_date && !b.due_date) return 0;
+    if (!a.due_date) return 1;
+    if (!b.due_date) return -1;
+    const cmp = a.due_date.localeCompare(b.due_date);
+    return ganttAsc ? cmp : -cmp;
+  });
 
   let rangeStart = new Date(today); let rangeEnd = addDaysO(today, 30);
   for (const o of sorted) {
@@ -196,8 +242,13 @@ export const GanttView = ({ orders, onOpenFull }: {
   return (
     <div className="overflow-x-auto rounded-2xl border border-primary/25">
       <div style={{ minWidth: LABEL_W + days.length * DAY_W }}>
-        <div className="flex bg-primary/5 border-b border-primary/20 sticky top-0 z-10">
-          <div style={{ width: LABEL_W, minWidth: LABEL_W }} className="flex-shrink-0 px-3 py-2 text-xs font-semibold text-primary border-r border-primary/20">Заказ</div>
+        <div className="flex bg-primary/5 border-b border-primary/20 sticky top-0 z-20">
+          <div style={{ width: LABEL_W, minWidth: LABEL_W }}
+            onClick={() => setGanttAsc(v => !v)}
+            className="sticky left-0 z-30 bg-[#faf8f4] flex-shrink-0 px-3 py-2 text-xs font-semibold text-primary border-r border-primary/20 cursor-pointer select-none hover:text-primary shadow-[3px_0_5px_-3px_rgba(0,0,0,0.15)] flex items-center">
+            Заказ <span className="ml-1">{ganttAsc ? '↑' : '↓'}</span>
+            <span className="ml-1 text-[10px] font-normal text-primary/40">по готовности</span>
+          </div>
           {days.map((d, i) => {
             const isToday   = isoDate(d) === isoDate(today);
             const isWeekend = d.getDay() === 0 || d.getDay() === 6;
@@ -219,9 +270,11 @@ export const GanttView = ({ orders, onOpenFull }: {
           const barWidth = Math.max(0, Math.min(ei, days.length - 1) - Math.max(0, si) + 1) * DAY_W - 4;
           return (
             <div key={o.id} className="flex border-b border-primary/10 hover:bg-primary/5 cursor-pointer" style={{ height: ROW_H }} onClick={() => onOpenFull(o)}>
-              <div style={{ width: LABEL_W, minWidth: LABEL_W }} className="flex-shrink-0 px-3 py-2 border-r border-primary/20 flex flex-col justify-center">
+              <div style={{ width: LABEL_W, minWidth: LABEL_W }}
+                className="sticky left-0 z-10 bg-background flex-shrink-0 px-3 py-2 border-r border-primary/20 flex flex-col justify-center shadow-[3px_0_5px_-3px_rgba(0,0,0,0.15)]">
                 <div className="text-xs font-bold text-primary leading-tight">{o.city} {o.customer_name}</div>
                 <div className="text-[11px] text-primary/60">{fmtMoney(o.total)}</div>
+                {o.due_date && <div className="text-[10px] text-primary/45">до {fmtDateShort(o.due_date)}</div>}
               </div>
               <div className="relative flex-1 h-full">
                 {days.map((_d, i) => {
@@ -287,16 +340,21 @@ export const KanbanView = ({
           </div>
         );
       })}
-      {/* Archive */}
-      <div className="w-64 flex-shrink-0 px-2 border-l border-primary/30">
+      {/* Archive — принимает перетаскивание карточек (перевод в «Закрытые») */}
+      <div className="w-64 flex-shrink-0 px-2 border-l border-primary/30"
+        onDragOver={e => e.preventDefault()} onDrop={() => handleDrop(CLOSED_STAGE)}>
         <button onClick={() => setArchiveOpen(v => !v)}
           className="w-full text-center font-semibold text-primary text-sm pb-3 mb-3 border-b border-primary/30 flex items-center justify-center gap-1">
           Закрытые {archived.length > 0 && <span className="text-xs bg-primary/10 rounded-full px-1.5">{archived.length}</span>}
           <span className="text-primary/50 text-xs">{archiveOpen ? '▲' : '▼'}</span>
         </button>
-        {archiveOpen && (
-          <div className="space-y-3">
+        {archiveOpen ? (
+          <div className="space-y-3 min-h-[200px]">
             {archived.map(o => <OrderCard key={o.id} order={o} onDragStart={setDragId} onUpdate={patchOrder} onOpenFull={setFullOrder} />)}
+          </div>
+        ) : (
+          <div className="min-h-[200px] rounded-xl border-2 border-dashed border-primary/15 flex items-center justify-center text-[11px] text-primary/35 text-center px-2">
+            Перетащите сюда,<br />чтобы закрыть заказ
           </div>
         )}
       </div>

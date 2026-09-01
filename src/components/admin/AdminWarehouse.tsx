@@ -21,18 +21,12 @@ interface LogEntry {
   created_at: string;
 }
 
-// Имена каталога из products
-interface CatalogProduct {
-  id: number;
-  name: string;
-  size?: string;
-}
-
 const OP_LABELS: Record<string, string> = {
   income_staff:  'Приход от сотрудников',
   add:           'Ручное добавление',
   defect:        'Брак',
   order_consume: 'Списание в заказ',
+  correction:    'Исправление ошибки',
 };
 
 const OP_COLORS: Record<string, string> = {
@@ -40,12 +34,25 @@ const OP_COLORS: Record<string, string> = {
   add:           'text-blue-600',
   defect:        'text-red-500',
   order_consume: 'text-purple-600',
+  correction:    'text-orange-600',
 };
 
 function fmtDt(iso: string): string {
   if (!iso) return '';
   const d = new Date(iso);
   return d.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
+// Имя текущего сотрудника — записывается в историю операций склада
+function getAuthName(): string {
+  try {
+    const raw = sessionStorage.getItem('admin_auth');
+    if (raw) {
+      const a = JSON.parse(raw);
+      return a.full_name || 'Администратор';
+    }
+  } catch { /* ignore */ }
+  return 'Администратор';
 }
 
 type WhSortCol = 'catalog_name' | 'qty_full' | 'qty_no_handle' | 'total' | 'updated_at';
@@ -65,38 +72,40 @@ const AdminWarehouse = () => {
   // Форма операции
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({
-    catalog_name: '', operation: 'add' as 'add' | 'defect',
+    catalog_name: '', operation: 'add' as 'add' | 'defect' | 'correction',
     qty_full: 0, qty_no_handle: 0, comment: '',
   });
   const [saving, setSaving] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
   const loadItems = async () => {
     setLoading(true);
     try {
-      const [whRes, prodRes] = await Promise.all([
-        fetch(`${urls['reports']}?type=warehouse`),
-        fetch(`${urls['products']}?raw=1`),
-      ]);
-      const [whData, prodData] = await Promise.all([whRes.json(), prodRes.json()]);
-      const warehouseItems: WarehouseItem[] = whData.items || [];
+      const res = await fetch(`${urls['reports']}?type=warehouse`);
+      const data = await res.json();
+      const warehouseItems: WarehouseItem[] = (data.items || [])
+        .slice()
+        .sort((a: WarehouseItem, b: WarehouseItem) => a.catalog_name.localeCompare(b.catalog_name, 'ru'));
       setItems(warehouseItems);
-
-      // Собираем все уникальные имена из каталога
-      const products: CatalogProduct[] = prodData.products || [];
-      const existingNames = new Set(warehouseItems.map(i => i.catalog_name));
-      const catalogNames = Array.from(new Set(
-        products.map((p: CatalogProduct) => p.size ? `${p.name} (${p.size})` : p.name)
-      )).sort();
-
-      // Добавляем позиции из каталога которых нет на складе — с qty=0
-      const missing: WarehouseItem[] = catalogNames
-        .filter(n => !existingNames.has(n))
-        .map((n, i) => ({ id: -(i + 1), catalog_name: n, qty_full: 0, qty_no_handle: 0, updated_at: '' }));
-
-      setItems([...warehouseItems, ...missing].sort((a, b) => a.catalog_name.localeCompare(b.catalog_name, 'ru')));
-      setAllNames(catalogNames);
+      // Выпадающий список — строго то, что есть на складе (названия без размера)
+      setAllNames(warehouseItems.map(i => i.catalog_name));
     } catch { /* fallback */ }
     setLoading(false);
+  };
+
+  // Подтянуть новые позиции из «Товаров» на склад
+  const syncPositions = async () => {
+    setSyncing(true);
+    try {
+      const res  = await fetch(urls['reports'], {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'warehouse_sync' }),
+      });
+      const data = await res.json();
+      await loadItems();
+      alert(data.added > 0 ? `Добавлено новых позиций: ${data.added}` : 'Новых позиций не найдено — склад актуален.');
+    } catch { alert('Не удалось обновить позиции'); }
+    setSyncing(false);
   };
 
   const loadLog = async (catalogName?: string) => {
@@ -125,7 +134,7 @@ const AdminWarehouse = () => {
       await fetch(urls['reports'], {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'warehouse_manual', ...form }),
+        body: JSON.stringify({ type: 'warehouse_manual', ...form, created_by: getAuthName() }),
       });
       setShowForm(false);
       await loadItems();
@@ -150,8 +159,8 @@ const AdminWarehouse = () => {
       return sortAsc ? cmp : -cmp;
     });
 
-  const whTh = (col: WhSortCol, label: string, align = 'left') => (
-    <th className={`px-4 py-3 text-${align} font-semibold cursor-pointer hover:text-primary select-none`}
+  const whTh = (col: WhSortCol, label: string, align = 'left', extraCls = '') => (
+    <th className={`px-4 py-3 text-${align} font-semibold cursor-pointer hover:text-primary select-none whitespace-nowrap ${extraCls}`}
       onClick={() => { if (sortCol === col) setSortAsc(v => !v); else { setSortCol(col); setSortAsc(col !== 'qty_full' && col !== 'qty_no_handle' && col !== 'total'); } }}>
       {label}{sortCol === col ? (sortAsc ? ' ↑' : ' ↓') : <span className="opacity-30"> ↕</span>}
     </th>
@@ -162,7 +171,7 @@ const AdminWarehouse = () => {
   const posWithStock  = items.filter(i => (i.qty_full + i.qty_no_handle) > 0).length;
 
   return (
-    <div className="p-6 max-w-4xl">
+    <div className="p-6 max-w-5xl">
       <h1 className="font-display text-2xl font-semibold text-primary mb-1">Склад</h1>
 
       {/* Сводка */}
@@ -207,6 +216,10 @@ const AdminWarehouse = () => {
           className="px-4 py-2 rounded-xl bg-accent text-accent-foreground text-sm font-semibold hover:bg-accent/90 transition-colors">
           + Добавить / Брак
         </button>
+        <button onClick={syncPositions} disabled={syncing}
+          className="px-4 py-2 rounded-xl border border-primary/40 text-primary text-sm hover:border-primary transition-colors disabled:opacity-50">
+          {syncing ? 'Обновляю...' : '↻ Обновить позиции'}
+        </button>
         <button onClick={() => openLog()}
           className="px-4 py-2 rounded-xl border border-primary/40 text-primary text-sm hover:border-primary transition-colors">
           История
@@ -218,11 +231,11 @@ const AdminWarehouse = () => {
       ) : filtered.length === 0 ? (
         <p className="text-muted-foreground">{search ? 'Ничего не найдено' : 'Нет позиций.'}</p>
       ) : (
-        <div className="border border-primary/30 rounded-2xl overflow-hidden">
-          <table className="w-full text-sm border-collapse">
+        <div className="border border-primary/30 rounded-2xl overflow-x-auto">
+          <table className="text-sm border-collapse min-w-[680px] w-full">
             <thead>
               <tr className="bg-primary/5 text-xs text-primary/70 border-b border-primary/20">
-                {whTh('catalog_name', 'Наименование')}
+                {whTh('catalog_name', 'Наименование', 'left', 'sticky left-0 z-20 bg-[#faf8f4] shadow-[3px_0_5px_-3px_rgba(0,0,0,0.15)] min-w-[190px]')}
                 {whTh('qty_full', 'С ручкой', 'right')}
                 {whTh('qty_no_handle', 'Без ручки', 'right')}
                 {whTh('total', 'Итого', 'right')}
@@ -236,13 +249,15 @@ const AdminWarehouse = () => {
                 return (
                   <tr key={item.id > 0 ? item.id : `virtual-${idx}`}
                     className={`border-b border-primary/10 last:border-0 hover:bg-primary/3 ${total === 0 ? 'opacity-50' : ''}`}>
-                    <td className="px-4 py-2.5 text-primary font-medium">{displayTitle(item.catalog_name)}</td>
+                    <td className="px-4 py-2.5 text-primary font-medium sticky left-0 z-10 bg-background shadow-[3px_0_5px_-3px_rgba(0,0,0,0.15)]">
+                      {displayTitle(item.catalog_name)}
+                    </td>
                     <td className="px-4 py-2.5 text-right font-bold text-primary">{item.qty_full}</td>
                     <td className="px-4 py-2.5 text-right text-primary/70">{item.qty_no_handle}</td>
                     <td className="px-4 py-2.5 text-right font-bold" style={{ color: total > 0 ? '#6b7c3a' : undefined }}>
                       {total}
                     </td>
-                    <td className="px-4 py-2.5 text-center text-xs text-muted-foreground">
+                    <td className="px-4 py-2.5 text-center text-xs text-muted-foreground whitespace-nowrap">
                       {item.updated_at ? new Date(item.updated_at).toLocaleDateString('ru-RU') : '—'}
                     </td>
                     <td className="px-4 py-2.5 text-center">
@@ -269,23 +284,27 @@ const AdminWarehouse = () => {
             <div className="space-y-3">
               <div>
                 <label className="text-xs text-muted-foreground block mb-1">Наименование *</label>
-                <input value={form.catalog_name}
+                <select value={form.catalog_name}
                   onChange={e => setForm(f => ({...f, catalog_name: e.target.value}))}
-                  list="warehouse-catalog-names"
-                  placeholder="Выберите или введите название"
-                  className="w-full border border-primary/30 rounded-xl px-3 py-2 text-sm outline-none focus:border-accent" />
-                <datalist id="warehouse-catalog-names">
-                  {allNames.map(n => <option key={n} value={n} />)}
-                </datalist>
+                  className="w-full border border-primary/30 rounded-xl px-3 py-2 text-sm outline-none focus:border-accent bg-background">
+                  <option value="">— выберите позицию —</option>
+                  {allNames.map(n => <option key={n} value={n}>{n}</option>)}
+                </select>
               </div>
               <div>
                 <label className="text-xs text-muted-foreground block mb-1">Операция</label>
                 <select value={form.operation}
-                  onChange={e => setForm(f => ({...f, operation: e.target.value as 'add' | 'defect'}))}
-                  className="w-full border border-primary/30 rounded-xl px-3 py-2 text-sm outline-none focus:border-accent">
+                  onChange={e => setForm(f => ({...f, operation: e.target.value as 'add' | 'defect' | 'correction'}))}
+                  className="w-full border border-primary/30 rounded-xl px-3 py-2 text-sm outline-none focus:border-accent bg-background">
                   <option value="add">➕ Ручное добавление</option>
                   <option value="defect">⚠️ Брак</option>
+                  <option value="correction">↩️ Исправление ошибки (убрать лишнее)</option>
                 </select>
+                {form.operation === 'correction' && (
+                  <p className="text-[11px] text-orange-600 mt-1">
+                    Укажите количество, которое было внесено по ошибке — оно спишется с остатка.
+                  </p>
+                )}
               </div>
               <div className="flex gap-2">
                 <div className="flex-1">
@@ -343,6 +362,7 @@ const AdminWarehouse = () => {
                       <th className="pb-2 text-left">Дата</th>
                       {!logItem && <th className="pb-2 text-left">Позиция</th>}
                       <th className="pb-2 text-left">Операция</th>
+                      <th className="pb-2 text-left pl-3">Сотрудник</th>
                       <th className="pb-2 text-right">С ручкой</th>
                       <th className="pb-2 text-right">Без ручки</th>
                       <th className="pb-2 text-left pl-3">Комментарий</th>
@@ -356,6 +376,7 @@ const AdminWarehouse = () => {
                         <td className={`py-2 pr-3 font-medium text-xs ${OP_COLORS[e.operation] || 'text-primary'}`}>
                           {OP_LABELS[e.operation] || e.operation}
                         </td>
+                        <td className="py-2 pl-3 pr-3 text-xs text-primary/80 whitespace-nowrap">{e.created_by || '—'}</td>
                         <td className="py-2 text-right font-bold text-primary">{e.qty_full || '—'}</td>
                         <td className="py-2 text-right text-primary/70">{e.qty_no_handle || '—'}</td>
                         <td className="py-2 text-xs text-muted-foreground pl-3">{e.comment}</td>

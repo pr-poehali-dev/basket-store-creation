@@ -1,6 +1,30 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Order, groupPositions, displayTitle, fmtMoney, fmtDateShort, RESPONSIBLES, DELIVERY_LABELS, needsPainting } from './orderUtils';
 import urls from '../../../backend/func2url.json';
+
+interface OrderComment {
+  id: number;
+  author_staff_id: number | null;
+  author_name: string;
+  comment: string;
+  attachment_url: string;
+  attachment_name: string;
+  created_at: string;
+}
+
+function getAuth(): { staff_id?: number; full_name?: string } {
+  try {
+    const raw = sessionStorage.getItem('admin_auth');
+    if (raw) return JSON.parse(raw);
+  } catch { /* ignore */ }
+  return {};
+}
+
+function fmtChatTime(iso: string): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return d.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
 
 interface Props {
   order: Order;
@@ -40,7 +64,6 @@ function generateOrderPDF(order: Order) {
   const totalWithoutDisc = disc > 0 ? Math.round(order.total / (1 - disc)) : order.total;
   const totalDiscount    = totalWithoutDisc - totalWithDisc;
 
-  const dateStr   = new Date().toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const orderDate = order.created_at
     ? new Date(order.created_at).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })
     : '—';
@@ -191,6 +214,45 @@ const OrderFullCard = ({ order, onClose, onUpdate, onOpenClient }: Props) => {
     setSavingNotes(false);
   };
 
+  // ── Чат комментариев к заказу ───────────────────────────────────────────────
+  const [comments, setComments]       = useState<OrderComment[]>([]);
+  const [loadingChat, setLoadingChat] = useState(true);
+  const [newComment, setNewComment]   = useState('');
+  const [sendingChat, setSendingChat] = useState(false);
+  const auth = getAuth();
+
+  const loadComments = useCallback(async () => {
+    setLoadingChat(true);
+    try {
+      const res  = await fetch(`${urls['orders']}?type=comments&order_id=${order.id}`);
+      const data = await res.json();
+      setComments(data.comments || []);
+    } catch { /* ignore */ }
+    setLoadingChat(false);
+  }, [order.id]);
+
+  useEffect(() => { loadComments(); }, [loadComments]);
+
+  const sendComment = async () => {
+    if (!newComment.trim()) return;
+    setSendingChat(true);
+    try {
+      await fetch(urls['orders'], {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'comment',
+          order_id: order.id,
+          author_staff_id: auth.staff_id || null,
+          author_name: auth.full_name || 'Администратор',
+          comment: newComment.trim(),
+        }),
+      });
+      setNewComment('');
+      await loadComments();
+    } catch { /* ignore */ }
+    setSendingChat(false);
+  };
+
   const handlePhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
@@ -314,6 +376,18 @@ const OrderFullCard = ({ order, onClose, onUpdate, onOpenClient }: Props) => {
               {order.delivery_type && <>
                 <div className="text-muted-foreground">Доставка</div>
                 <div className="text-primary">{DELIVERY_LABELS[order.delivery_type] || order.delivery_type}</div>
+              </>}
+              {form.delivery_days && <>
+                <div className="text-muted-foreground">Дни доставки</div>
+                <div className="text-primary">{form.delivery_days}</div>
+              </>}
+              {form.delivery_time && <>
+                <div className="text-muted-foreground">Время доставки</div>
+                <div className="text-primary">{form.delivery_time}</div>
+              </>}
+              {(order.payment_method || form.payment_method) && <>
+                <div className="text-muted-foreground">Способ оплаты</div>
+                <div className="text-primary">{order.payment_method || form.payment_method}</div>
               </>}
             </div>
           </section>
@@ -480,6 +554,45 @@ const OrderFullCard = ({ order, onClose, onUpdate, onOpenClient }: Props) => {
               className="mt-1.5 text-xs px-3 py-1.5 rounded-lg bg-accent text-accent-foreground font-medium hover:bg-accent/90 disabled:opacity-50">
               {savingNotes ? 'Сохраняю...' : 'Сохранить'}
             </button>
+          </section>
+
+          {/* Чат по заказу */}
+          <section>
+            <h3 className="text-xs font-bold text-primary/50 uppercase tracking-wider mb-2">
+              Обсуждение заказа {comments.length > 0 && <span className="text-primary/40">({comments.length})</span>}
+            </h3>
+            <div className="space-y-2 mb-2 max-h-72 overflow-y-auto">
+              {loadingChat ? (
+                <p className="text-sm text-muted-foreground">Загружаю...</p>
+              ) : comments.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Пока нет сообщений. Напишите первым.</p>
+              ) : comments.map(c => {
+                const isMine = !!auth.staff_id && c.author_staff_id === auth.staff_id;
+                return (
+                  <div key={c.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[80%] rounded-2xl px-3 py-2 ${
+                      isMine ? 'bg-accent/20 border border-accent/30' : 'bg-primary/5 border border-primary/15'
+                    }`}>
+                      <div className="flex items-baseline gap-2 mb-0.5">
+                        <span className="text-xs font-semibold text-primary">{c.author_name || 'Сотрудник'}</span>
+                        <span className="text-[10px] text-primary/40">{fmtChatTime(c.created_at)}</span>
+                      </div>
+                      <p className="text-sm text-primary/85 whitespace-pre-wrap break-words">{c.comment}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex gap-2">
+              <textarea value={newComment} onChange={e => setNewComment(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) sendComment(); }}
+                rows={2} placeholder="Написать сообщение..."
+                className="flex-1 border border-primary/25 rounded-xl px-3 py-2 text-sm outline-none focus:border-accent resize-none" />
+              <button onClick={sendComment} disabled={sendingChat || !newComment.trim()}
+                className="px-4 rounded-xl bg-accent text-accent-foreground text-sm font-semibold hover:bg-accent/90 disabled:opacity-40 self-stretch">
+                {sendingChat ? '...' : '→'}
+              </button>
+            </div>
           </section>
 
           {/* Фото и вложения */}

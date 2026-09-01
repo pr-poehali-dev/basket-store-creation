@@ -9,7 +9,7 @@ import {
   TaskStatus, TaskPriority, ReqType, ViewMode, TabKey, TaskSubTab, PeriodFilter,
   PRIORITY_LABEL, PRIORITY_COLOR, STATUS_LABEL, STATUS_COLOR,
   REQ_TYPE_LABEL, REQ_STATUS_LABEL, KANBAN_COLS,
-  fmtDate, isoToday, matchesPeriod,
+  fmtDate, isoToday, matchesPeriod, isNotification,
 } from './tasksUtils';
 
 export type { AuthData };
@@ -522,17 +522,22 @@ const AdminTasksBlock = ({ auth, fullPage }: { auth: AuthData; fullPage?: boolea
     await patchOrder(orderId, { [field]: value } as Partial<Order>);
   };
 
-  // Базовые фильтрации
-  const myTasks    = tasks.filter(t => t.assigned_to === auth.staff_id);
-  const byMeTasks  = tasks.filter(t => t.assigned_by === auth.staff_id && t.assigned_to !== auth.staff_id);
-  const allTasks   = tasks;
+  // Уведомления (контроль этапов заказа) отделяем от задач — их не нужно выполнять
+  const notifications = tasks.filter(isNotification);
+  const realTasks     = tasks.filter(t => !isNotification(t));
+  const myNotifications = notifications.filter(t => t.assigned_to === auth.staff_id || !auth.staff_id);
+
+  // Базовые фильтрации (только настоящие задачи)
+  const myTasks    = realTasks.filter(t => t.assigned_to === auth.staff_id);
+  const byMeTasks  = realTasks.filter(t => t.assigned_by === auth.staff_id && t.assigned_to !== auth.staff_id);
+  const allTasks   = realTasks;
   const pendingReqs = requests.filter(r => r.status === 'pending');
 
   // Статистика
   const today = isoToday();
-  const todayTasks     = tasks.filter(t => t.due_date === today && t.status !== 'done');
-  const doneTodayTasks = tasks.filter(t => t.due_date === today && t.status === 'done');
-  const overdueTasks   = tasks.filter(t => t.due_date && t.due_date < today && t.status !== 'done');
+  const todayTasks     = realTasks.filter(t => t.due_date === today && t.status !== 'done');
+  const doneTodayTasks = realTasks.filter(t => t.due_date === today && t.status === 'done');
+  const overdueTasks   = realTasks.filter(t => t.due_date && t.due_date < today && t.status !== 'done');
 
   const getBaseTasks = () => {
     if (taskSubTab === 'my') return myTasks;
@@ -619,7 +624,7 @@ const AdminTasksBlock = ({ auth, fullPage }: { auth: AuthData; fullPage?: boolea
   const MAIN_TABS: { key: TabKey; label: string; count?: number }[] = [
     { key: 'tasks',         label: 'Задачи',  count: (myTasks.length + byMeTasks.length + (isAdmin||isManager ? allTasks.filter(t=>t.assigned_to!==auth.staff_id&&t.assigned_by!==auth.staff_id).length : 0)) },
     { key: 'requests',      label: 'Заявки',  count: pendingReqs.length },
-    { key: 'notifications', label: 'Уведомления' },
+    { key: 'notifications', label: 'Уведомления', count: myNotifications.length },
   ];
 
   // Подвкладки задач
@@ -839,8 +844,31 @@ const AdminTasksBlock = ({ auth, fullPage }: { auth: AuthData; fullPage?: boolea
       )}
 
       {tab === 'notifications' && (
-        <div className="pt-4 text-muted-foreground">
-          Уведомления появятся здесь при изменении сроков задач и этапов заказов.
+        <div className="pt-4">
+          <p className="text-xs text-primary/50 mb-3">
+            Информация о движении заказов. Выполнять эти записи не нужно — они для контроля этапов.
+          </p>
+          {myNotifications.length === 0 ? (
+            <p className="text-muted-foreground">Пока нет уведомлений.</p>
+          ) : (
+            <div className="space-y-2">
+              {myNotifications.map(n => (
+                <div key={n.id}
+                  onClick={() => n.order_id && openOrderFromTask(n.order_id)}
+                  className={`bg-card border border-primary/20 rounded-2xl px-3 py-2.5 flex items-start gap-3 ${n.order_id ? 'cursor-pointer hover:border-primary/50' : ''} transition-colors`}>
+                  <span className="text-lg leading-none mt-0.5">🔔</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm text-primary font-medium break-words">{n.title}</div>
+                    <div className="text-[11px] text-primary/45 mt-0.5">
+                      {fmtDate(n.created_at)}
+                      {n.order_city && ` · ${n.order_city} ${n.order_customer_name}`}
+                      {n.order_number && ` · #${n.order_number}`}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
