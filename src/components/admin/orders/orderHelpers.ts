@@ -1,13 +1,19 @@
 import urls from '../../../../backend/func2url.json';
-import { Order, STAGES, CLOSED_STAGE, fmtMoney } from '../orderUtils';
+import { Order, STAGES, CLOSED_STAGE, fmtMoney, needsPainting } from '../orderUtils';
 
 export type ViewMode = 'kanban' | 'list' | 'calendar' | 'gantt';
 
-export function nextStage(current: string): string | null {
+// Следующий этап для заказа. Если у заказа нет цветных позиций (всё «натуральный»),
+// этап «Малярка» пропускается — заказ идёт сразу из «Плетение» в «Упаковку».
+export function nextStage(order: Order): string | null {
   const work = STAGES.filter(s => s !== CLOSED_STAGE);
-  const idx = work.indexOf(current);
+  const idx = work.indexOf(order.stage);
   if (idx === -1 || idx >= work.length - 1) return null;
-  return work[idx + 1];
+  const next = work[idx + 1];
+  if (next === 'Малярка' && !needsPainting(order)) {
+    return work[idx + 2] ?? null;
+  }
+  return next;
 }
 
 export async function createAutoTasks(order: Order, field: 'due_date' | 'due_weaving' | 'due_painting') {

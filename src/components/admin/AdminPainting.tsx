@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import urls from '../../../backend/func2url.json';
-import { Order, OrderItem, displayTitle, fmtDate, fmtMoney, fmtDateShort, STAGES, CLOSED_STAGE, canAdvanceStage } from './orderUtils';
+import { Order, OrderItem, displayTitle, fmtDate, fmtMoney, fmtDateShort, STAGES, canAdvanceStage } from './orderUtils';
+import { nextStage } from './orders/orderHelpers';
 import OrderFullCard from './OrderFullCard';
 
 const PAINT_COLORS: { name: string; hex: string }[] = [
@@ -20,11 +21,6 @@ const OLIVE = '#6b7c3a';
 type PaintFilter = 'weaving' | 'working' | 'done';
 
 function pct(done: number, qty: number) { return qty<=0?0:Math.round(done/qty*100); }
-function nextStage(current: string): string | null {
-  const work = STAGES.filter(s => s !== CLOSED_STAGE);
-  const idx = work.indexOf(current);
-  return idx===-1||idx>=work.length-1?null:work[idx+1];
-}
 function groupByColor(items: OrderItem[]): Map<string, { posKey: string; posTitle: string; qty: number }[]> {
   const map = new Map<string, { posKey: string; posTitle: string; qty: number }[]>();
   for (const it of items) {
@@ -66,7 +62,7 @@ const PaintingCard = ({ order, colorFilter, onUpdatePainted, onUpdateStage, onOp
     for (const pos of positions) { sumQty+=pos.qty; sumPainted+=Math.min(painted[pos.posKey]||0,pos.qty); }
   }
   const totalPct = pct(sumPainted, sumQty);
-  const next = nextStage(order.stage);
+  const next = nextStage(order);
 
   const setPainted = (posKey: string, val: number, max: number) => {
     const clamped = Math.max(0, Math.min(val, max));

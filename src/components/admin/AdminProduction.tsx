@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import urls from '../../../backend/func2url.json';
-import { Order, groupPositions, displayTitle, fmtDate, fmtMoney, fmtDateShort, STAGES, CLOSED_STAGE, canAdvanceStage } from './orderUtils';
+import { Order, groupPositions, displayTitle, fmtDate, fmtMoney, fmtDateShort, STAGES, canAdvanceStage } from './orderUtils';
+import { nextStage } from './orders/orderHelpers';
 import OrderFullCard from './OrderFullCard';
 
 const PROD_STAGES = STAGES.slice(STAGES.indexOf('В очереди на плетение'));
@@ -8,11 +9,6 @@ const OLIVE = '#6b7c3a';
 type ProdFilter = 'waiting' | 'working' | 'done';
 
 function pct(done: number, qty: number) { return qty <= 0 ? 0 : Math.round(done/qty*100); }
-function nextStage(current: string): string | null {
-  const work = STAGES.filter(s => s !== CLOSED_STAGE);
-  const idx = work.indexOf(current);
-  return idx === -1 || idx >= work.length-1 ? null : work[idx+1];
-}
 
 const ProductionCard = ({ order, warehouseMap, onUpdateProduced, onUpdateStage, onOpenFull }: {
   order: Order;
@@ -30,7 +26,7 @@ const ProductionCard = ({ order, warehouseMap, onUpdateProduced, onUpdateStage, 
   const totalLeft = totalQty - totalDone;
   const totalPct  = pct(totalDone, totalQty);
   const totalStock = positions.reduce((s,p)=>s+(warehouseMap[p.title]||0), 0);
-  const next      = nextStage(order.stage);
+  const next      = nextStage(order);
 
   return (
     <div className="bg-card border border-primary/30 rounded-2xl overflow-hidden cursor-pointer hover:border-primary transition-colors">

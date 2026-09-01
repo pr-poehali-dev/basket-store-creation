@@ -155,6 +155,14 @@ export function getDeadlineStatus(order: Order): DeadlineStatus {
   return null;
 }
 
+// Нужна ли заказу покраска (есть хотя бы одна позиция с цветом, отличным от «натуральный»)
+export function needsPainting(order: Order): boolean {
+  return order.items.some(it => {
+    const color = (it.color || '').toLowerCase().trim();
+    return color !== '' && color !== 'натуральный';
+  });
+}
+
 // Процент плетения для заказа (из produced)
 export function weavingPct(order: Order): number {
   const positions = groupPositions(order.items);
@@ -181,9 +189,13 @@ export function canAdvanceStage(order: Order, targetStage: string): { ok: boolea
     const pct = weavingPct(order);
     if (pct < 100) return { ok: false, reason: `Плетение ${pct}% — нужно 100% для перехода в Малярку.` };
   }
-  if (targetStage === 'Упаковка') {
+  if (targetStage === 'Упаковка' && needsPainting(order)) {
     const pct = paintingPct(order);
     if (pct < 100) return { ok: false, reason: `Покраска ${pct}% — нужно 100% для перехода в Упаковку.` };
+  }
+  if (targetStage === 'Упаковка' && !needsPainting(order)) {
+    const pct = weavingPct(order);
+    if (pct < 100) return { ok: false, reason: `Плетение ${pct}% — нужно 100% для перехода в Упаковку.` };
   }
   return { ok: true };
 }

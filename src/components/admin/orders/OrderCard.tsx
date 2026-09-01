@@ -25,7 +25,7 @@ export const OrderCard = ({ order, onDragStart, onUpdate, onOpenFull }: OrderCar
   const wPct = weavingPct(order);
   const pPct = paintingPct(order);
   const showProgress = ['В очереди на плетение', 'Плетение', 'Малярка', 'Упаковка', 'Доставка'].includes(order.stage);
-  const next = nextStage(order.stage);
+  const next = nextStage(order);
 
   const canMoveNext = (() => {
     if (order.stage === 'Согласование') return !!order.due_date;
