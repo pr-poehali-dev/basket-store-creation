@@ -4,7 +4,7 @@ import {
   RESPONSIBLES, responsibleStyle, DELIVERY_TYPES, DELIVERY_LABELS,
   getDeadlineStatus, weavingPct, paintingPct, CLOSED_STAGE, canAdvanceStage, needsPainting,
 } from '../orderUtils';
-import { nextStage, createAutoTasks } from './orderHelpers';
+import { nextStage } from './orderHelpers';
 
 interface OrderCardProps {
   order: Order;
@@ -43,11 +43,8 @@ export const OrderCard = ({ order, onDragStart, onUpdate, onOpenFull }: OrderCar
     dlStatus === 'warn-weaving' || dlStatus === 'warn-painting'  ? 'hover:border-yellow-500' :
     'hover:border-primary';
 
-  const handleUpdate = async (patch: Partial<Order>) => {
+  const handleUpdate = (patch: Partial<Order>) => {
     onUpdate(order.id, patch);
-    if (patch.due_date    && !order.due_date)    await createAutoTasks({ ...order, ...patch }, 'due_date');
-    if (patch.due_weaving && !order.due_weaving) await createAutoTasks({ ...order, ...patch }, 'due_weaving');
-    if (patch.due_painting && !order.due_painting) await createAutoTasks({ ...order, ...patch }, 'due_painting');
   };
 
   return (

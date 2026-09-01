@@ -1,7 +1,16 @@
 """
-API заказов для канбан-доски админки FABRICA. v2
+API заказов для канбан-доски админки FABRICA. v3
 GET — список всех заказов; POST — создать заказ;
 PUT — обновить; DELETE — пометить удалённым.
+
+При создании заказа и смене stage/responsible также создаёт задачи-уведомления
+сотрудникам напрямую в таблице tasks (см. notify_* ниже), с защитой от дублей:
+- Новый заказ → уведомление группе «Администрация»
+- Назначен ответственный (на этапе «Согласование») → уведомление лично ему
+- Переход на «Согласование» → задача Валере Акимову на простановку даты готовности
+- Переход в «В очереди на плетение» → задача Дарье Фоминой (срок плетения)
+  и Владу Кадышеву (срок окраски, только если в заказе есть цветные позиции)
+- Переход в «Упаковка» с доставкой «ати» → задача ответственному на «Поставить АТИ»
 """
 import os, json
 import psycopg2
@@ -10,6 +19,11 @@ from psycopg2.extras import RealDictCursor
 
 STAGES = ['Новый заказ', 'Согласование', 'Оплата', 'В очереди на плетение',
           'Плетение', 'Малярка', 'Упаковка', 'Доставка', 'Закрытые']
+
+# Фиксированные исполнители по имени (full_name из staff)
+STAFF_NAME_DUE_DATE     = 'Валера Акимов'
+STAFF_NAME_DUE_WEAVING  = 'Дарья Фомина'
+STAFF_NAME_DUE_PAINTING = 'Влад Кадышев'
 
 
 def get_conn():
@@ -56,6 +70,123 @@ def row_to_order(r):
         'is_archived': bool(r.get('is_archived')),
         'is_trashed': bool(r.get('is_trashed')),
     }
+
+
+def fmt_money(n):
+    try:
+        return f"{int(n):,}".replace(',', ' ') + ' руб'
+    except Exception:
+        return f"{n} руб"
+
+
+def order_label(city, customer_name, total):
+    parts = [p for p in [city, customer_name] if p]
+    return f"«{' '.join(parts)} {fmt_money(total)}»"
+
+
+def order_needs_painting(items):
+    for it in (items or []):
+        color = (it.get('color') or '').lower().strip()
+        if color and color != 'натуральный':
+            return True
+    return False
+
+
+def get_active_staff(conn):
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        cur.execute("SELECT id, full_name, group_name FROM staff WHERE is_active = TRUE")
+        return cur.fetchall()
+
+
+def find_staff_by_name(staff, full_name):
+    return next((s for s in staff if s['full_name'] == full_name), None)
+
+
+def find_staff_by_partial_name(staff, name_part):
+    if not name_part:
+        return None
+    return next((s for s in staff if name_part in s['full_name']), None)
+
+
+def create_task_if_new(conn, title, description, assigned_to, order_id, priority='high'):
+    """Создаёт задачу, если для этого исполнителя+заказа+заголовка ещё нет активной задачи."""
+    if not assigned_to:
+        return
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        cur.execute(
+            "SELECT id FROM tasks WHERE assigned_to = %s AND order_id = %s AND title = %s "
+            "AND status NOT IN ('done', 'cancelled') LIMIT 1",
+            (assigned_to, order_id, title)
+        )
+        if cur.fetchone():
+            return
+        cur.execute(
+            "INSERT INTO tasks (title, description, assigned_to, assigned_by_name, priority, status, order_id) "
+            "VALUES (%s, %s, %s, %s, %s, 'pending', %s)",
+            (title, description, assigned_to, 'Система', priority, order_id)
+        )
+
+
+# ── 1. Новый заказ → уведомление группе «Администрация» ────────────────────────
+def notify_new_order(conn, order_id, city, customer_name, total):
+    staff = get_active_staff(conn)
+    label = order_label(city, customer_name, total)
+    for s in staff:
+        if s['group_name'] == 'Администрация':
+            create_task_if_new(conn, f'Поступил новый заказ {label}', '', s['id'], order_id)
+
+
+# ── 2.1 Назначен ответственный на «Согласование» → уведомление лично ему ───────
+def notify_responsible_assigned(conn, order_id, city, customer_name, total, responsible_name):
+    staff = get_active_staff(conn)
+    label = order_label(city, customer_name, total)
+    target = find_staff_by_partial_name(staff, responsible_name)
+    if target:
+        create_task_if_new(conn, f'Вы назначены ответственным по заказу {label}', '', target['id'], order_id)
+
+
+# ── 2.2 Переход на «Согласование» → задача Валере на дату готовности ───────────
+def notify_due_date_task(conn, order_id, city, customer_name, total):
+    staff = get_active_staff(conn)
+    target = find_staff_by_name(staff, STAFF_NAME_DUE_DATE)
+    if target:
+        create_task_if_new(
+            conn, f'Срок готовности: {city} {customer_name}',
+            order_label(city, customer_name, total), target['id'], order_id
+        )
+
+
+# ── 3.1 / 3.2 Переход в очередь на плетение → задачи Дарье / Владу ─────────────
+def notify_queue_tasks(conn, order_id, city, customer_name, total, items):
+    staff = get_active_staff(conn)
+    weaver = find_staff_by_name(staff, STAFF_NAME_DUE_WEAVING)
+    if weaver:
+        create_task_if_new(
+            conn, f'Срок плетения: {city} {customer_name}',
+            order_label(city, customer_name, total), weaver['id'], order_id
+        )
+    if order_needs_painting(items):
+        painter = find_staff_by_name(staff, STAFF_NAME_DUE_PAINTING)
+        if painter:
+            create_task_if_new(
+                conn, f'Срок окраски: {city} {customer_name}',
+                order_label(city, customer_name, total), painter['id'], order_id
+            )
+
+
+# ── 4. Упаковка + доставка «ати» → задача ответственному «Поставить АТИ» ───────
+def notify_ati_packing(conn, order_id, city, customer_name, total, responsible_name, delivery_address):
+    staff = get_active_staff(conn)
+    label = order_label(city, customer_name, total)
+    title = f'Поставить АТИ по заказу {label} - {delivery_address}'
+    target = find_staff_by_partial_name(staff, responsible_name)
+    if target:
+        create_task_if_new(conn, title, '', target['id'], order_id)
+        return
+    # Ответственный не назначен/не найден — уведомляем всю Администрацию
+    for s in staff:
+        if s['group_name'] == 'Администрация':
+            create_task_if_new(conn, title, '', s['id'], order_id)
 
 
 def handler(event: dict, context) -> dict:
@@ -139,11 +270,30 @@ def handler(event: dict, context) -> dict:
                 except Exception:
                     pass
 
+            # 1. Новый заказ → уведомление «Администрации»
+            if stage == 'Новый заказ':
+                try:
+                    notify_new_order(conn, new_id, city, customer_name, total)
+                except Exception:
+                    pass
+
             return {'statusCode': 200, 'headers': cors_headers(),
                     'body': json.dumps({'id': new_id, 'order_number': order_number})}
 
         if method == 'PUT':
             order_id = int(body.get('id'))
+
+            # Читаем текущее состояние заказа ДО обновления — нужно знать
+            # прежний stage/responsible и иметь актуальные city/customer_name/total/items
+            # для формирования текста уведомлений.
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    "SELECT stage, responsible, city, customer_name, total, items, "
+                    "delivery_type, delivery_address FROM orders WHERE id = %s",
+                    (order_id,)
+                )
+                prev = cur.fetchone()
+
             fields, values = [], []
             updatable = {
                 'stage': lambda v: v if v in STAGES else None,
@@ -176,6 +326,41 @@ def handler(event: dict, context) -> dict:
             values.append(order_id)
             with conn.cursor() as cur:
                 cur.execute(f"UPDATE orders SET {', '.join(fields)} WHERE id = %s", values)
+
+            # ── Уведомления/задачи по изменению stage/responsible ──────────────
+            if prev:
+                city          = prev['city'] or ''
+                customer_name = prev['customer_name'] or ''
+                total         = prev['total'] or 0
+                items_list    = prev['items'] or []
+                delivery_type = body.get('delivery_type', prev.get('delivery_type') or '')
+                delivery_address = body.get('delivery_address', prev.get('delivery_address') or '')
+                new_responsible = body.get('responsible', prev['responsible'])
+
+                try:
+                    # 2.1 Назначен ответственный на этапе «Согласование»
+                    if 'responsible' in body and body['responsible'] and body['responsible'] != prev['responsible']:
+                        stage_now = body.get('stage', prev['stage'])
+                        if stage_now == 'Согласование':
+                            notify_responsible_assigned(conn, order_id, city, customer_name, total, body['responsible'])
+
+                    if 'stage' in body and body['stage'] != prev['stage']:
+                        new_stage = body['stage']
+
+                        # 2.2 Переход на «Согласование» → задача Валере на дату готовности
+                        if new_stage == 'Согласование':
+                            notify_due_date_task(conn, order_id, city, customer_name, total)
+
+                        # 3.1 / 3.2 Переход в «В очереди на плетение» → задачи Дарье и Владу
+                        if new_stage == 'В очереди на плетение':
+                            notify_queue_tasks(conn, order_id, city, customer_name, total, items_list)
+
+                        # 4. Переход в «Упаковка» с доставкой «ати»
+                        if new_stage == 'Упаковка' and delivery_type == 'ати':
+                            notify_ati_packing(conn, order_id, city, customer_name, total, new_responsible, delivery_address)
+                except Exception:
+                    pass
+
             return {'statusCode': 200, 'headers': cors_headers(),
                     'body': json.dumps({'ok': True})}
 
