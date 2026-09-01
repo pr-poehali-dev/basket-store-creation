@@ -173,13 +173,25 @@ export function weavingPct(order: Order): number {
   return Math.round((totalDone / totalQty) * 100);
 }
 
-// Процент покраски (из painted по ключам позиций)
+// Процент покраски (из painted по ключам позиций).
+// Натуральный цвет (и позиции без цвета) не требуют покраски — их количество
+// не учитывается ни в знаменателе, ни в числителе процента.
 export function paintingPct(order: Order): number {
-  const positions = groupPositions(order.items);
-  const totalQty = positions.reduce((s, p) => s + p.total, 0);
-  if (totalQty === 0) return 0;
-  const totalPainted = positions.reduce((s, p) =>
-    s + Math.min((order.painted || {})[p.key] || 0, p.total), 0);
+  const neededByKey: Record<string, number> = {};
+  for (const it of order.items) {
+    const color = (it.color || '').toLowerCase().trim();
+    if (color === '' || color === 'натуральный') continue;
+    const key = `${it.name}__${it.size}`;
+    neededByKey[key] = (neededByKey[key] || 0) + it.qty;
+  }
+  const painted = order.painted || {};
+  let totalQty = 0, totalPainted = 0;
+  for (const key in neededByKey) {
+    const needed = neededByKey[key];
+    totalQty += needed;
+    totalPainted += Math.min(painted[key] || 0, needed);
+  }
+  if (totalQty === 0) return 100; // красить нечего — считаем выполненным
   return Math.round((totalPainted / totalQty) * 100);
 }
 
@@ -189,13 +201,16 @@ export function canAdvanceStage(order: Order, targetStage: string): { ok: boolea
     const pct = weavingPct(order);
     if (pct < 100) return { ok: false, reason: `Плетение ${pct}% — нужно 100% для перехода в Малярку.` };
   }
-  if (targetStage === 'Упаковка' && needsPainting(order)) {
-    const pct = paintingPct(order);
-    if (pct < 100) return { ok: false, reason: `Покраска ${pct}% — нужно 100% для перехода в Упаковку.` };
-  }
-  if (targetStage === 'Упаковка' && !needsPainting(order)) {
-    const pct = weavingPct(order);
-    if (pct < 100) return { ok: false, reason: `Плетение ${pct}% — нужно 100% для перехода в Упаковку.` };
+  if (targetStage === 'Упаковка') {
+    if (!needsPainting(order)) {
+      // Красить нечего (только натуральный) — Малярка пропускается,
+      // но плетение всё равно должно быть завершено на 100%.
+      const pct = weavingPct(order);
+      if (pct < 100) return { ok: false, reason: `Плетение ${pct}% — нужно 100% для перехода в Упаковку.` };
+    } else {
+      const pct = paintingPct(order);
+      if (pct < 100) return { ok: false, reason: `Покраска ${pct}% — нужно 100% для перехода в Упаковку.` };
+    }
   }
   return { ok: true };
 }

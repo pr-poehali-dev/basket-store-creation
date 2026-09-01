@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import urls from '../../../backend/func2url.json';
-import { Order, OrderItem, displayTitle, fmtDate, fmtMoney, fmtDateShort, STAGES, canAdvanceStage } from './orderUtils';
+import { Order, OrderItem, displayTitle, fmtDate, fmtMoney, fmtDateShort, STAGES, canAdvanceStage, needsPainting } from './orderUtils';
 import { nextStage } from './orders/orderHelpers';
 import OrderFullCard from './OrderFullCard';
 
@@ -229,7 +229,7 @@ const AdminPainting = () => {
     await fetch(urls['orders'],{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,stage})});
   };
 
-  const allPainting = orders.filter(o => PAINTING_STAGES.includes(o.stage) && !o.is_archived && !o.is_trashed);
+  const allPainting = orders.filter(o => PAINTING_STAGES.includes(o.stage) && !o.is_archived && !o.is_trashed && needsPainting(o));
 
   // Плетутся — заказы на этапе «Плетение»
   const weavingOrders = allPainting.filter(o => o.stage === 'Плетение');
