@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Icon from '@/components/ui/icon';
 import urls from '../../../backend/func2url.json';
+import StaffReportCharts from './StaffReportCharts';
 
 interface PRow extends Row { year: number; month: number }
 
@@ -80,7 +81,7 @@ const AdminStaffReport = () => {
   const [rows, setRows] = useState<PRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [openStaff, setOpenStaff] = useState<Record<number, boolean>>({});
-  const [view, setView] = useState<'total' | 'byday'>('total');
+  const [view, setView] = useState<'total' | 'byday' | 'charts'>('total');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -394,17 +395,19 @@ const AdminStaffReport = () => {
       </div>
 
       <div className="flex gap-2 mb-5">
-        {(['total', 'byday'] as const).map(v => (
+        {(['total', 'byday', 'charts'] as const).map(v => (
           <button key={v} onClick={() => setView(v)}
             className={`px-4 py-1.5 rounded-xl border text-sm font-medium transition-colors ${
               view === v ? 'bg-primary text-white border-primary' : 'border-primary/40 text-primary hover:border-primary'
             }`}>
-            {v === 'total' ? 'Общая' : 'По дням'}
+            {v === 'total' ? 'Общая' : v === 'byday' ? 'По дням' : 'Диаграммы'}
           </button>
         ))}
       </div>
 
-      {loading ? <p className="text-muted-foreground">Загружаю...</p> : (
+      {loading ? <p className="text-muted-foreground">Загружаю...</p> : view === 'charts' ? (
+        <StaffReportCharts rows={visible} />
+      ) : (
         <>
           {periods.map(pk => {
             const [y, m] = pk.split('-').map(Number);
