@@ -1,7 +1,7 @@
 // ── Типы ──────────────────────────────────────────────────────────────────────
 export type TaskStatus   = 'pending' | 'in_progress' | 'done' | 'cancelled';
 export type TaskPriority = 'low' | 'normal' | 'high' | 'urgent';
-export type ReqType      = 'sick' | 'dayoff' | 'vacation' | 'data_fix';
+export type ReqType      = 'sick' | 'dayoff' | 'vacation' | 'data_fix' | 'report_edit';
 export type ReqStatus    = 'pending' | 'approved' | 'rejected';
 export type ViewMode     = 'list' | 'kanban' | 'calendar';
 export type TabKey       = 'tasks' | 'requests' | 'notifications';
@@ -87,7 +87,8 @@ export const STATUS_COLOR: Record<TaskStatus, string> = {
   cancelled: 'bg-gray-50 text-gray-500 border-gray-200',
 };
 export const REQ_TYPE_LABEL: Record<ReqType, string> = {
-  sick: 'Больничный', dayoff: 'Выходной', vacation: 'Отпуск', data_fix: 'Правка данных'
+  sick: 'Больничный', dayoff: 'Выходной', vacation: 'Отпуск', data_fix: 'Правка данных',
+  report_edit: 'Редактирование отчёта'
 };
 export const REQ_STATUS_LABEL: Record<ReqStatus, string> = {
   pending: 'На рассмотрении', approved: 'Одобрено', rejected: 'Отклонено'

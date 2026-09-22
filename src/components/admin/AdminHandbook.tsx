@@ -207,6 +207,60 @@ const AdminHandbook = () => {
     setSaving(false); setShowPosForm(false); await load();
   };
 
+  // Правка прямо в ячейке таблицы
+  const [editCell, setEditCell] = useState<{ id: number; key: string } | null>(null);
+  const [cellValue, setCellValue] = useState('');
+
+  const startCell = (pos: Position, key: string) => {
+    setEditCell({ id: pos.id, key });
+    setCellValue(String((pos as unknown as Record<string, unknown>)[key] ?? ''));
+  };
+
+  const commitCell = async () => {
+    if (!editCell) return;
+    const { id, key } = editCell;
+    const isNum = key.startsWith('price_') || key === 'sort_order';
+    const value: string | number = isNum ? (parseFloat(cellValue.replace(',', '.')) || 0) : cellValue;
+    setEditCell(null);
+    const before = positions.find(p => p.id === id);
+    if (before && String((before as unknown as Record<string, unknown>)[key] ?? '') === String(value)) return;
+    setPositions(prev => prev.map(p => p.id === id ? { ...p, [key]: value } as Position : p));
+    await fetch(urls['handbook'], {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'position', id, [key]: value }),
+    });
+  };
+
+  const toggleActive = async (pos: Position) => {
+    setPositions(prev => prev.map(p => p.id === pos.id ? { ...p, is_active: !pos.is_active } : p));
+    await fetch(urls['handbook'], {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'position', id: pos.id, is_active: !pos.is_active }),
+    });
+  };
+
+  const cellTd = (pos: Position, key: string, extra = '') => {
+    const editing = editCell?.id === pos.id && editCell.key === key;
+    const raw = (pos as unknown as Record<string, unknown>)[key];
+    const isNum = key.startsWith('price_') || key === 'sort_order';
+    const shown = isNum
+      ? (key === 'sort_order' ? String(raw ?? 0) : (raw ? `${Number(raw).toLocaleString('ru-RU')} ₽` : '—'))
+      : (String(raw || '') || '—');
+    return (
+      <td key={key} className={`px-2 py-1.5 ${extra}`} onClick={() => !editing && startCell(pos, key)}>
+        {editing ? (
+          <input autoFocus type={isNum ? 'number' : 'text'} value={cellValue}
+            onChange={e => setCellValue(e.target.value)}
+            onBlur={commitCell}
+            onKeyDown={e => { if (e.key === 'Enter') commitCell(); if (e.key === 'Escape') setEditCell(null); }}
+            className={`w-full border border-accent rounded-md px-2 py-1 text-sm outline-none ${isNum ? 'text-right' : ''}`} />
+        ) : (
+          <span className="block px-2 py-1 rounded-md cursor-text hover:bg-accent/10">{shown}</span>
+        )}
+      </td>
+    );
+  };
+
   const deactivatePos = async (id: number) => { await fetch(`${urls['handbook']}?type=position&id=${id}`, { method: 'DELETE' }); await load(); };
   const restorePos    = async (id: number) => { await fetch(urls['handbook'], { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'position', id, is_active: true }) }); await load(); };
 
@@ -260,7 +314,7 @@ const AdminHandbook = () => {
                 «Выгрузить .xlsx» даёт полную таблицу со всеми столбцами — отредактируйте её и загрузите обратно кнопкой «Загрузить полный .xlsx». Пояснение к каждому столбцу — в первой строке файла. Все поля также можно править прямо здесь, в таблице ниже.
               </p>
               <p className="text-xs text-muted-foreground mb-4">
-                Позиции набора перечисляются через «;». В режиме «Добавить/обновить» строки сопоставляются по столбцу id, а если он пустой — по «названию для зп».
+                Любую ячейку в таблице ниже можно изменить кликом — правка сохраняется сразу. Позиции набора перечисляются через «;». В режиме «Добавить/обновить» строки сопоставляются по столбцу id, а если он пустой — по «названию для зп».
               </p>
               <div className="flex flex-wrap items-center gap-4 mb-4">
                 <label className="flex items-center gap-2 text-sm cursor-pointer">
@@ -363,18 +417,20 @@ const AdminHandbook = () => {
                   <tbody>
                     {filteredPositions.map(pos => (
                       <tr key={pos.id} className={`border-b border-border last:border-0 hover:bg-secondary/20 ${!pos.is_active ? 'opacity-40' : ''}`}>
-                        {col('staff_name')        && <td className="px-4 py-3 font-medium">{pos.staff_name}</td>}
-                        {col('position_group')    && <td className="px-4 py-3 text-muted-foreground">{pos.position_group || '—'}</td>}
-                        {col('catalog_name')      && <td className="px-4 py-3 text-muted-foreground">{pos.catalog_name || '—'}</td>}
-                        {col('set_catalog_names') && <td className="px-4 py-3 text-muted-foreground text-xs">{pos.set_catalog_names || '—'}</td>}
-                        {col('set_staff_names')   && <td className="px-4 py-3 text-muted-foreground text-xs">{pos.set_staff_names || '—'}</td>}
-                        {col('weave_type')        && <td className="px-4 py-3 text-muted-foreground">{pos.weave_type || '—'}</td>}
-                        {PRICE_KEYS.map(k => col(k) && (
-                          <td key={k} className="px-4 py-3 text-right font-bold">{pos[k] ? `${pos[k].toLocaleString('ru-RU')} ₽` : '—'}</td>
-                        ))}
-                        {col('sort_order')        && <td className="px-4 py-3 text-right text-muted-foreground">{pos.sort_order ?? 0}</td>}
-                        {col('price_whole_ears')  && <td className="px-4 py-3 text-right font-bold">{pos.price_whole_ears ? `${pos.price_whole_ears.toLocaleString('ru-RU')} ₽` : '—'}</td>}
-                        {col('is_active')         && <td className="px-4 py-3 text-center">{pos.is_active ? 'да' : 'нет'}</td>}
+                        {col('staff_name')        && cellTd(pos, 'staff_name', 'font-medium')}
+                        {col('position_group')    && cellTd(pos, 'position_group', 'text-muted-foreground')}
+                        {col('catalog_name')      && cellTd(pos, 'catalog_name', 'text-muted-foreground')}
+                        {col('set_catalog_names') && cellTd(pos, 'set_catalog_names', 'text-muted-foreground text-xs')}
+                        {col('set_staff_names')   && cellTd(pos, 'set_staff_names', 'text-muted-foreground text-xs')}
+                        {col('weave_type')        && cellTd(pos, 'weave_type', 'text-muted-foreground')}
+                        {PRICE_KEYS.map(k => col(k) ? cellTd(pos, k, 'text-right font-bold') : null)}
+                        {col('sort_order')        && cellTd(pos, 'sort_order', 'text-right text-muted-foreground')}
+                        {col('price_whole_ears')  && cellTd(pos, 'price_whole_ears', 'text-right font-bold')}
+                        {col('is_active')         && (
+                          <td className="px-4 py-3 text-center">
+                            <input type="checkbox" checked={pos.is_active} onChange={() => toggleActive(pos)} />
+                          </td>
+                        )}
                         <td className="px-4 py-3">
                           <div className="flex gap-2 justify-center">
                             <Button size="sm" variant="outline" className="rounded-lg h-8" onClick={() => openEditPos(pos)}>

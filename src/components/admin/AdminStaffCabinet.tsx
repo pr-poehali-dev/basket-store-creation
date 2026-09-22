@@ -166,6 +166,21 @@ const AdminStaffCabinet = ({ auth }: { auth: AuthData }) => {
 
   const scrollTop = () => window.scrollTo({ top: 0, behavior: 'smooth' });
 
+  // Запрос на редактирование закрытого дня — уходит в «Заявки»
+  const [editRequestSent, setEditRequestSent] = useState(false);
+  useEffect(() => { setEditRequestSent(false); }, [selectedDate]);
+  const requestEdit = async () => {
+    await fetch(urls['tasks'], {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'request', staff_id: staffId, staff_name: auth.full_name || '',
+        request_type: 'report_edit', comment: `Прошу открыть отчёт за ${selectedDate} для редактирования`,
+        date_from: selectedDate, date_to: selectedDate,
+      }),
+    });
+    setEditRequestSent(true);
+  };
+
   // ── Статистика по дням/месяцам ───────────────────────────────────────────
   const now = new Date();
   const currentMonth = now.toISOString().slice(0, 7);
@@ -244,6 +259,11 @@ const AdminStaffCabinet = ({ auth }: { auth: AuthData }) => {
       {/* ── ВНЕСТИ ОТЧЁТ ──────────────────────────────────────── */}
       {tab === 'day' && (
         <StaffCabinetDayTab
+          staffId={staffId}
+          monthEarned={monthEarned}
+          planMonthRub={planMonthRub}
+          onRequestEdit={requestEdit}
+          editRequestSent={editRequestSent}
           selectedDate={selectedDate}
           setSelectedDate={setSelectedDate}
           timeStart={timeStart}

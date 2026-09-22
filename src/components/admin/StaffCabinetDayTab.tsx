@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Icon from '@/components/ui/icon';
 import {
   Category, CATEGORY_KEYS, CATEGORY_LABEL, MergedPosition, ReportPosition, DayReport, Plan,
@@ -6,6 +6,11 @@ import {
 } from './staffCabinetUtils';
 
 interface StaffCabinetDayTabProps {
+  staffId?: number;
+  monthEarned?: number;
+  planMonthRub?: number;
+  onRequestEdit?: () => void;
+  editRequestSent?: boolean;
   selectedDate: string;
   setSelectedDate: (v: string) => void;
   timeStart: string;
@@ -38,22 +43,25 @@ interface StaffCabinetDayTabProps {
 }
 
 const StaffCabinetDayTab = ({
+  staffId, monthEarned = 0, planMonthRub = 0, onRequestEdit, editRequestSent,
   selectedDate, setSelectedDate, timeStart, setTimeStart, timeEnd, setTimeEnd, hoursWorked,
   isToday, canEdit, dayReport, submitError, summaryOpen, setSummaryOpen, totalRub, plan,
   editPositions, editSummaryQty, removeSummaryItem, saving, saved, saveReport,
   sortedPositions, openPositions, setOpenPositions, selectedRow, setSelectedRow,
   getDraft, setDraft, addToReport,
 }: StaffCabinetDayTabProps) => {
-  // Избранные подкатегории — хранятся локально у сотрудника
-  const [favGroups, setFavGroups] = useState<string[]>(() => {
-    try { return JSON.parse(localStorage.getItem('cabinet_fav_groups') || '[]'); } catch { return []; }
-  });
+  // Избранные подкатегории — свои у каждого сотрудника, сохраняются между входами
+  const favKey = `cabinet_fav_groups_${staffId || 'anon'}`;
+  const [favGroups, setFavGroups] = useState<string[]>([]);
+  useEffect(() => {
+    try { setFavGroups(JSON.parse(localStorage.getItem(favKey) || '[]')); } catch { setFavGroups([]); }
+  }, [favKey]);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
 
   const toggleFav = (g: string) => {
     setFavGroups(prev => {
       const next = prev.includes(g) ? prev.filter(x => x !== g) : [...prev, g];
-      localStorage.setItem('cabinet_fav_groups', JSON.stringify(next));
+      localStorage.setItem(favKey, JSON.stringify(next));
       return next;
     });
   };
@@ -187,13 +195,40 @@ const StaffCabinetDayTab = ({
           <span className="text-xs text-muted-foreground pb-2.5">{hoursWorked} ч</span>
         )}
         {!isToday && (
-          <span className="text-xs text-muted-foreground pb-2.5">Прошлые дни только для просмотра</span>
+          <div className="flex items-center gap-2 pb-1">
+            <span className="text-xs text-muted-foreground">День закрыт — редактирование недоступно</span>
+            {onRequestEdit && (
+              <button onClick={onRequestEdit} disabled={editRequestSent}
+                className="px-3 py-1.5 rounded-xl border border-primary/40 text-primary text-xs font-medium hover:border-primary disabled:opacity-50">
+                {editRequestSent ? 'Запрос отправлен' : 'Запросить редактирование'}
+              </button>
+            )}
+          </div>
         )}
         {dayReport?.locked && (
           <span className="text-xs text-amber-600 bg-amber-50 border border-amber-200 px-2 py-1 rounded-lg mb-0.5">Заблокирован для редактирования</span>
         )}
       </div>
       {submitError && <p className="text-xs text-red-500 mb-4">{submitError}</p>}
+
+      {/* Выполнение месячного плана */}
+      {planMonthRub > 0 && (
+        <div className="p-4 bg-card border border-primary/30 rounded-2xl mb-4">
+          <div className="text-sm font-semibold text-primary mb-2">Выполнение плана за месяц</div>
+          <div className="flex items-center gap-3">
+            <div className="flex-1 h-3 rounded-full bg-primary/10 overflow-hidden">
+              <div className="h-full rounded-full transition-all"
+                style={{ width: `${Math.min(100, Math.round(monthEarned / planMonthRub * 100))}%`, backgroundColor: '#8a9a5a' }} />
+            </div>
+            <span className="text-sm font-bold" style={{ color: OLIVE }}>
+              {Math.round(monthEarned / planMonthRub * 100)}%
+            </span>
+          </div>
+          <div className="text-xs text-muted-foreground mt-1">
+            {fmtRub(monthEarned)} из {fmtRub(planMonthRub)}
+          </div>
+        </div>
+      )}
 
       {/* Итого — сворачиваемый блок */}
       <div className="border border-primary/30 rounded-2xl mb-5 overflow-hidden">
@@ -288,24 +323,6 @@ const StaffCabinetDayTab = ({
         )}
       </div>
 
-      {/* % выполнения дня */}
-      {dayReport && plan && plan.daily_plan_rub > 0 && (
-        <div className="p-4 bg-card border border-primary/30 rounded-2xl">
-          <div className="text-sm font-semibold text-primary mb-2">Выполнение дневного плана</div>
-          <div className="flex items-center gap-3">
-            <div className="flex-1 h-3 rounded-full bg-primary/10 overflow-hidden">
-              <div className="h-full rounded-full transition-all"
-                style={{ width: `${Math.min(100, Math.round(dayReport.total_rub / plan.daily_plan_rub * 100))}%`, backgroundColor: '#8a9a5a' }} />
-            </div>
-            <span className="text-sm font-bold" style={{ color: OLIVE }}>
-              {Math.round(dayReport.total_rub / plan.daily_plan_rub * 100)}%
-            </span>
-          </div>
-          <div className="text-xs text-muted-foreground mt-1">
-            {fmtRub(dayReport.total_rub)} из {fmtRub(plan.daily_plan_rub)}
-          </div>
-        </div>
-      )}
     </div>
   );
 };
