@@ -5,6 +5,7 @@ import urls from '../../../backend/func2url.json';
 
 interface Position {
   id: number;
+  position_group: string;
   catalog_name: string;
   set_catalog_names: string;
   set_staff_names: string;
@@ -24,6 +25,7 @@ interface Plan { id: number; staff_id: number; full_name: string; daily_plan_rub
 
 const ALL_COLUMNS = [
   { key: 'staff_name',         label: 'Название для ЗП' },
+  { key: 'position_group',     label: 'Подкатегория' },
   { key: 'catalog_name',       label: 'Название в каталоге' },
   { key: 'set_catalog_names',  label: 'Набор из каталога' },
   { key: 'set_staff_names',    label: 'Набор из ЗП' },
@@ -34,11 +36,12 @@ const ALL_COLUMNS = [
   { key: 'price_ears',         label: 'Уши, ₽' },
   { key: 'sort_order',         label: 'Сортировка' },
   { key: 'price_whole_ears',   label: 'Готовая с ушами, ₽' },
+  { key: 'is_active',          label: 'Активна' },
 ];
-const DEFAULT_VISIBLE = ['staff_name', 'catalog_name', 'weave_type', 'price_whole', 'price_no_handle', 'price_handle', 'price_ears', 'sort_order', 'price_whole_ears'];
+const DEFAULT_VISIBLE = ['staff_name', 'position_group', 'catalog_name', 'weave_type', 'price_whole', 'price_no_handle', 'price_handle', 'price_ears', 'sort_order', 'price_whole_ears', 'is_active'];
 
-const EMPTY_POS: Omit<Position, 'id' | 'is_active'> = {
-  catalog_name: '', set_catalog_names: '', set_staff_names: '', staff_name: '',
+const EMPTY_POS: Omit<Position, 'id'> = {
+  is_active: true, position_group: '', catalog_name: '', set_catalog_names: '', set_staff_names: '', staff_name: '',
   weave_type: '', sort_order: 0, price_whole: 0, price_no_handle: 0, price_handle: 0, price_ears: 0, price_whole_ears: 0,
 };
 
@@ -89,7 +92,6 @@ const AdminHandbook = () => {
   const [importMode, setImportMode]     = useState<'append' | 'replace'>('append');
   const [importResult, setImportResult] = useState('');
   const [dupWarn, setDupWarn] = useState<string[]>([]);
-  const fileRef = useRef<HTMLInputElement>(null);
   const fullRef = useRef<HTMLInputElement>(null);
   const [exporting, setExporting] = useState(false);
 
@@ -185,6 +187,7 @@ const AdminHandbook = () => {
   const openEditPos = (p: Position) => {
     setEditPosId(p.id);
     setPosForm({
+      is_active: p.is_active, position_group: p.position_group || '',
       catalog_name: p.catalog_name, set_catalog_names: p.set_catalog_names, set_staff_names: p.set_staff_names,
       staff_name: p.staff_name, weave_type: p.weave_type, sort_order: p.sort_order,
       price_whole: p.price_whole, price_no_handle: p.price_no_handle, price_handle: p.price_handle, price_ears: p.price_ears,
@@ -206,28 +209,6 @@ const AdminHandbook = () => {
 
   const deactivatePos = async (id: number) => { await fetch(`${urls['handbook']}?type=position&id=${id}`, { method: 'DELETE' }); await load(); };
   const restorePos    = async (id: number) => { await fetch(urls['handbook'], { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'position', id, is_active: true }) }); await load(); };
-
-  const handleExcelImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (importMode === 'replace' && !confirm('Все текущие позиции справочника будут удалены и заменены данными из файла. Продолжить?')) {
-      e.target.value = '';
-      return;
-    }
-    setImporting(true); setImportResult(''); setDupWarn([]);
-    const reader = new FileReader();
-    reader.onload = async (ev) => {
-      const b64 = (ev.target?.result as string).split(',')[1];
-      const res  = await fetch(urls['handbook'], { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'excel_positions', file: b64, mode: importMode }) });
-      const data = await res.json();
-      setImporting(false);
-      setImportResult(data.error ? `Ошибка: ${data.error}` : `Создано: ${data.created}, обновлено: ${data.updated}${data.deleted ? `, удалено: ${data.deleted}` : ''}. Всего в справочнике: ${data.total}`);
-      if (data.duplicates_count) setDupWarn(data.duplicates);
-      await load();
-      if (fileRef.current) fileRef.current.value = '';
-    };
-    reader.readAsDataURL(file);
-  };
 
   const savePlan = async () => {
     if (!planForm.staff_id) return;
@@ -276,11 +257,10 @@ const AdminHandbook = () => {
             <div className="bg-card border border-border p-6 mb-8 rounded-2xl">
               <h2 className="font-display text-xl font-semibold mb-4">Excel</h2>
               <p className="text-sm text-muted-foreground mb-4">
-                Колонки строго по порядку (первая строка — заголовки, не важны): <code className="bg-secondary px-1">название в каталоге, названия позиций для набора из каталога, названия позиций для набора из зп, название для зп, вид плетения, цена за готовую корзину (с ручкой), цена за корзину без ручки, цена за ручку, цена за уши, сортировка, цена за готовую корзину с ушами</code>
+                «Выгрузить .xlsx» даёт полную таблицу со всеми столбцами — отредактируйте её и загрузите обратно кнопкой «Загрузить полный .xlsx». Пояснение к каждому столбцу — в первой строке файла. Все поля также можно править прямо здесь, в таблице ниже.
               </p>
               <p className="text-xs text-muted-foreground mb-4">
-                Кнопка «Выгрузить .xlsx» даёт полную таблицу со всеми столбцами (включая подкатегорию и активность) — отредактируйте её и загрузите обратно кнопкой «Загрузить полный .xlsx». Пояснение к каждому столбцу — в первой строке файла.<br />
-                Позиции набора перечисляются через «;». В режиме «Добавить/обновить» — обновление происходит по совпадению «название для зп».
+                Позиции набора перечисляются через «;». В режиме «Добавить/обновить» строки сопоставляются по столбцу id, а если он пустой — по «названию для зп».
               </p>
               <div className="flex flex-wrap items-center gap-4 mb-4">
                 <label className="flex items-center gap-2 text-sm cursor-pointer">
@@ -293,17 +273,13 @@ const AdminHandbook = () => {
                 </label>
               </div>
               <div className="flex flex-wrap items-center gap-3">
-                <Button onClick={() => fileRef.current?.click()} disabled={importing} className="rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground">
-                  <Icon name="Upload" size={16} className="mr-2" />
-                  {importing ? 'Загружаю...' : 'Загрузить .xlsx'}
-                </Button>
                 <Button onClick={exportHandbook} disabled={exporting} variant="outline" className="rounded-xl">
                   <Icon name="Download" size={16} className="mr-2" />
                   {exporting ? 'Готовлю...' : 'Выгрузить .xlsx'}
                 </Button>
-                <Button onClick={() => fullRef.current?.click()} disabled={importing} variant="outline" className="rounded-xl">
+                <Button onClick={() => fullRef.current?.click()} disabled={importing} className="rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground">
                   <Icon name="FileUp" size={16} className="mr-2" />
-                  Загрузить полный .xlsx
+                  {importing ? 'Загружаю...' : 'Загрузить полный .xlsx'}
                 </Button>
                 {importResult && (
                   <span className={`text-sm ${importResult.startsWith('Ошибка') ? 'text-red-500' : 'text-muted-foreground'}`}>{importResult}</span>
@@ -314,7 +290,6 @@ const AdminHandbook = () => {
                   В файле повторяются «названия для зп» ({dupWarn.join(', ')}) — такие строки загружены как отдельные позиции. Сделайте названия уникальными, если это не задумано.
                 </p>
               )}
-              <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleExcelImport} disabled={importing} />
               <input ref={fullRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFullImport} disabled={importing} />
             </div>
 
@@ -389,6 +364,7 @@ const AdminHandbook = () => {
                     {filteredPositions.map(pos => (
                       <tr key={pos.id} className={`border-b border-border last:border-0 hover:bg-secondary/20 ${!pos.is_active ? 'opacity-40' : ''}`}>
                         {col('staff_name')        && <td className="px-4 py-3 font-medium">{pos.staff_name}</td>}
+                        {col('position_group')    && <td className="px-4 py-3 text-muted-foreground">{pos.position_group || '—'}</td>}
                         {col('catalog_name')      && <td className="px-4 py-3 text-muted-foreground">{pos.catalog_name || '—'}</td>}
                         {col('set_catalog_names') && <td className="px-4 py-3 text-muted-foreground text-xs">{pos.set_catalog_names || '—'}</td>}
                         {col('set_staff_names')   && <td className="px-4 py-3 text-muted-foreground text-xs">{pos.set_staff_names || '—'}</td>}
@@ -398,6 +374,7 @@ const AdminHandbook = () => {
                         ))}
                         {col('sort_order')        && <td className="px-4 py-3 text-right text-muted-foreground">{pos.sort_order ?? 0}</td>}
                         {col('price_whole_ears')  && <td className="px-4 py-3 text-right font-bold">{pos.price_whole_ears ? `${pos.price_whole_ears.toLocaleString('ru-RU')} ₽` : '—'}</td>}
+                        {col('is_active')         && <td className="px-4 py-3 text-center">{pos.is_active ? 'да' : 'нет'}</td>}
                         <td className="px-4 py-3">
                           <div className="flex gap-2 justify-center">
                             <Button size="sm" variant="outline" className="rounded-lg h-8" onClick={() => openEditPos(pos)}>
@@ -491,6 +468,13 @@ const AdminHandbook = () => {
                 <input value={posForm.staff_name} onChange={e => setPosForm(f => ({...f, staff_name: e.target.value}))} placeholder="напр. Анталия 50/33" className={inputCls} />
               </div>
               <div>
+                <label className={labelCls}>Подкатегория</label>
+                <input value={posForm.position_group} onChange={e => setPosForm(f => ({...f, position_group: e.target.value}))} placeholder="напр. ИТАЛИЯ ПЛЮС" className={inputCls} list="hb-groups" />
+                <datalist id="hb-groups">
+                  {Array.from(new Set(positions.map(p => p.position_group).filter(Boolean))).sort().map(g => <option key={g} value={g} />)}
+                </datalist>
+              </div>
+              <div>
                 <label className={labelCls}>Название в каталоге</label>
                 <input value={posForm.catalog_name} onChange={e => setPosForm(f => ({...f, catalog_name: e.target.value}))} placeholder="напр. АНТАЛИЯ 3 (50/33 см)" className={inputCls} />
               </div>
@@ -519,6 +503,10 @@ const AdminHandbook = () => {
                 <label className={labelCls}>Сортировка (меньше — выше в списке)</label>
                 <input type="number" value={posForm.sort_order} onChange={e => setPosForm(f => ({...f, sort_order: parseInt(e.target.value, 10) || 0}))} className={inputCls} />
               </div>
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input type="checkbox" checked={posForm.is_active} onChange={e => setPosForm(f => ({...f, is_active: e.target.checked}))} />
+                Позиция активна
+              </label>
             </div>
             <div className="flex gap-3 mt-6">
               <Button onClick={savePos} disabled={saving || !posForm.staff_name.trim()} className="flex-1 bg-accent hover:bg-accent/90 text-accent-foreground rounded-lg">

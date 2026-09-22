@@ -71,7 +71,9 @@ const AdminStaffCabinet = ({ auth }: { auth: AuthData }) => {
       const data = await res.json();
       if (data.report) {
         setDayReport(data.report);
-        setEditPositions(data.report.positions || []);
+        // Отправленные позиции не возвращаются в форму: иначе сотрудник решит,
+        // что отчёт не ушёл, и отправит их повторно
+        setEditPositions([]);
         setTimeStart(data.report.time_start ? String(data.report.time_start).slice(0,5) : '');
         setTimeEnd(data.report.time_end ? String(data.report.time_end).slice(0,5) : '');
       } else {

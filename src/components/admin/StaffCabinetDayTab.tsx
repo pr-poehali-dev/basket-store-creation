@@ -256,10 +256,11 @@ const StaffCabinetDayTab = ({
       <div className="space-y-2 mb-5">
         {groupedPositions.map(([groupKey, groupRows]) => {
           const isSolo = groupKey.startsWith('__solo_');
-          const groupName = isSolo ? groupRows[0].staff_name : groupKey;
+          const groupName = isSolo
+            ? baseName(groupRows[0].staff_name, groupRows[0].weave_type)
+            : groupKey;
           const isFav      = favGroups.includes(groupKey);
           const isGroupOpen = !!openGroups[groupKey];
-          if (isSolo) return <div key={groupKey}>{renderRow(groupRows[0], groupKey, isFav)}</div>;
           return (
           <div key={groupName} className="border border-primary/30 rounded-2xl overflow-hidden">
             <div className="w-full flex items-center gap-2 px-3 py-2.5 bg-primary/8">
