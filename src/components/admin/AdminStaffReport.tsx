@@ -80,6 +80,7 @@ const AdminStaffReport = () => {
   const [rows, setRows] = useState<PRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [openStaff, setOpenStaff] = useState<Record<number, boolean>>({});
+  const [view, setView] = useState<'total' | 'byday'>('total');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -140,6 +141,104 @@ const AdminStaffReport = () => {
   const fmtD = (iso: string) => {
     const d = new Date(iso + 'T00:00:00');
     return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}`;
+  };
+
+
+  // ── Вид «По дням»: колонки — дни месяца, для каждого дня часы / ЗП / % / отклонение
+  const renderDaily = (title: string, list: PRow[], y: number, m: number) => {
+    const last = new Date(y, m, 0).getDate();
+    const days = Array.from({ length: last }, (_, i) => i + 1);
+    const key = (d: number) => `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const calc = list.filter(r => !r.no_plan);
+
+    const dayOf = (r: PRow, d: number) => (r.days || []).find(x => x.date === key(d));
+    const isWeekend = (d: number) => [0, 6].includes(new Date(y, m - 1, d).getDay());
+
+    const Hc = ({ children, cls = '' }: { children?: React.ReactNode; cls?: string }) => (
+      <th className={`px-1.5 py-1 text-[10px] font-semibold text-primary/70 whitespace-nowrap ${cls}`}>{children}</th>
+    );
+    const Dc = ({ children, cls = '' }: { children?: React.ReactNode; cls?: string }) => (
+      <td className={`px-1.5 py-1 text-center text-[10px] whitespace-nowrap ${cls}`}>{children}</td>
+    );
+
+    return (
+      <div className="mb-8">
+        <h2 className="font-display text-lg font-semibold text-primary mb-2">{title}</h2>
+        <div className="border border-primary/25 rounded-2xl overflow-x-auto bg-card">
+          <table className="border-collapse">
+            <thead>
+              <tr>
+                <th className="px-2 py-2 bg-primary/10 text-[10px] text-primary/70 sticky left-0 z-20">№</th>
+                <th className="px-3 py-2 bg-primary/10 text-[10px] text-primary/70 text-left sticky left-8 z-20 min-w-[150px]">ФИО</th>
+                <th className="px-2 py-2 bg-primary/10 text-[10px] text-primary/70 border-r-2 border-primary/40">тренд</th>
+                {days.map(d => (
+                  <th key={d} colSpan={4}
+                    className={`px-2 py-2 text-[10px] font-bold border-l-2 border-primary/40 ${
+                      isWeekend(d) ? 'bg-primary/20 text-primary/60' : 'bg-primary/10 text-primary'}`}>
+                    {String(d).padStart(2, '0')}.{MONTHS[m - 1].slice(0, 3).toLowerCase()}
+                  </th>
+                ))}
+              </tr>
+              <tr className="border-b-2 border-primary/25">
+                <th className="bg-primary/5 sticky left-0 z-20" />
+                <th className="bg-primary/5 sticky left-8 z-20" />
+                <th className="bg-primary/5 border-r-2 border-primary/40" />
+                {days.map(d => [
+                  <Hc key={`${d}h`} cls="bg-primary/5 border-l-2 border-primary/40">ч</Hc>,
+                  <Hc key={`${d}r`} cls="bg-primary/5">₽</Hc>,
+                  <Hc key={`${d}p`} cls="bg-primary/5">%</Hc>,
+                  <Hc key={`${d}o`} cls="bg-primary/5">откл</Hc>,
+                ])}
+              </tr>
+            </thead>
+            <tbody>
+              {list.map((r, i) => (
+                <tr key={r.staff_id} className={`border-t border-primary/10 ${r.no_plan ? 'bg-primary/5' : 'hover:bg-primary/5'}`}>
+                  <Dc cls="text-primary/50 sticky left-0 z-10 bg-card">{r.no_plan ? '' : i + 1 - list.filter(x => x.no_plan).length}</Dc>
+                  <td className="px-3 py-1 text-[10px] font-semibold text-primary whitespace-nowrap sticky left-8 z-10 bg-card">{r.full_name}</td>
+                  <Dc cls="font-medium border-r-2 border-primary/40">{r.no_plan ? '0' : num(r.trend)}</Dc>
+                  {days.map(d => {
+                    const rec = dayOf(r, d);
+                    const pct = r.trend > 0 && rec ? Math.round(rec.rub / r.trend * 100) : 0;
+                    const dev = rec ? +(rec.hours - r.plan_hours_day).toFixed(2) : 0;
+                    const wk  = isWeekend(d) ? 'bg-primary/10' : '';
+                    return [
+                      <Dc key={`${d}h`} cls={`border-l-2 border-primary/40 ${wk}`}>{rec ? num(rec.hours) : '-'}</Dc>,
+                      <Dc key={`${d}r`} cls={`font-medium ${wk}`}>{rec ? num(rec.rub) : '-'}</Dc>,
+                      <Dc key={`${d}p`} cls={rec && !r.no_plan
+                        ? (pct >= 100 ? 'bg-[#c6efce] text-black font-semibold' : 'bg-[#ffc7ce] text-black font-semibold')
+                        : wk}>{r.no_plan ? '0%' : `${pct}%`}</Dc>,
+                      <Dc key={`${d}o`} cls={`${wk} ${rec && dev < 0 ? 'text-red-600 font-semibold' : 'text-primary/70'}`}>
+                        {rec && !r.no_plan ? dev : '-'}
+                      </Dc>,
+                    ];
+                  })}
+                </tr>
+              ))}
+              {/* Итоги по дню */}
+              <tr className="border-t-2 border-primary/30 bg-primary/10 font-bold text-primary">
+                <Dc cls="sticky left-0 z-10 bg-primary/10" />
+                <td className="px-3 py-1.5 text-[10px] font-bold sticky left-8 z-10 bg-primary/10">план-факт</td>
+                <Dc cls="border-r-2 border-primary/40">{rub(calc.reduce((a, b) => a + b.trend, 0))}</Dc>
+                {days.map(d => {
+                  const recs = list.map(r => dayOf(r, d)).filter(Boolean) as { rub: number; hours: number }[];
+                  const planD = calc.reduce((a, b) => a + b.trend, 0);
+                  const factD = recs.reduce((a, b) => a + b.rub, 0);
+                  const hrsD  = recs.reduce((a, b) => a + b.hours, 0);
+                  const pctD  = planD > 0 ? Math.round(factD / planD * 100) : 0;
+                  return [
+                    <Dc key={`${d}h`} cls="border-l-2 border-primary/40">{hrsD ? num(hrsD) : '-'}</Dc>,
+                    <Dc key={`${d}r`}>{factD ? num(factD) : '-'}</Dc>,
+                    <Dc key={`${d}p`} cls={pctD >= 100 ? 'bg-[#c6efce] text-black' : 'text-red-600'}>{pctD}%</Dc>,
+                    <Dc key={`${d}o`} cls={factD - planD < 0 ? 'text-red-600' : 'text-primary'}>{num(factD - planD)}</Dc>,
+                  ];
+                })}
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
   };
 
   const renderTable = (title: string, list: PRow[]) => {
@@ -283,12 +382,24 @@ const AdminStaffReport = () => {
           selected={staffFilter} onToggle={v => toggle(staffFilter, v, setStaffFilter)} />
       </div>
 
+      <div className="flex gap-2 mb-5">
+        {(['total', 'byday'] as const).map(v => (
+          <button key={v} onClick={() => setView(v)}
+            className={`px-4 py-1.5 rounded-xl border text-sm font-medium transition-colors ${
+              view === v ? 'bg-primary text-white border-primary' : 'border-primary/40 text-primary hover:border-primary'
+            }`}>
+            {v === 'total' ? 'Общая' : 'По дням'}
+          </button>
+        ))}
+      </div>
+
       {loading ? <p className="text-muted-foreground">Загружаю...</p> : (
         <>
           {periods.map(pk => {
             const [y, m] = pk.split('-').map(Number);
             const list = visible.filter(r => r.year === y && r.month === m);
-            return <div key={pk}>{renderTable(`${MONTHS[m - 1]} ${y}`, list)}</div>;
+            const title = `${MONTHS[m - 1]} ${y}`;
+            return <div key={pk}>{view === 'total' ? renderTable(title, list) : renderDaily(title, list, y, m)}</div>;
           })}
         </>
       )}
