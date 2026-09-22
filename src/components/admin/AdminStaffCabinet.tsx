@@ -146,7 +146,7 @@ const AdminStaffCabinet = ({ auth }: { auth: AuthData }) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          type: 'report', staff_id: staffId, report_date: selectedDate,
+          type: 'report', staff_id: staffId, report_date: selectedDate, append: true,
           positions: editPositions, total_rub: totalRub, hours: hoursWorked,
           time_start: timeStart, time_end: timeEnd,
         }),
@@ -155,6 +155,9 @@ const AdminStaffCabinet = ({ auth }: { auth: AuthData }) => {
       setTimeout(() => setSaved(false), 3000);
       await load();
       await loadDay(selectedDate);
+      setEditPositions([]);
+      setDraftQty({});
+      setOpenPositions({});
     } catch { /* ignore */ }
     setSaving(false);
   };

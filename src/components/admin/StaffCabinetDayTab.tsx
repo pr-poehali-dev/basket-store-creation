@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import Icon from '@/components/ui/icon';
 import {
   Category, CATEGORY_KEYS, CATEGORY_LABEL, MergedPosition, ReportPosition, DayReport, Plan,
-  categoryPrice, isoToday, fmtRub, rowKey, OLIVE,
+  categoryPrice, isoToday, fmtRub, rowKey, OLIVE, baseName,
 } from './staffCabinetUtils';
 
 interface StaffCabinetDayTabProps {
@@ -58,39 +58,53 @@ const StaffCabinetDayTab = ({
     });
   };
 
-  // Группировка по подкатегории (position_group); без группы — по названию позиции
+  // Варианты плетения одной и той же позиции объединяются в одну карточку
+  const variantsByBase = useMemo(() => {
+    const m = new Map<string, MergedPosition[]>();
+    for (const r of sortedPositions) {
+      const k = `${(r.position_group || '').trim()}::${baseName(r.staff_name, r.weave_type)}`;
+      if (!m.has(k)) m.set(k, []);
+      m.get(k)!.push(r);
+    }
+    return m;
+  }, [sortedPositions]);
+
+  const displayPositions = useMemo(
+    () => Array.from(variantsByBase.values()).map(v => v[0]), [variantsByBase]);
+
+  // Группировка по подкатегории (position_group); без группы — «Другое»
+  const OTHER = 'Другое';
   const groupedPositions = useMemo(() => {
     const map = new Map<string, MergedPosition[]>();
-    for (const r of sortedPositions) {
-      // Без названия подкатегории позиция остаётся сама по себе (без обёртки)
-      const g = (r.position_group || '').trim();
-      const key = g || `__solo_${r.id}`;
+    for (const r of displayPositions) {
+      const key = (r.position_group || '').trim() || OTHER;
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(r);
     }
     return Array.from(map.entries()).sort((a, b) => {
+      if (a[0] === OTHER) return -1;
+      if (b[0] === OTHER) return 1;
       const af = favGroups.includes(a[0]) ? 0 : 1;
       const bf = favGroups.includes(b[0]) ? 0 : 1;
-      const an = a[0].startsWith('__solo_') ? a[1][0].staff_name : a[0];
-      const bn = b[0].startsWith('__solo_') ? b[1][0].staff_name : b[0];
-      return af - bf || an.localeCompare(bn, 'ru');
+      return af - bf || a[0].localeCompare(b[0], 'ru');
     });
-  }, [sortedPositions, favGroups]);
+  }, [displayPositions, favGroups]);
 
   const renderRow = (row: MergedPosition, _k: string, _f: boolean) => {
           const isPosOpen = !!openPositions[row.id];
           const selectedId = selectedRow[row.id] ?? row.id;
           const activeRow = sortedPositions.find(r => r.id === selectedId) || row;
           const cats = CATEGORY_KEYS.filter(c => categoryPrice(activeRow, c) > 0);
-          // Другие варианты плетения для этой же позиции (совпадающие по catalog_name)
-          const weaveVariants = sortedPositions.filter(r => r.catalog_name && r.catalog_name === row.catalog_name && r.weave_type);
-          const showWeaveButtons = weaveVariants.length > 1;
+          // Варианты плетения этой же позиции
+          const weaveVariants = variantsByBase.get(
+            `${(row.position_group || '').trim()}::${baseName(row.staff_name, row.weave_type)}`) || [row];
+          const showWeaveButtons = weaveVariants.filter(r => r.weave_type).length > 1;
 
           return (
             <div className="border border-primary/30 rounded-2xl overflow-hidden">
               <button onClick={() => setOpenPositions(p => ({ ...p, [row.id]: !p[row.id] }))}
                 className="w-full flex items-center justify-between px-4 py-2.5 bg-primary/5 hover:bg-primary/8 transition-colors">
-                <span className="font-semibold text-primary text-sm">{row.staff_name}</span>
+                <span className="font-semibold text-primary text-sm">{baseName(row.staff_name, row.weave_type)}</span>
                 <Icon name={isPosOpen ? 'ChevronUp' : 'ChevronDown'} size={16} className="text-primary/50" />
               </button>
 
@@ -237,11 +251,9 @@ const StaffCabinetDayTab = ({
       {/* Позиции — сгруппированы по подкатегориям (position_group), избранные вверху */}
       <div className="space-y-2 mb-5">
         {groupedPositions.map(([groupKey, groupRows]) => {
-          const isSolo = groupKey.startsWith('__solo_');
-          const groupName = isSolo ? groupRows[0].staff_name : groupKey;
+          const groupName = groupKey;
           const isFav      = favGroups.includes(groupKey);
           const isGroupOpen = !!openGroups[groupKey];
-          if (isSolo) return <div key={groupKey}>{renderRow(groupRows[0], groupKey, isFav)}</div>;
           return (
           <div key={groupName} className="border border-primary/30 rounded-2xl overflow-hidden">
             <div className="w-full flex items-center gap-2 px-3 py-2.5 bg-primary/8">

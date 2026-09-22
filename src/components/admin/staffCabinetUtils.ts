@@ -67,15 +67,29 @@ export function categoryCatalog(row: MergedPosition, cat: Category): string {
   return (cat === 'ears' || cat === 'whole_ears') ? row.catalog_name_ears : row.catalog_name;
 }
 
-// Схлопываем дубли по staff_name в одну карточку для личного кабинета
+// Базовое название позиции без указания вида плетения —
+// по нему объединяются варианты «шпон»/«колотая» в одну карточку с кнопками
+export function baseName(staffName: string, weaveType: string): string {
+  let n = (staffName || '').trim();
+  const w = (weaveType || '').trim();
+  if (w) {
+    const re = new RegExp(`\\s*${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*`, 'ig');
+    n = n.replace(re, ' ').trim();
+  }
+  return n.replace(/\s+/g, ' ');
+}
+
+// Схлопываем дубли по staff_name+вид плетения в одну карточку для личного кабинета
 export function mergePositions(rows: Position[]): MergedPosition[] {
   const groups = new Map<string, Position[]>();
   for (const r of rows) {
-    if (!groups.has(r.staff_name)) groups.set(r.staff_name, []);
-    groups.get(r.staff_name)!.push(r);
+    const k = `${r.staff_name}__${r.weave_type || ''}`;
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k)!.push(r);
   }
   const result: MergedPosition[] = [];
-  for (const [staffName, group] of groups) {
+  for (const [gkey, group] of groups) {
+    const staffName = gkey.split('__')[0];
     if (group.length === 1) {
       const r = group[0];
       result.push({

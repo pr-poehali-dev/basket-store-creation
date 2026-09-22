@@ -194,7 +194,7 @@ const AdminLayout = ({ children }: { children: ReactNode }) => {
             <Icon name="Wheat" className="text-accent" size={20} />
             <span className="font-display text-lg font-semibold text-primary">FABRICA</span>
           </div>
-          <div className="flex flex-col gap-1.5 flex-1">
+          <div className="flex flex-col gap-1.5">
             {[
               { path: '/admin/cabinet', label: 'Мой кабинет' },
             ].map(item => (
@@ -206,7 +206,7 @@ const AdminLayout = ({ children }: { children: ReactNode }) => {
               </button>
             ))}
           </div>
-          <div className="flex flex-col gap-1.5 px-1 pt-4 border-t border-primary/15">
+          <div className="flex flex-col gap-1.5 px-1 mt-4 pt-4 border-t border-primary/15">
             {authed.full_name && <p className="text-xs text-muted-foreground truncate">{authed.full_name}</p>}
             <button onClick={doLogout} className="text-sm text-muted-foreground hover:text-accent text-left">Выйти</button>
           </div>
@@ -228,7 +228,7 @@ const AdminLayout = ({ children }: { children: ReactNode }) => {
         <span className="font-display text-xl font-semibold text-primary">FABRICA</span>
       </div>
 
-      <nav className="flex flex-col gap-0 flex-1">
+      <nav className="flex flex-col gap-0">
         {NAV_BLOCKS.map((block, bi) => {
           const visibleItems = block.items.filter(item => canSee(item.key));
           if (visibleItems.length === 0) return null;
@@ -273,11 +273,10 @@ const AdminLayout = ({ children }: { children: ReactNode }) => {
         })}
       </nav>
 
-      <div className="flex flex-col gap-1.5 px-1 pt-4 border-t border-primary/15">
+      <div className="flex flex-col gap-1.5 px-1 mt-4 pt-4 border-t border-primary/15">
         {authed.full_name && (
           <p className="text-xs text-muted-foreground truncate">{authed.full_name}</p>
         )}
-        <a href="/" className="text-sm text-muted-foreground hover:text-[#8a9a5a]">На сайт</a>
         <button
           onClick={doLogout}
           className="text-sm text-muted-foreground hover:text-[#8a9a5a] text-left"

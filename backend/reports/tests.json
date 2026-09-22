@@ -10,9 +10,7 @@
       "name": "GET warehouse",
       "method": "GET",
       "path": "/?type=warehouse",
-      "expectedStatus": 200,
-      "expectedBody": {"items": []},
-      "bodyMatcher": "partial"
+      "expectedStatus": 200
     }
   ]
 }

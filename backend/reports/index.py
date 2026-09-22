@@ -373,6 +373,25 @@ def handler(event: dict, context) -> dict:
                 hours       = float(body.get('hours', 0))
                 time_start  = body.get('time_start') or None
                 time_end    = body.get('time_end') or None
+                # append=True — позиции добавляются к уже отправленному за этот день отчёту
+                if body.get('append'):
+                    with conn.cursor() as cur:
+                        cur.execute("SELECT positions, total_rub FROM staff_reports WHERE staff_id=%s AND report_date=%s",
+                                    (staff_id, report_date))
+                        prev = cur.fetchone()
+                    if prev:
+                        old = prev[0] if isinstance(prev[0], list) else json.loads(prev[0] or '[]')
+                        merged = list(old)
+                        for np in body.get('positions', []):
+                            for op in merged:
+                                if op.get('position_id') == np.get('position_id') and op.get('category') == np.get('category'):
+                                    op['qty'] = int(op.get('qty', 0)) + int(np.get('qty', 0))
+                                    break
+                            else:
+                                merged.append(np)
+                        positions = json.dumps(merged, ensure_ascii=False)
+                        total_rub = sum(float(p.get('price', 0)) * int(p.get('qty', 0)) for p in merged)
+
                 with conn.cursor() as cur:
                     cur.execute(
                         """INSERT INTO staff_reports (staff_id, report_date, positions, total_rub, hours, time_start, time_end)
