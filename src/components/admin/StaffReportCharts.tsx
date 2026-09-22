@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
+import Icon from '@/components/ui/icon';
 import {
   LineChart, Line, BarChart, Bar, AreaChart, Area, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -39,6 +40,64 @@ const METRICS: Metric[] = [
 type Group = 'day' | 'month' | 'year';
 type Chart = 'line' | 'bar' | 'area' | 'stacked' | 'pie';
 type Mode  = 'staff' | 'dept';
+
+
+// Выпадающий список: одиночный выбор или множественный с галочками
+function Dropdown<T extends string | number>({ label, options, selected, onPick, multi = false, width = 'w-56' }: {
+  label: string;
+  options: { value: T; label: string; disabled?: boolean }[];
+  selected: T[];
+  onPick: (v: T) => void;
+  multi?: boolean;
+  width?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, []);
+  const text = selected.length === 0 ? 'Все'
+    : selected.length <= 2 ? options.filter(o => selected.includes(o.value)).map(o => o.label).join(', ')
+    : `Выбрано: ${selected.length}`;
+  return (
+    <div className={`relative ${width}`} ref={ref}>
+      <label className="text-[11px] text-primary/50 block mb-1">{label}</label>
+      <button onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center justify-between gap-2 border border-primary/30 rounded-xl px-3 py-2 text-sm bg-background hover:border-primary transition-colors">
+        <span className="truncate text-primary">{text}</span>
+        <Icon name={open ? 'ChevronUp' : 'ChevronDown'} size={14} className="text-primary/40 flex-shrink-0" />
+      </button>
+      {open && (
+        <div className="absolute z-30 mt-1 w-full max-h-72 overflow-y-auto bg-background border border-primary/30 rounded-xl shadow-lg py-1">
+          {multi && (
+            <button onClick={() => { onPick('__all__' as T); }}
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left hover:bg-primary/5 transition-colors">
+              <span className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
+                selected.length === 0 ? 'bg-accent border-accent' : 'border-primary/30'}`}>
+                {selected.length === 0 && <Icon name="Check" size={11} className="text-accent-foreground" />}
+              </span>
+              <span className="text-primary">Все</span>
+            </button>
+          )}
+          {options.map(o => (
+            <button key={String(o.value)} disabled={o.disabled}
+              onClick={() => { onPick(o.value); if (!multi) setOpen(false); }}
+              className={`w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left transition-colors ${
+                o.disabled ? 'opacity-40 cursor-not-allowed' : 'hover:bg-primary/5'}`}>
+              <span className={`w-4 h-4 ${multi ? 'rounded' : 'rounded-full'} border flex items-center justify-center flex-shrink-0 ${
+                selected.includes(o.value) ? 'bg-accent border-accent' : 'border-primary/30'}`}>
+                {selected.includes(o.value) && <Icon name="Check" size={11} className="text-accent-foreground" />}
+              </span>
+              <span className="text-primary truncate">{o.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const StaffReportCharts = ({ rows }: { rows: PRow[] }) => {
   const [metricKey, setMetricKey] = useState('rub');
@@ -125,10 +184,6 @@ const StaffReportCharts = ({ rows }: { rows: PRow[] }) => {
   }, [active, metric]);
 
   const fmt = (v: number) => `${(v || 0).toLocaleString('ru-RU')} ${metric.unit}`;
-  const chip = (on: boolean) =>
-    `px-3 py-1.5 rounded-xl border text-xs font-medium transition-colors ${
-      on ? 'bg-primary text-white border-primary' : 'border-primary/30 text-primary hover:border-primary'}`;
-
   const CHARTS: { v: Chart; l: string }[] = [
     { v: 'line', l: 'Линии' }, { v: 'bar', l: 'Столбцы' },
     { v: 'area', l: 'Область' }, { v: 'stacked', l: 'С накоплением' }, { v: 'pie', l: 'Доли' },
@@ -202,55 +257,31 @@ const StaffReportCharts = ({ rows }: { rows: PRow[] }) => {
 
   return (
     <div>
-      {/* Показатель */}
-      <div className="mb-4">
-        <div className="text-[11px] text-primary/50 mb-1.5">Показатель</div>
-        <div className="flex gap-1.5 flex-wrap">
-          {METRICS.map(m => (
-            <button key={m.key} onClick={() => { setMetricKey(m.key); if (!m.fromDay && group === 'day') setGroup('month'); }}
-              className={chip(metricKey === m.key)}>{m.label}</button>
-          ))}
-        </div>
-      </div>
-
-      <div className="flex gap-6 mb-4 flex-wrap">
-        <div>
-          <div className="text-[11px] text-primary/50 mb-1.5">Разрез</div>
-          <div className="flex gap-1.5">
-            {([['day','По дням'],['month','По месяцам'],['year','По годам']] as [Group, string][]).map(([v, l]) => (
-              <button key={v} onClick={() => setGroup(v)} disabled={v === 'day' && dayDisabled}
-                className={`${chip(group === v)} ${v === 'day' && dayDisabled ? 'opacity-40 cursor-not-allowed' : ''}`}>{l}</button>
-            ))}
-          </div>
-        </div>
-        <div>
-          <div className="text-[11px] text-primary/50 mb-1.5">Тип графика</div>
-          <div className="flex gap-1.5 flex-wrap">
-            {CHARTS.map(c => (
-              <button key={c.v} onClick={() => setChart(c.v)} className={chip(chart === c.v)}>{c.l}</button>
-            ))}
-          </div>
-        </div>
-        <div>
-          <div className="text-[11px] text-primary/50 mb-1.5">Срез</div>
-          <div className="flex gap-1.5">
-            <button onClick={() => setMode('staff')} className={chip(mode === 'staff')}>По сотрудникам</button>
-            <button onClick={() => setMode('dept')} className={chip(mode === 'dept')}>Весь отдел</button>
-          </div>
-        </div>
-      </div>
-
-      {/* Выбор сотрудников */}
-      <div className="mb-5">
-        <div className="text-[11px] text-primary/50 mb-1.5">Сотрудники</div>
-        <div className="flex gap-1.5 flex-wrap">
-          <button onClick={() => setPicked([])} className={chip(picked.length === 0)}>Все</button>
-          {staffList.map(s => (
-            <button key={s.id}
-              onClick={() => setPicked(p => p.includes(s.id) ? p.filter(x => x !== s.id) : [...p, s.id])}
-              className={chip(picked.includes(s.id))}>{s.name}</button>
-          ))}
-        </div>
+      <div className="flex gap-3 mb-5 flex-wrap items-start">
+        <Dropdown label="Показатель" width="w-60"
+          options={METRICS.map(m => ({ value: m.key, label: m.label }))}
+          selected={[metricKey]}
+          onPick={v => { setMetricKey(v); const m = METRICS.find(x => x.key === v); if (m && !m.fromDay && group === 'day') setGroup('month'); }} />
+        <Dropdown label="Разрез" width="w-44"
+          options={[
+            { value: 'day', label: 'По дням', disabled: dayDisabled },
+            { value: 'month', label: 'По месяцам' },
+            { value: 'year', label: 'По годам' },
+          ]}
+          selected={[group]} onPick={v => setGroup(v as Group)} />
+        <Dropdown label="Тип графика" width="w-48"
+          options={CHARTS.map(c => ({ value: c.v, label: c.l }))}
+          selected={[chart]} onPick={v => setChart(v as Chart)} />
+        <Dropdown label="Срез" width="w-44"
+          options={[{ value: 'staff', label: 'По сотрудникам' }, { value: 'dept', label: 'Весь отдел' }]}
+          selected={[mode]} onPick={v => setMode(v as Mode)} />
+        <Dropdown label="Сотрудники" width="w-56" multi
+          options={staffList.map(s => ({ value: s.id, label: s.name }))}
+          selected={picked}
+          onPick={v => {
+            if (v === ('__all__' as unknown as number)) { setPicked([]); return; }
+            setPicked(p => p.includes(v as number) ? p.filter(x => x !== v) : [...p, v as number]);
+          }} />
       </div>
 
       <div className="border border-primary/25 rounded-2xl bg-card p-4">
