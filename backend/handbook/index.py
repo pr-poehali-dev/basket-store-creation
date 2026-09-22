@@ -324,16 +324,29 @@ def handler(event: dict, context) -> dict:
 
                     created, updated, errors = 0, 0, []
                     kept_ids = []
+                    used_ids = set()
+                    seen_names = {}
+                    dup_names = []
                     with conn.cursor() as cur:
                         for pr in parsed_rows:
                             try:
                                 staff_name = pr['staff_name']
+                                key = staff_name.strip().lower()
+                                cnt = seen_names.get(key, 0)
+                                seen_names[key] = cnt + 1
+                                if cnt:
+                                    dup_names.append(staff_name)
                                 cur.execute(
                                     "SELECT id, price_whole, price_no_handle, price_handle, price_ears, price_whole_ears "
-                                    "FROM handbook_positions WHERE LOWER(TRIM(staff_name))=LOWER(TRIM(%s)) LIMIT 1",
+                                    "FROM handbook_positions WHERE LOWER(TRIM(staff_name))=LOWER(TRIM(%s)) ORDER BY id",
                                     (staff_name,)
                                 )
-                                existing = cur.fetchone()
+                                existing = None
+                                for cand in cur.fetchall():
+                                    if cand[0] not in used_ids:
+                                        existing = cand
+                                        used_ids.add(cand[0])
+                                        break
 
                                 if existing:
                                     pos_id = existing[0]
@@ -384,7 +397,12 @@ def handler(event: dict, context) -> dict:
                                 cur.execute("DELETE FROM handbook_price_history")
                                 cur.execute("DELETE FROM handbook_positions")
                             deleted = cur.rowcount
-                    result = {'created': created, 'updated': updated, 'deleted': deleted}
+                        cur.execute("SELECT COUNT(*) FROM handbook_positions")
+                        total = cur.fetchone()[0]
+                    result = {'created': created, 'updated': updated, 'deleted': deleted, 'total': total}
+                    if dup_names:
+                        result['duplicates'] = sorted(set(dup_names))[:20]
+                        result['duplicates_count'] = len(dup_names)
                     if errors:
                         result['row_errors'] = errors[:20]
                     return {'statusCode': 200, 'headers': cors(), 'body': json.dumps(result, ensure_ascii=False)}

@@ -88,6 +88,7 @@ const AdminHandbook = () => {
   const [importing, setImporting]       = useState(false);
   const [importMode, setImportMode]     = useState<'append' | 'replace'>('append');
   const [importResult, setImportResult] = useState('');
+  const [dupWarn, setDupWarn] = useState<string[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
   const fullRef = useRef<HTMLInputElement>(null);
   const [exporting, setExporting] = useState(false);
@@ -116,7 +117,7 @@ const AdminHandbook = () => {
       e.target.value = '';
       return;
     }
-    setImporting(true); setImportResult('');
+    setImporting(true); setImportResult(''); setDupWarn([]);
     const reader = new FileReader();
     reader.onload = async ev => {
       try {
@@ -130,8 +131,9 @@ const AdminHandbook = () => {
         });
         const data = await res.json();
         setImportResult(data.ok
-          ? `Обновлено: ${data.updated}, добавлено: ${data.inserted}${data.deleted ? `, удалено: ${data.deleted}` : ''}`
+          ? `Обновлено: ${data.updated}, добавлено: ${data.inserted}${data.deleted ? `, удалено: ${data.deleted}` : ''}. Всего в справочнике: ${data.total}`
           : `Ошибка: ${data.error || 'загрузки'}`);
+        if (data.duplicates_count) setDupWarn(data.duplicates);
         await load();
       } catch { setImportResult('Ошибка загрузки'); }
       setImporting(false);
@@ -212,14 +214,15 @@ const AdminHandbook = () => {
       e.target.value = '';
       return;
     }
-    setImporting(true); setImportResult('');
+    setImporting(true); setImportResult(''); setDupWarn([]);
     const reader = new FileReader();
     reader.onload = async (ev) => {
       const b64 = (ev.target?.result as string).split(',')[1];
       const res  = await fetch(urls['handbook'], { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'excel_positions', file: b64, mode: importMode }) });
       const data = await res.json();
       setImporting(false);
-      setImportResult(data.error ? `Ошибка: ${data.error}` : `Создано: ${data.created}, обновлено: ${data.updated}${data.deleted ? `, удалено: ${data.deleted}` : ''}`);
+      setImportResult(data.error ? `Ошибка: ${data.error}` : `Создано: ${data.created}, обновлено: ${data.updated}${data.deleted ? `, удалено: ${data.deleted}` : ''}. Всего в справочнике: ${data.total}`);
+      if (data.duplicates_count) setDupWarn(data.duplicates);
       await load();
       if (fileRef.current) fileRef.current.value = '';
     };
@@ -306,6 +309,11 @@ const AdminHandbook = () => {
                   <span className={`text-sm ${importResult.startsWith('Ошибка') ? 'text-red-500' : 'text-muted-foreground'}`}>{importResult}</span>
                 )}
               </div>
+              {dupWarn.length > 0 && (
+                <p className="text-xs text-amber-600 mt-3">
+                  В файле повторяются «названия для зп» ({dupWarn.join(', ')}) — такие строки загружены как отдельные позиции. Сделайте названия уникальными, если это не задумано.
+                </p>
+              )}
               <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleExcelImport} disabled={importing} />
               <input ref={fullRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFullImport} disabled={importing} />
             </div>

@@ -54,10 +54,12 @@ def import_handbook(file_b64, mode='append'):
     kept_ids = []
 
     # Существующие позиции для сопоставления по названию для зп
-    cur.execute("SELECT id, LOWER(TRIM(staff_name)) FROM handbook_positions")
+    cur.execute("SELECT id, LOWER(TRIM(staff_name)) FROM handbook_positions ORDER BY id")
     by_name = {}
     for r in cur.fetchall():
-        by_name.setdefault(r[1], r[0])
+        by_name.setdefault(r[1], []).append(r[0])
+    seen_names = {}
+    dup_names = []
 
     for row in ws.iter_rows(min_row=3):
         staff_name = g(row, 'название для зп')
@@ -81,8 +83,14 @@ def import_handbook(file_b64, mode='append'):
             rid = int(rid) if rid not in (None, '') else None
         except Exception:
             rid = None
+        key = sn.lower()
+        cnt = seen_names.get(key, 0)
+        seen_names[key] = cnt + 1
+        if cnt:
+            dup_names.append(sn)
         if rid is None:
-            rid = by_name.get(sn.lower())
+            pool = by_name.get(key) or []
+            rid = pool.pop(0) if pool else None
 
         if rid:
             cur.execute("""UPDATE handbook_positions SET staff_name=%s, position_group=%s,
@@ -112,9 +120,14 @@ def import_handbook(file_b64, mode='append'):
             cur.execute("DELETE FROM handbook_positions")
         deleted = cur.rowcount
 
+    cur.execute("SELECT COUNT(*) FROM handbook_positions")
+    total = cur.fetchone()[0]
     conn.commit(); cur.close(); conn.close()
-    return {'statusCode': 200, 'headers': CORS,
-            'body': json.dumps({'ok': True, 'updated': upd, 'inserted': ins, 'deleted': deleted})}
+    res = {'ok': True, 'updated': upd, 'inserted': ins, 'deleted': deleted, 'total': total}
+    if dup_names:
+        res['duplicates'] = sorted(set(dup_names))[:20]
+        res['duplicates_count'] = len(dup_names)
+    return {'statusCode': 200, 'headers': CORS, 'body': json.dumps(res, ensure_ascii=False)}
 
 
 def handler(event: dict, context) -> dict:
