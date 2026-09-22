@@ -41,7 +41,7 @@ def handler(event: dict, context) -> dict:
         if method == 'GET':
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute(
-                    "SELECT id, full_name, login, role, group_name, pages, is_active, created_at "
+                    "SELECT id, full_name, login, role, group_name, pages, is_active, fired_at, created_at "
                     "FROM staff ORDER BY group_name, full_name"
                 )
                 rows = cur.fetchall()
@@ -55,6 +55,7 @@ def handler(event: dict, context) -> dict:
                     'group_name': r['group_name'],
                     'pages': list(r['pages'] or []),
                     'is_active': bool(r['is_active']),
+                    'fired_at': r['fired_at'].isoformat() if r.get('fired_at') else '',
                     'created_at': r['created_at'].isoformat() if r['created_at'] else '',
                 })
             return {'statusCode': 200, 'headers': cors(), 'body': json.dumps({'staff': staff})}
@@ -100,6 +101,13 @@ def handler(event: dict, context) -> dict:
                 fields.append('pages = %s'); values.append(body['pages'])
             if 'is_active' in body:
                 fields.append('is_active = %s'); values.append(bool(body['is_active']))
+                # При деактивации фиксируем дату увольнения, при возврате — очищаем
+                if not bool(body['is_active']):
+                    fields.append('fired_at = %s'); values.append(body.get('fired_at') or None)
+                else:
+                    fields.append('fired_at = NULL')
+            elif 'fired_at' in body:
+                fields.append('fired_at = %s'); values.append(body.get('fired_at') or None)
             if not fields:
                 return {'statusCode': 400, 'headers': cors(), 'body': json.dumps({'error': 'nothing to update'})}
             fields.append('updated_at = NOW()')

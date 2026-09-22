@@ -151,7 +151,7 @@ const AdminSalary = () => {
   );
 
   // Одна таблица со строкой «Итого» внизу
-  const renderTable = (title: string, list: PeriodRow[]) => (
+  const renderTable = (title: string, list: PeriodRow[], expandable: boolean) => (
     <div className="mb-8">
       <h2 className="font-display text-lg font-semibold text-primary mb-2">{title}</h2>
         <div className="border border-primary/25 rounded-2xl overflow-x-auto">
@@ -179,10 +179,10 @@ const AdminSalary = () => {
                 const isOpen = !!openKey[key];
                 return [
                   <tr key={key} className="border-t border-primary/10 hover:bg-primary/3">
-                    <td onClick={() => setOpenKey(p => ({ ...p, [key]: !p[key] }))}
-                      className="px-3 py-1.5 font-medium text-primary sticky left-0 z-10 bg-background cursor-pointer shadow-[3px_0_5px_-3px_rgba(0,0,0,0.15)]">
+                    <td onClick={() => expandable && setOpenKey(p => ({ ...p, [key]: !p[key] }))}
+                      className={`px-3 py-1.5 font-medium text-primary sticky left-0 z-10 bg-background shadow-[3px_0_5px_-3px_rgba(0,0,0,0.15)] ${expandable ? 'cursor-pointer' : ''}`}>
                       <span className="flex items-center gap-1">
-                        <Icon name={isOpen ? 'ChevronDown' : 'ChevronRight'} size={13} className="text-primary/40" />
+                        {expandable && <Icon name={isOpen ? 'ChevronDown' : 'ChevronRight'} size={13} className="text-primary/40" />}
                         {r.full_name}
                       </span>
                     </td>
@@ -204,7 +204,7 @@ const AdminSalary = () => {
                     <td className="px-2 py-1.5 text-center border border-primary/10 font-bold w-[92px]"
                       style={{ color: bal < 0 ? '#dc2626' : OLIVE }}>{rub(bal)}</td>
                   </tr>,
-                  isOpen && (
+                  expandable && isOpen && (
                     <tr key={`${key}-days`} className="bg-primary/3">
                       <td colSpan={COLS} className="px-0 py-0">
                         <div className="sticky left-0 w-[min(100vw-340px,560px)] px-4 py-2">
@@ -305,99 +305,9 @@ const AdminSalary = () => {
 
       {loading ? <p className="text-muted-foreground">Загружаю...</p> : (
         <>
-          {renderTable('Сотрудники с личным кабинетом', groupA)}
-          {renderTable('Остальные сотрудники', groupB)}
+          {renderTable('Плетение', groupA, true)}
+          {renderTable('Смежные службы', groupB, false)}
         </>
-      )}
-      {loading ? <p className="text-muted-foreground">Загружаю...</p> : (
-        <div className="border border-primary/25 rounded-2xl overflow-x-auto">
-          <table className="text-xs border-collapse w-full min-w-[1280px]">
-            <thead>
-              <tr className="bg-primary/5 text-primary/70">
-                <th className="px-3 py-2 text-left font-semibold sticky left-0 z-10 bg-[#faf8f4] min-w-[170px] shadow-[3px_0_5px_-3px_rgba(0,0,0,0.15)]">Сотрудник</th>
-                {multiPeriod && <th className="px-2 py-2 font-semibold w-[92px]">Период</th>}
-                <th className="px-2 py-2 font-semibold w-[92px]">Дневной план</th>
-                <th className="px-2 py-2 font-semibold w-[92px]">ЗП за период</th>
-                <th className="px-2 py-2 font-semibold w-[92px]">% плана</th>
-                <th className="px-2 py-2 font-semibold w-[92px]">% плана мес.</th>
-                <th className="px-2 py-2 font-semibold w-[92px]">Остаток прошл.</th>
-                <th className="px-2 py-2 font-semibold w-[92px]">Брак</th>
-                <th className="px-2 py-2 font-semibold w-[92px]">Премия</th>
-                <th className="px-2 py-2 font-semibold w-[92px]">Мотивация</th>
-                <th className="px-2 py-2 font-semibold w-[92px]">Выдал ЗП</th>
-                <th className="px-2 py-2 font-semibold w-[92px]">Остаток</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visible.map(r => {
-                const key    = `${r.staff_id}-${r.year}-${r.month}-${r.half}`;
-                const bal    = finalBalance(r);
-                const isOpen = !!openKey[key];
-                return [
-                  <tr key={key} className="border-t border-primary/10 hover:bg-primary/3">
-                    <td onClick={() => setOpenKey(p => ({ ...p, [key]: !p[key] }))}
-                      className="px-3 py-1.5 font-medium text-primary sticky left-0 z-10 bg-background cursor-pointer shadow-[3px_0_5px_-3px_rgba(0,0,0,0.15)]">
-                      <span className="flex items-center gap-1">
-                        <Icon name={isOpen ? 'ChevronDown' : 'ChevronRight'} size={13} className="text-primary/40" />
-                        {r.full_name}
-                      </span>
-                    </td>
-                    {multiPeriod && (
-                      <td className="px-2 py-1.5 text-center border border-primary/10 text-primary/70 w-[92px]">
-                        {MONTHS[r.month - 1].slice(0, 3)} {r.half === 1 ? '1–15' : '16–31'}<br />
-                        <span className="text-[10px] text-primary/40">{r.year}</span>
-                      </td>
-                    )}
-                    <td className="px-2 py-1.5 text-center border border-primary/10 w-[92px]">{rub(r.daily_plan_rub)}</td>
-                    <td className="px-2 py-1.5 text-center border border-primary/10 font-bold w-[92px]">{rub(r.earned)}</td>
-                    <td className="px-2 py-1.5 text-center border border-primary/10 font-semibold w-[92px]" style={{ color: OLIVE }}>{r.plan_pct}%</td>
-                    <td className="px-2 py-1.5 text-center border border-primary/10 font-semibold w-[92px]" style={{ color: OLIVE }}>{r.month_pct ?? 0}%</td>
-                    {numCell(r, 'prev_balance')}
-                    {numCell(r, 'defect')}
-                    {numCell(r, 'bonus')}
-                    {numCell(r, 'motivation')}
-                    {numCell(r, 'paid')}
-                    <td className="px-2 py-1.5 text-center border border-primary/10 font-bold w-[92px]"
-                      style={{ color: bal < 0 ? '#dc2626' : OLIVE }}>{rub(bal)}</td>
-                  </tr>,
-                  isOpen && (
-                    <tr key={`${key}-days`} className="bg-primary/3">
-                      <td colSpan={COLS} className="px-0 py-0">
-                        <div className="sticky left-0 w-[min(100%,560px)] px-4 py-2">
-                        {r.days.length === 0 ? (
-                          <span className="text-muted-foreground">Нет отчётов за период</span>
-                        ) : (
-                          <table className="text-[11px] border-collapse">
-                            <thead>
-                              <tr className="text-primary/50">
-                                <th className="px-3 py-1 text-left font-semibold">Дата</th>
-                                <th className="px-3 py-1 text-right font-semibold">Заработок</th>
-                                <th className="px-3 py-1 text-right font-semibold">Часы</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {r.days.map(d => (
-                                <tr key={d.date} className="border-t border-primary/10">
-                                  <td className="px-3 py-1 text-primary">{fmtD(d.date)}</td>
-                                  <td className="px-3 py-1 text-right font-semibold" style={{ color: OLIVE }}>{rub(d.total_rub)}</td>
-                                  <td className="px-3 py-1 text-right text-primary/70">{d.hours || '—'}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        )}
-                        </div>
-                      </td>
-                    </tr>
-                  ),
-                ];
-              })}
-              {visible.length === 0 && (
-                <tr><td colSpan={COLS} className="px-3 py-6 text-center text-muted-foreground">Нет данных за выбранный период</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
       )}
       <p className="text-[11px] text-primary/45 mt-3">
         Остаток = остаток прошлого периода − брак + премия + мотивация + ЗП за период − выдано.

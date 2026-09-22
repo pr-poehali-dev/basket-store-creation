@@ -85,14 +85,18 @@ def handler(event: dict, context) -> dict:
                     d_to = f"{year:04d}-{month:02d}-{last:02d}"
 
                     # Все активные сотрудники; план берём последний (без дублей)
+                    # Уволенный виден в периоде увольнения и во всех предыдущих,
+                    # но скрыт в следующих периодах
                     cur.execute("""SELECT DISTINCT ON (s.id) s.id, s.full_name, s.pages,
+                          s.is_active, s.fired_at,
                           COALESCE(sp.daily_plan_rub, 0) AS daily_plan_rub
                         FROM staff s
                         LEFT JOIN staff_plans sp ON sp.staff_id = s.id
-                        WHERE s.is_active = TRUE
+                        WHERE s.is_active = TRUE OR s.fired_at IS NOT NULL
                         ORDER BY s.id, sp.valid_from DESC NULLS LAST""")
                     staff_rows = [r for r in cur.fetchall()
-                                  if 'акимов' not in (r['full_name'] or '').lower()]
+                                  if 'акимов' not in (r['full_name'] or '').lower()
+                                  and (r['is_active'] or (r['fired_at'] and r['fired_at'].isoformat() >= d_from))]
 
                     # Остаток предыдущего периода — для автопереноса
                     p_year, p_month, p_half = (year, month - 1, 2) if half == 1 else (year, month, 1)

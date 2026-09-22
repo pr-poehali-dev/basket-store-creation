@@ -29,6 +29,7 @@ interface StaffMember {
   group_name: string;
   pages: string[];
   is_active: boolean;
+  fired_at?: string;
 }
 
 const EMPTY_FORM = { full_name: '', login: '', password: '', role: 'employee', group_name: 'Сотрудники', pages: [] as string[] };
@@ -93,9 +94,17 @@ const AdminAccess = () => {
     await load();
   };
 
+  // Деактивация обязательно с датой увольнения — от неё зависит зарплата
   const deactivate = async (id: number) => {
-    await fetch(urls['staff'], { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, is_active: false }) });
-    setStaff(prev => prev.filter(s => s.id !== id));
+    const today = new Date().toISOString().slice(0, 10);
+    const input = window.prompt('Дата увольнения (ГГГГ-ММ-ДД):', today);
+    if (!input) return;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(input.trim())) { alert('Введите дату в формате ГГГГ-ММ-ДД'); return; }
+    await fetch(urls['staff'], {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, is_active: false, fired_at: input.trim() }),
+    });
+    await load();
   };
 
   const restore = async (id: number) => {
@@ -103,7 +112,8 @@ const AdminAccess = () => {
     await load();
   };
 
-  const groupStaff = (group: string) => staff.filter(s => s.group_name === group);
+  const groupStaff = (group: string) => staff.filter(s => s.group_name === group && s.is_active);
+  const archived = staff.filter(s => !s.is_active);
 
   return (
     <div className="p-6 max-w-4xl">
@@ -164,6 +174,31 @@ const AdminAccess = () => {
               )}
             </div>
           ))}
+
+          {/* Архив уволенных — отдельно от активных */}
+          {archived.length > 0 && (
+            <div className="mt-8">
+              <h2 className="font-display text-lg font-semibold text-primary/60 mb-3">
+                Архив ({archived.length})
+              </h2>
+              <div className="space-y-2">
+                {archived.map(s => (
+                  <div key={s.id} className="border border-border bg-muted/30 rounded-2xl px-4 py-3 flex items-center justify-between gap-3">
+                    <div>
+                      <div className="font-medium text-primary/70">{s.full_name}</div>
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        Логин: {s.login}
+                        {s.fired_at && ` · уволен ${s.fired_at.split('-').reverse().join('.')}`}
+                      </div>
+                    </div>
+                    <button onClick={() => restore(s.id)} className="text-xs text-primary/70 hover:text-primary underline flex-shrink-0">
+                      Восстановить
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
