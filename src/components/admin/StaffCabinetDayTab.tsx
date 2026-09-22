@@ -148,12 +148,12 @@ const StaffCabinetDayTab = ({
                         const qty   = getDraft(activeRow.id, cat);
                         return (
                           <div key={cat} className="flex items-center gap-2">
-                            <span className="text-sm text-primary flex-1 min-w-0">{CATEGORY_LABEL[cat]}</span>
+                            <span className="text-sm text-primary flex-1 min-w-0 md:flex-1 w-[86px] flex-shrink-0 md:w-auto">{CATEGORY_LABEL[cat]}</span>
                             <input type="number" min={0} placeholder="0" value={qty || ''}
                               onChange={e => setDraft(activeRow.id, cat, parseInt(e.target.value, 10) || 0)}
-                              className="w-16 flex-shrink-0 text-center border border-primary/30 rounded-lg px-1 py-1.5 text-sm outline-none focus:border-accent [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
-                            <span className="text-xs text-muted-foreground w-16 flex-shrink-0 text-left pl-2">{price.toLocaleString('ru-RU')} ₽</span>
-                            <span className="text-sm font-semibold w-20 flex-shrink-0 text-right" style={{ color: OLIVE }}>{qty > 0 ? fmtRub(qty * price) : '—'}</span>
+                              className="w-14 md:w-16 flex-shrink-0 text-center border border-primary/30 rounded-lg px-1 py-1.5 text-sm outline-none focus:border-accent [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                            <span className="text-xs text-muted-foreground w-14 md:w-16 flex-shrink-0 text-center md:text-left md:pl-2">{price.toLocaleString('ru-RU')} ₽</span>
+                            <span className="text-sm font-semibold w-16 md:w-20 flex-shrink-0 text-right" style={{ color: OLIVE }}>{qty > 0 ? fmtRub(qty * price) : '—'}</span>
                           </div>
                         );
                       })}
@@ -180,20 +180,20 @@ const StaffCabinetDayTab = ({
           <input type="date" value={selectedDate}
             max={isoToday()}
             onChange={e => setSelectedDate(e.target.value)}
-            className="border border-primary/30 rounded-xl px-3 py-2 text-sm outline-none focus:border-accent" />
+            className="border border-primary/30 rounded-xl px-3 py-2 text-sm outline-none focus:border-accent bg-primary/10" />
         </div>
-        <div className="flex gap-2 items-end">
+        <div className="flex gap-4 md:gap-2 items-end">
           <div className="flex-1 min-w-0">
             <label className="text-xs text-muted-foreground block mb-1">Начало работы *</label>
             <input type="time" value={timeStart} disabled={!canEdit}
               onChange={e => setTimeStart(e.target.value)}
-              className="w-full border border-primary/30 rounded-xl px-3 py-2 text-sm outline-none focus:border-accent disabled:opacity-60" />
+              className="w-full border border-primary/30 rounded-xl px-3 py-2 text-sm outline-none focus:border-accent disabled:opacity-60 bg-primary/10" />
           </div>
           <div className="flex-1 min-w-0">
             <label className="text-xs text-muted-foreground block mb-1">Окончание работы *</label>
             <input type="time" value={timeEnd} disabled={!canEdit}
               onChange={e => setTimeEnd(e.target.value)}
-              className="w-full border border-primary/30 rounded-xl px-3 py-2 text-sm outline-none focus:border-accent disabled:opacity-60" />
+              className="w-full border border-primary/30 rounded-xl px-3 py-2 text-sm outline-none focus:border-accent disabled:opacity-60 bg-primary/10" />
           </div>
         </div>
         {hoursWorked > 0 && (
@@ -274,19 +274,21 @@ const StaffCabinetDayTab = ({
             {editPositions.length === 0 ? (
               <p className="text-sm text-muted-foreground p-4">Пока ничего не добавлено</p>
             ) : editPositions.map(item => (
-              <div key={rowKey(item.position_id, item.category)} className="flex items-center justify-between gap-3 px-4 py-2.5">
+              <div key={rowKey(item.position_id, item.category)} className="flex items-center justify-between gap-2 md:gap-3 px-4 py-2.5">
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-medium text-primary truncate">{item.staff_name}</div>
                   <div className="text-xs text-muted-foreground truncate">
-                    {CATEGORY_LABEL[item.category]}{item.weave_type ? ` · ${item.weave_type}` : ''} · {item.price.toLocaleString('ru-RU')} ₽/шт
+                    {CATEGORY_LABEL[item.category]}{item.weave_type ? ` · ${item.weave_type}` : ''}
+                    <span className="hidden md:inline"> · {item.price.toLocaleString('ru-RU')} ₽/шт</span>
                   </div>
                 </div>
                 {canEdit ? (
-                  <div className="flex items-center gap-2 flex-shrink-0">
+                  <div className="flex items-center gap-1.5 md:gap-2 flex-shrink-0">
                     <input type="number" min={0} value={item.qty || ''} placeholder="0"
                       onChange={e => editSummaryQty(item.position_id, item.category, parseInt(e.target.value, 10) || 0)}
-                      className="w-14 text-center border border-primary/30 rounded-lg px-1 py-1 text-sm outline-none focus:border-accent [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
-                    <span className="text-sm font-semibold w-20 text-right" style={{ color: OLIVE }}>{fmtRub(item.qty * item.price)}</span>
+                      className="w-12 md:w-14 text-center border border-primary/30 rounded-lg px-1 py-1 text-sm outline-none focus:border-accent [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                    <span className="md:hidden text-[11px] text-muted-foreground w-12 text-center">{item.price.toLocaleString('ru-RU')} ₽</span>
+                    <span className="text-sm font-semibold w-16 md:w-20 text-right" style={{ color: OLIVE }}>{fmtRub(item.qty * item.price)}</span>
                     <button onClick={() => removeSummaryItem(item.position_id, item.category)} className="text-red-400 hover:text-red-600">
                       <Icon name="Trash2" size={16} />
                     </button>

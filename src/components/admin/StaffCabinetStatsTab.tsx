@@ -125,7 +125,12 @@ const StaffCabinetStatsTab = ({
             const monthBonus = monthBonuses[ym] ?? bonusFor(sum, planMonthRub);
             return (
               <div key={ym} className="px-4 py-2.5 grid grid-cols-4 border-b border-primary/10 last:border-0 text-sm hover:bg-primary/3">
-                <span className="text-primary">{fmtMonth(ym)}</span>
+                <span className="text-primary">
+                  <span className="md:hidden">
+                    {fmtMonth(ym).split(' ')[0]}<br />{fmtMonth(ym).split(' ')[1]}
+                  </span>
+                  <span className="hidden md:inline">{fmtMonth(ym)}</span>
+                </span>
                 <span className="text-right font-semibold text-primary">{fmtRub(sum)}</span>
                 <span className="text-right font-semibold" style={{ color: OLIVE }}>
                   {planMonthRub > 0 ? Math.round(sum / planMonthRub * 100) : '—'}%
