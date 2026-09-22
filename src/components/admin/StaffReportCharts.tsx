@@ -104,14 +104,9 @@ const StaffReportCharts = ({ rows }: { rows: PRow[] }) => {
   const [group, setGroup]   = useState<Group>('day');
   const [chart, setChart]   = useState<Chart>('line');
   const [mode, setMode]     = useState<Mode>('staff');
-  const [picked, setPicked] = useState<number[]>([]);
 
   const metric = METRICS.find(m => m.key === metricKey)!;
-  const staffList = useMemo(() =>
-    Array.from(new Map(rows.map(r => [r.staff_id, r.full_name])).entries())
-      .map(([id, name]) => ({ id, name })), [rows]);
-
-  const active = picked.length ? rows.filter(r => picked.includes(r.staff_id)) : rows;
+  const active = rows;
 
   // Ключ периода: день / месяц / год
   const periodKey = (r: PRow, iso?: string) => {
@@ -275,13 +270,6 @@ const StaffReportCharts = ({ rows }: { rows: PRow[] }) => {
         <Dropdown label="Срез" width="w-44"
           options={[{ value: 'staff', label: 'По сотрудникам' }, { value: 'dept', label: 'Весь отдел' }]}
           selected={[mode]} onPick={v => setMode(v as Mode)} />
-        <Dropdown label="Сотрудники" width="w-56" multi
-          options={staffList.map(s => ({ value: s.id, label: s.name }))}
-          selected={picked}
-          onPick={v => {
-            if (v === ('__all__' as unknown as number)) { setPicked([]); return; }
-            setPicked(p => p.includes(v as number) ? p.filter(x => x !== v) : [...p, v as number]);
-          }} />
       </div>
 
       <div className="border border-primary/25 rounded-2xl bg-card p-4">
