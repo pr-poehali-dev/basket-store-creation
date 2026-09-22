@@ -155,33 +155,33 @@ const AdminStaffReport = () => {
     const isWeekend = (d: number) => [0, 6].includes(new Date(y, m - 1, d).getDay());
 
     const Hc = ({ children, cls = '' }: { children?: React.ReactNode; cls?: string }) => (
-      <th className={`px-1.5 py-1 text-[10px] font-semibold text-primary/70 whitespace-nowrap ${cls}`}>{children}</th>
+      <th className={`px-0.5 py-1 text-[10px] font-semibold text-primary/70 whitespace-nowrap ${cls}`}>{children}</th>
     );
     const Dc = ({ children, cls = '' }: { children?: React.ReactNode; cls?: string }) => (
-      <td className={`px-1.5 py-1 text-center text-[10px] whitespace-nowrap ${cls}`}>{children}</td>
+      <td className={`px-0.5 py-1 text-center text-[10px] whitespace-nowrap overflow-hidden ${cls}`}>{children}</td>
     );
 
     return (
       <div className="mb-8">
         <h2 className="font-display text-lg font-semibold text-primary mb-2">{title}</h2>
         <div className="border border-primary/25 rounded-2xl overflow-x-auto bg-card">
-          <table className="table-fixed border-separate border-spacing-0">
+          <table className="table-fixed border-separate border-spacing-0 w-max">
             <colgroup>
               <col style={{ width: 38 }} />
               <col style={{ width: 150 }} />
-              <col style={{ width: 54 }} />
+              <col style={{ width: 52 }} />
               {days.map(d => [
-                <col key={`${d}a`} style={{ width: 42 }} />,
-                <col key={`${d}b`} style={{ width: 56 }} />,
-                <col key={`${d}c`} style={{ width: 50 }} />,
-                <col key={`${d}d`} style={{ width: 46 }} />,
+                <col key={`${d}a`} style={{ width: 52 }} />,
+                <col key={`${d}b`} style={{ width: 52 }} />,
+                <col key={`${d}c`} style={{ width: 52 }} />,
+                <col key={`${d}d`} style={{ width: 52 }} />,
               ])}
             </colgroup>
             <thead>
               <tr>
                 <th className="px-1 py-2 bg-[#efece5] text-[10px] text-primary/70 sticky left-0 z-20 border-b border-primary/20">№</th>
                 <th className="px-3 py-2 bg-[#efece5] text-[10px] text-primary/70 text-left sticky left-[38px] z-20 border-b border-primary/20">ФИО</th>
-                <th className="px-1 py-2 bg-[#efece5] text-[10px] text-primary/70 border-r-2 border-primary/40 sticky left-[188px] z-20 border-b border-primary/20">тренд</th>
+                <th className="px-1 py-2 bg-[#efece5] text-[10px] text-primary/70 sticky left-[188px] z-20 border-b border-primary/20 shadow-[2px_0_0_0_rgba(90,62,40,0.4)]">тренд</th>
                 {days.map(d => (
                   <th key={d} colSpan={4}
                     className={`px-2 py-2 text-[10px] font-bold border-l-2 border-primary/40 border-b border-primary/20 ${
@@ -193,12 +193,12 @@ const AdminStaffReport = () => {
               <tr>
                 <th className="bg-[#f6f4ef] sticky left-0 z-20 border-b-2 border-primary/25" />
                 <th className="bg-[#f6f4ef] sticky left-[38px] z-20 border-b-2 border-primary/25" />
-                <th className="bg-[#f6f4ef] border-r-2 border-primary/40 sticky left-[188px] z-20 border-b-2 border-primary/25" />
+                <th className="bg-[#f6f4ef] sticky left-[188px] z-20 border-b-2 border-primary/25 shadow-[2px_0_0_0_rgba(90,62,40,0.4)]" />
                 {days.map(d => [
-                  <Hc key={`${d}h`} cls="bg-[#f6f4ef] border-l-2 border-primary/40 border-b-2 border-primary/25">ч</Hc>,
-                  <Hc key={`${d}r`} cls="bg-[#f6f4ef] border-l border-primary/15 border-b-2 border-primary/25">₽</Hc>,
-                  <Hc key={`${d}p`} cls="bg-[#f6f4ef] border-l border-primary/15 border-b-2 border-primary/25">%</Hc>,
-                  <Hc key={`${d}o`} cls="bg-[#f6f4ef] border-l border-primary/15 border-b-2 border-primary/25">откл</Hc>,
+                  <Hc key={`${d}h`} cls="bg-[#f6f4ef] border-l-2 border-l-primary/40 border-b-2 border-b-primary/25">ч</Hc>,
+                  <Hc key={`${d}r`} cls="bg-[#f6f4ef] border-l border-l-primary/15 border-b-2 border-b-primary/25">₽</Hc>,
+                  <Hc key={`${d}p`} cls="bg-[#f6f4ef] border-l border-l-primary/15 border-b-2 border-b-primary/25">%</Hc>,
+                  <Hc key={`${d}o`} cls="bg-[#f6f4ef] border-l border-l-primary/15 border-b-2 border-b-primary/25">откл</Hc>,
                 ])}
               </tr>
             </thead>
@@ -207,7 +207,7 @@ const AdminStaffReport = () => {
                 <tr key={r.staff_id}>
                   <Dc cls={`text-primary/50 sticky left-0 z-10 border-t border-primary/10 ${r.no_plan ? 'bg-[#f2f0ea]' : 'bg-[#fdfcfa]'}`}>{r.no_plan ? '' : i + 1 - list.filter(x => x.no_plan).length}</Dc>
                   <td className={`px-3 py-1 text-[10px] font-semibold text-primary truncate sticky left-[38px] z-10 border-t border-primary/10 ${r.no_plan ? 'bg-[#f2f0ea]' : 'bg-[#fdfcfa]'}`}>{r.full_name}</td>
-                  <Dc cls={`font-medium border-r-2 border-primary/40 sticky left-[188px] z-10 border-t border-primary/10 ${r.no_plan ? 'bg-[#f2f0ea]' : 'bg-[#fdfcfa]'}`}>{r.no_plan ? '0' : num(r.trend)}</Dc>
+                  <Dc cls={`font-medium sticky left-[188px] z-10 border-t border-primary/10 shadow-[2px_0_0_0_rgba(90,62,40,0.4)] ${r.no_plan ? 'bg-[#f2f0ea]' : 'bg-[#fdfcfa]'}`}>{r.no_plan ? '0' : num(r.trend)}</Dc>
                   {days.map(d => {
                     const rec = dayOf(r, d);
                     const pct = r.trend > 0 && rec ? Math.round(rec.rub / r.trend * 100) : 0;
@@ -230,7 +230,7 @@ const AdminStaffReport = () => {
               <tr className="font-bold text-primary">
                 <Dc cls="sticky left-0 z-10 bg-[#e6e2d8] border-t-2 border-primary/30" />
                 <td className="px-3 py-1.5 text-[10px] font-bold sticky left-[38px] z-10 bg-[#e6e2d8] border-t-2 border-primary/30">план-факт</td>
-                <Dc cls="border-r-2 border-primary/40 sticky left-[188px] z-10 bg-[#e6e2d8] border-t-2 border-primary/30">{num(calc.reduce((a, b) => a + b.trend, 0))}</Dc>
+                <Dc cls="sticky left-[188px] z-10 bg-[#e6e2d8] border-t-2 border-primary/30 shadow-[2px_0_0_0_rgba(90,62,40,0.4)]">{num(calc.reduce((a, b) => a + b.trend, 0))}</Dc>
                 {days.map(d => {
                   const recs = list.map(r => dayOf(r, d)).filter(Boolean) as { rub: number; hours: number }[];
                   const planD = calc.reduce((a, b) => a + b.trend, 0);
