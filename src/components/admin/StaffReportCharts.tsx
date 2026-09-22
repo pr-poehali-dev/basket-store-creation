@@ -100,10 +100,18 @@ function Dropdown<T extends string | number>({ label, options, selected, onPick,
 }
 
 const StaffReportCharts = ({ rows }: { rows: PRow[] }) => {
-  const [metricKey, setMetricKey] = useState('rub');
-  const [group, setGroup]   = useState<Group>('day');
-  const [chart, setChart]   = useState<Chart>('line');
-  const [mode, setMode]     = useState<Mode>('staff');
+  // Настройки графика сохраняются, чтобы не сбрасываться при смене фильтров
+  const saved = (() => {
+    try { return JSON.parse(localStorage.getItem('charts_cfg') || '{}'); } catch { return {}; }
+  })();
+  const [metricKey, setMetricKey] = useState<string>(saved.metricKey || 'rub');
+  const [group, setGroup]   = useState<Group>(saved.group || 'day');
+  const [chart, setChart]   = useState<Chart>(saved.chart || 'line');
+  const [mode, setMode]     = useState<Mode>(saved.mode || 'staff');
+
+  useEffect(() => {
+    localStorage.setItem('charts_cfg', JSON.stringify({ metricKey, group, chart, mode }));
+  }, [metricKey, group, chart, mode]);
 
   const metric = METRICS.find(m => m.key === metricKey)!;
   const active = rows;

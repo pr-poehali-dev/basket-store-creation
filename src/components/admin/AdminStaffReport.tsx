@@ -405,9 +405,12 @@ const AdminStaffReport = () => {
         ))}
       </div>
 
-      {loading ? <p className="text-muted-foreground">Загружаю...</p> : view === 'charts' ? (
-        <StaffReportCharts rows={visible} />
-      ) : (
+      {view === 'charts' ? (
+        <>
+          {loading && <p className="text-muted-foreground mb-3">Обновляю данные...</p>}
+          <StaffReportCharts rows={visible} />
+        </>
+      ) : loading ? <p className="text-muted-foreground">Загружаю...</p> : (
         <>
           {periods.map(pk => {
             const [y, m] = pk.split('-').map(Number);
