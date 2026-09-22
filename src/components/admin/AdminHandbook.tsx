@@ -134,7 +134,7 @@ const AdminHandbook = () => {
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
   const [showPlanForm, setShowPlanForm]   = useState(false);
   const [editPlan, setEditPlan]           = useState<Plan | null>(null);
-  const [planForm, setPlanForm]           = useState({ staff_id: 0, daily_plan_rub: 0, daily_plan_hours: 8, valid_from: '' });
+  const [planForm, setPlanForm]           = useState({ staff_id: 0, daily_plan_rub: 0, daily_plan_hours: 9, valid_from: '' });
 
   const monthOptions = getMonthOptions();
 
@@ -409,7 +409,7 @@ const AdminHandbook = () => {
                 className="border border-border bg-background rounded-xl px-3 py-2 text-sm outline-none focus:border-accent">
                 {monthOptions.map(m => <option key={m} value={m}>{fmtMonth(m)}</option>)}
               </select>
-              <Button onClick={() => { setPlanForm({ staff_id: 0, daily_plan_rub: 0, daily_plan_hours: 8, valid_from: selectedMonth + '-01' }); setEditPlan(null); setShowPlanForm(true); }}
+              <Button onClick={() => { setPlanForm({ staff_id: 0, daily_plan_rub: 0, daily_plan_hours: 9, valid_from: selectedMonth + '-01' }); setEditPlan(null); setShowPlanForm(true); }}
                 className="rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground">
                 <Icon name="Plus" size={16} className="mr-2" /> Установить план
               </Button>
@@ -438,7 +438,7 @@ const AdminHandbook = () => {
                         <td className="px-4 py-3 text-center text-xs text-muted-foreground">{plan?.valid_from ? new Date(plan.valid_from + 'T00:00:00').toLocaleDateString('ru-RU') : '—'}</td>
                         <td className="px-4 py-3 text-center">
                           <Button size="sm" variant="outline" className="rounded-lg h-8" onClick={() => {
-                            setPlanForm({ staff_id: s.id, daily_plan_rub: plan?.daily_plan_rub || 0, daily_plan_hours: plan?.daily_plan_hours || 8, valid_from: selectedMonth + '-01' });
+                            setPlanForm({ staff_id: s.id, daily_plan_rub: plan?.daily_plan_rub || 0, daily_plan_hours: plan?.daily_plan_hours || 9, valid_from: selectedMonth + '-01' });
                             setEditPlan(plan || null);
                             setShowPlanForm(true);
                           }}>

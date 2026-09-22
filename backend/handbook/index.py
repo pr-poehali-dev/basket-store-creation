@@ -144,7 +144,7 @@ def handler(event: dict, context) -> dict:
                             "SELECT DISTINCT ON (s.id) s.id as staff_id, s.full_name, "
                             "COALESCE(sp.id, 0) as plan_id, "
                             "COALESCE(sp.daily_plan_rub, 0) as daily_plan_rub, "
-                            "COALESCE(sp.daily_plan_hours, 8) as daily_plan_hours, "
+                            "COALESCE(sp.daily_plan_hours, 9) as daily_plan_hours, "
                             "sp.valid_from "
                             "FROM staff s "
                             "LEFT JOIN staff_plans sp ON sp.staff_id = s.id "
@@ -157,7 +157,7 @@ def handler(event: dict, context) -> dict:
                         'staff_id': r['staff_id'],
                         'full_name': r.get('full_name', ''),
                         'daily_plan_rub': to_float(r['daily_plan_rub']),
-                        'daily_plan_hours': to_float(r.get('daily_plan_hours') or 8),
+                        'daily_plan_hours': to_float(r.get('daily_plan_hours') or 9),
                         'valid_from': r['valid_from'].isoformat() if r.get('valid_from') else '',
                     } for r in rows]
                     return {'statusCode': 200, 'headers': cors(), 'body': json.dumps({'plans': plans})}
@@ -184,7 +184,7 @@ def handler(event: dict, context) -> dict:
                         'staff_id': r['staff_id'],
                         'full_name': r.get('full_name', ''),
                         'daily_plan_rub': to_float(r['daily_plan_rub']),
-                        'daily_plan_hours': to_float(r.get('daily_plan_hours') or 8),
+                        'daily_plan_hours': to_float(r.get('daily_plan_hours') or 9),
                         'valid_from': r['valid_from'].isoformat() if r['valid_from'] else '',
                     } for r in rows]
                     return {'statusCode': 200, 'headers': cors(), 'body': json.dumps({'plans': plans})}
@@ -261,7 +261,7 @@ def handler(event: dict, context) -> dict:
             if b_type == 'plan':
                 staff_id = int(body.get('staff_id'))
                 daily_plan_rub = float(body.get('daily_plan_rub', 0))
-                daily_plan_hours = float(body.get('daily_plan_hours', 8))
+                daily_plan_hours = float(body.get('daily_plan_hours', 9))
                 valid_from = body.get('valid_from') or None
                 with conn.cursor() as cur:
                     cur.execute(

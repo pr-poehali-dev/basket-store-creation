@@ -100,7 +100,7 @@ def handler(event: dict, context) -> dict:
                     cur.execute("""SELECT DISTINCT ON (s.id) s.id, s.full_name, s.pages,
                           s.is_active, s.fired_at,
                           COALESCE(sp.daily_plan_rub, 0) AS daily_plan_rub,
-                          COALESCE(sp.daily_plan_hours, 8) AS daily_plan_hours
+                          COALESCE(sp.daily_plan_hours, 9) AS daily_plan_hours
                         FROM staff s LEFT JOIN staff_plans sp ON sp.staff_id = s.id
                         WHERE s.is_active = TRUE OR s.fired_at IS NOT NULL
                         ORDER BY s.id, sp.valid_from DESC NULLS LAST""")

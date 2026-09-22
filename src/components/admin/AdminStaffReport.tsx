@@ -124,13 +124,13 @@ const AdminStaffReport = () => {
   // Жирная граница — разделитель смысловых блоков
   const SEP = 'border-l-2 border-l-primary/40';
 
-  const Th = ({ children, span = 1, sep = false }: { children?: React.ReactNode; span?: number; sep?: boolean }) => (
-    <th colSpan={span} className={`px-2 py-2 border-b border-primary/20 bg-primary/10 text-primary text-[11px] font-bold uppercase tracking-wide ${sep ? SEP : ''}`}>
+  const Th = ({ children, span = 1, sep = false, cls = '' }: { children?: React.ReactNode; span?: number; sep?: boolean; cls?: string }) => (
+    <th colSpan={span} className={`px-2 py-2 border-b border-primary/20 bg-[#efece5] text-primary text-[11px] font-bold uppercase tracking-wide ${sep ? SEP : ''} ${cls}`}>
       {children}
     </th>
   );
-  const Th2 = ({ children, sep = false }: { children?: React.ReactNode; sep?: boolean }) => (
-    <th className={`px-2 py-1.5 border-b-2 border-primary/25 bg-primary/5 text-primary/70 text-[10px] font-semibold whitespace-nowrap ${sep ? SEP : ''}`}>
+  const Th2 = ({ children, sep = false, cls = '' }: { children?: React.ReactNode; sep?: boolean; cls?: string }) => (
+    <th className={`px-2 py-1.5 border-b-2 border-primary/25 bg-[#f6f4ef] text-primary/70 text-[10px] font-semibold whitespace-nowrap ${sep ? SEP : ''} ${cls}`}>
       {children}
     </th>
   );
@@ -165,12 +165,12 @@ const AdminStaffReport = () => {
       <div className="mb-8">
         <h2 className="font-display text-lg font-semibold text-primary mb-2">{title}</h2>
         <div className="border border-primary/25 rounded-2xl overflow-x-auto bg-card">
-          <table className="border-collapse">
+          <table className="border-collapse table-fixed">
             <thead>
               <tr>
-                <th className="px-2 py-2 bg-primary/10 text-[10px] text-primary/70 sticky left-0 z-20">№</th>
-                <th className="px-3 py-2 bg-primary/10 text-[10px] text-primary/70 text-left sticky left-8 z-20 min-w-[150px]">ФИО</th>
-                <th className="px-2 py-2 bg-primary/10 text-[10px] text-primary/70 border-r-2 border-primary/40">тренд</th>
+                <th className="px-1 py-2 bg-[#efece5] text-[10px] text-primary/70 sticky left-0 z-20 w-9">№</th>
+                <th className="px-3 py-2 bg-[#efece5] text-[10px] text-primary/70 text-left sticky left-9 z-20 w-[150px]">ФИО</th>
+                <th className="px-1 py-2 bg-[#efece5] text-[10px] text-primary/70 border-r-2 border-primary/40 sticky left-[186px] z-20 w-11">тренд</th>
                 {days.map(d => (
                   <th key={d} colSpan={4}
                     className={`px-2 py-2 text-[10px] font-bold border-l-2 border-primary/40 ${
@@ -180,36 +180,36 @@ const AdminStaffReport = () => {
                 ))}
               </tr>
               <tr className="border-b-2 border-primary/25">
-                <th className="bg-primary/5 sticky left-0 z-20" />
-                <th className="bg-primary/5 sticky left-8 z-20" />
-                <th className="bg-primary/5 border-r-2 border-primary/40" />
+                <th className="bg-[#f6f4ef] sticky left-0 z-20 w-9" />
+                <th className="bg-[#f6f4ef] sticky left-9 z-20 w-[150px]" />
+                <th className="bg-[#f6f4ef] border-r-2 border-primary/40 sticky left-[186px] z-20 w-11" />
                 {days.map(d => [
-                  <Hc key={`${d}h`} cls="bg-primary/5 border-l-2 border-primary/40">ч</Hc>,
-                  <Hc key={`${d}r`} cls="bg-primary/5">₽</Hc>,
-                  <Hc key={`${d}p`} cls="bg-primary/5">%</Hc>,
-                  <Hc key={`${d}o`} cls="bg-primary/5">откл</Hc>,
+                  <Hc key={`${d}h`} cls="bg-[#f6f4ef] border-l-2 border-primary/40 w-9">ч</Hc>,
+                  <Hc key={`${d}r`} cls="bg-[#f6f4ef] w-12">₽</Hc>,
+                  <Hc key={`${d}p`} cls="bg-[#f6f4ef] w-11">%</Hc>,
+                  <Hc key={`${d}o`} cls="bg-[#f6f4ef] w-9">откл</Hc>,
                 ])}
               </tr>
             </thead>
             <tbody>
               {list.map((r, i) => (
                 <tr key={r.staff_id} className={`border-t border-primary/10 ${r.no_plan ? 'bg-primary/5' : 'hover:bg-primary/5'}`}>
-                  <Dc cls="text-primary/50 sticky left-0 z-10 bg-card">{r.no_plan ? '' : i + 1 - list.filter(x => x.no_plan).length}</Dc>
-                  <td className="px-3 py-1 text-[10px] font-semibold text-primary whitespace-nowrap sticky left-8 z-10 bg-card">{r.full_name}</td>
-                  <Dc cls="font-medium border-r-2 border-primary/40">{r.no_plan ? '0' : num(r.trend)}</Dc>
+                  <Dc cls={`text-primary/50 sticky left-0 z-10 w-9 ${r.no_plan ? 'bg-[#f2f0ea]' : 'bg-[#fdfcfa]'}`}>{r.no_plan ? '' : i + 1 - list.filter(x => x.no_plan).length}</Dc>
+                  <td className={`px-3 py-1 text-[10px] font-semibold text-primary truncate sticky left-9 z-10 w-[150px] ${r.no_plan ? 'bg-[#f2f0ea]' : 'bg-[#fdfcfa]'}`}>{r.full_name}</td>
+                  <Dc cls={`font-medium border-r-2 border-primary/40 sticky left-[186px] z-10 w-11 ${r.no_plan ? 'bg-[#f2f0ea]' : 'bg-[#fdfcfa]'}`}>{r.no_plan ? '0' : num(r.trend)}</Dc>
                   {days.map(d => {
                     const rec = dayOf(r, d);
                     const pct = r.trend > 0 && rec ? Math.round(rec.rub / r.trend * 100) : 0;
                     const dev = rec ? +(rec.hours - r.plan_hours_day).toFixed(2) : 0;
                     const wk  = isWeekend(d) ? 'bg-primary/10' : '';
                     return [
-                      <Dc key={`${d}h`} cls={`border-l-2 border-primary/40 ${wk}`}>{rec ? num(rec.hours) : '-'}</Dc>,
-                      <Dc key={`${d}r`} cls={`font-medium ${wk}`}>{rec ? num(rec.rub) : '-'}</Dc>,
-                      <Dc key={`${d}p`} cls={rec && !r.no_plan
+                      <Dc key={`${d}h`} cls={`border-l-2 border-primary/40 w-9 ${wk}`}>{rec ? num(rec.hours) : '-'}</Dc>,
+                      <Dc key={`${d}r`} cls={`font-medium w-12 ${wk}`}>{rec ? num(rec.rub) : '-'}</Dc>,
+                      <Dc key={`${d}p`} cls={`w-11 ${rec && !r.no_plan
                         ? (pct >= 100 ? 'bg-[#c6efce] text-black font-semibold' : 'bg-[#ffc7ce] text-black font-semibold')
-                        : wk}>{r.no_plan ? '0%' : `${pct}%`}</Dc>,
-                      <Dc key={`${d}o`} cls={`${wk} ${rec && dev < 0 ? 'text-red-600 font-semibold' : 'text-primary/70'}`}>
-                        {rec && !r.no_plan ? dev : '-'}
+                        : wk}`}>{r.no_plan ? '0%' : `${pct}%`}</Dc>,
+                      <Dc key={`${d}o`} cls={`w-9 ${wk} ${rec && dev < 0 ? 'text-red-600 font-semibold' : 'text-primary/70'}`}>
+                        {rec && !r.no_plan ? (dev > 0 ? `+${dev}` : dev) : '-'}
                       </Dc>,
                     ];
                   })}
@@ -217,9 +217,9 @@ const AdminStaffReport = () => {
               ))}
               {/* Итоги по дню */}
               <tr className="border-t-2 border-primary/30 bg-primary/10 font-bold text-primary">
-                <Dc cls="sticky left-0 z-10 bg-primary/10" />
-                <td className="px-3 py-1.5 text-[10px] font-bold sticky left-8 z-10 bg-primary/10">план-факт</td>
-                <Dc cls="border-r-2 border-primary/40">{rub(calc.reduce((a, b) => a + b.trend, 0))}</Dc>
+                <Dc cls="sticky left-0 z-10 bg-[#e6e2d8] w-9" />
+                <td className="px-3 py-1.5 text-[10px] font-bold sticky left-9 z-10 bg-[#e6e2d8] w-[150px]">план-факт</td>
+                <Dc cls="border-r-2 border-primary/40 sticky left-[186px] z-10 bg-[#e6e2d8] w-11">{num(calc.reduce((a, b) => a + b.trend, 0))}</Dc>
                 {days.map(d => {
                   const recs = list.map(r => dayOf(r, d)).filter(Boolean) as { rub: number; hours: number }[];
                   const planD = calc.reduce((a, b) => a + b.trend, 0);
@@ -227,10 +227,10 @@ const AdminStaffReport = () => {
                   const hrsD  = recs.reduce((a, b) => a + b.hours, 0);
                   const pctD  = planD > 0 ? Math.round(factD / planD * 100) : 0;
                   return [
-                    <Dc key={`${d}h`} cls="border-l-2 border-primary/40">{hrsD ? num(hrsD) : '-'}</Dc>,
-                    <Dc key={`${d}r`}>{factD ? num(factD) : '-'}</Dc>,
-                    <Dc key={`${d}p`} cls={pctD >= 100 ? 'bg-[#c6efce] text-black' : 'text-red-600'}>{pctD}%</Dc>,
-                    <Dc key={`${d}o`} cls={factD - planD < 0 ? 'text-red-600' : 'text-primary'}>{num(factD - planD)}</Dc>,
+                    <Dc key={`${d}h`} cls="border-l-2 border-primary/40 w-9">{hrsD ? num(hrsD) : '-'}</Dc>,
+                    <Dc key={`${d}r`} cls="w-12">{factD ? num(factD) : '-'}</Dc>,
+                    <Dc key={`${d}p`} cls={`w-11 ${pctD >= 100 ? 'bg-[#c6efce] text-black' : 'text-red-600'}`}>{pctD}%</Dc>,
+                    <Dc key={`${d}o`} cls={`w-9 ${factD - planD < 0 ? 'text-red-600' : 'text-primary'}`}>{num(factD - planD)}</Dc>,
                   ];
                 })}
               </tr>
@@ -257,7 +257,7 @@ const AdminStaffReport = () => {
           <table className="border-collapse w-full min-w-[1360px]">
             <thead>
               <tr>
-                <Th /><Th />
+                <Th cls="sticky left-0 z-20 w-9" /><Th cls="sticky left-9 z-20 w-[160px]" />
                 <Th span={4} sep>ЗП</Th>
                 <Th span={2} sep>Часы</Th>
                 <Th span={2} sep>Дни</Th>
@@ -267,7 +267,7 @@ const AdminStaffReport = () => {
                 <Th sep>Премия</Th>
               </tr>
               <tr>
-                <Th2>№</Th2><Th2>ФИО</Th2>
+                <Th2 cls="sticky left-0 z-20 w-9">№</Th2><Th2 cls="sticky left-9 z-20 w-[160px]">ФИО</Th2>
                 <Th2 sep>тренд</Th2><Th2>план</Th2><Th2>факт</Th2><Th2>отставание</Th2>
                 <Th2 sep>факт</Th2><Th2>отставание</Th2>
                 <Th2 sep>факт</Th2><Th2>отставание</Th2>
@@ -283,9 +283,9 @@ const AdminStaffReport = () => {
                 if (!r.no_plan) idx += 1;
                 return [
                   <tr key={r.staff_id} className={`border-t border-primary/10 ${r.no_plan ? 'bg-primary/5' : 'hover:bg-primary/5'}`}>
-                    <Td cls="text-primary/50">{r.no_plan ? '' : idx}</Td>
+                    <Td cls={`text-primary/50 sticky left-0 z-10 w-9 ${r.no_plan ? 'bg-[#f2f0ea]' : 'bg-[#fdfcfa]'}`}>{r.no_plan ? '' : idx}</Td>
                     <td onClick={() => setOpenStaff(p => ({ ...p, [r.staff_id]: !p[r.staff_id] }))}
-                      className="px-3 py-1.5 text-[11px] font-semibold text-primary whitespace-nowrap cursor-pointer">
+                      className={`px-3 py-1.5 text-[11px] font-semibold text-primary whitespace-nowrap cursor-pointer sticky left-9 z-10 w-[160px] ${r.no_plan ? 'bg-[#f2f0ea]' : 'bg-[#fdfcfa]'}`}>
                       <span className="flex items-center gap-1">
                         <Icon name={isOpen ? 'ChevronDown' : 'ChevronRight'} size={12} className="text-primary/40" />
                         {r.full_name}
@@ -314,8 +314,8 @@ const AdminStaffReport = () => {
                     const pctM   = r.plan_month > 0 ? Math.round(d.rub / r.plan_month * 100) : 0;
                     return (
                       <tr key={`${r.staff_id}-${d.date}`} className="border-t border-primary/5 bg-primary/[0.03] text-primary/80">
-                        <Td />
-                        <td className="px-3 py-1 pl-8 text-[11px] text-primary/70 whitespace-nowrap">{fmtD(d.date)}</td>
+                        <Td cls="sticky left-0 z-10 w-9 bg-[#f7f5f1]" />
+                        <td className="px-3 py-1 pl-8 text-[11px] text-primary/70 whitespace-nowrap sticky left-9 z-10 w-[160px] bg-[#f7f5f1]">{fmtD(d.date)}</td>
                         <Td sep>{r.no_plan ? '—' : num(r.trend)}</Td>
                         <Td>{r.no_plan ? '—' : rub(r.trend)}</Td>
                         <Td cls="font-medium">{rub(d.rub)}</Td>
@@ -344,8 +344,8 @@ const AdminStaffReport = () => {
               )}
               {list.length > 0 && (
                 <tr className="border-t-2 border-primary/30 bg-primary/10 font-bold text-primary">
-                  <Td />
-                  <td className="px-3 py-2 text-[11px] font-bold">ИТОГ</td>
+                  <Td cls="sticky left-0 z-10 w-9 bg-[#e6e2d8]" />
+                  <td className="px-3 py-2 text-[11px] font-bold sticky left-9 z-10 w-[160px] bg-[#e6e2d8]">ИТОГ</td>
                   <Td sep>{rub(sumC(x => x.trend))}</Td>
                   <Td>{rub(tPlan)}</Td>
                   <Td>{rub(tFact)}</Td>
