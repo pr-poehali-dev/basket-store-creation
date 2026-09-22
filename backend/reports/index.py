@@ -74,6 +74,64 @@ def handler(event: dict, context) -> dict:
                         'locked': bool(row['locked']),
                     }})}
 
+                if rec_type == 'salary':
+                    # Зарплатная сводка за период: план, заработок, корректировки
+                    year  = int(params.get('year'))
+                    month = int(params.get('month'))
+                    half  = int(params.get('half', 1))
+                    d_from = f"{year:04d}-{month:02d}-{1 if half == 1 else 16:02d}"
+                    last = 15 if half == 1 else 31
+                    import calendar as _cal
+                    if half == 2:
+                        last = _cal.monthrange(year, month)[1]
+                    d_to = f"{year:04d}-{month:02d}-{last:02d}"
+
+                    cur.execute("""SELECT s.id, s.full_name,
+                          COALESCE(sp.daily_plan_rub, 0) AS daily_plan_rub
+                        FROM staff s LEFT JOIN staff_plans sp ON sp.staff_id = s.id
+                        WHERE s.is_active = TRUE ORDER BY s.full_name""")
+                    staff_rows = cur.fetchall()
+
+                    cur.execute("""SELECT staff_id, report_date, total_rub, hours
+                        FROM staff_reports WHERE report_date BETWEEN %s AND %s
+                        ORDER BY report_date""", (d_from, d_to))
+                    rep_rows = cur.fetchall()
+
+                    cur.execute("""SELECT * FROM salary_periods
+                        WHERE year=%s AND month=%s AND half=%s""", (year, month, half))
+                    adj = {r['staff_id']: r for r in cur.fetchall()}
+
+                    by_staff = {}
+                    for r in rep_rows:
+                        by_staff.setdefault(r['staff_id'], []).append({
+                            'date': r['report_date'].isoformat(),
+                            'total_rub': to_float(r['total_rub']),
+                            'hours': to_float(r['hours']),
+                        })
+
+                    result = []
+                    for s_row in staff_rows:
+                        days = by_staff.get(s_row['id'], [])
+                        earned = sum(d['total_rub'] for d in days)
+                        a = adj.get(s_row['id'])
+                        daily = to_float(s_row['daily_plan_rub'])
+                        plan_total = daily * len(days) if days else 0
+                        result.append({
+                            'staff_id': s_row['id'],
+                            'full_name': s_row['full_name'],
+                            'daily_plan_rub': daily,
+                            'earned': earned,
+                            'plan_pct': round(earned / plan_total * 100) if plan_total > 0 else 0,
+                            'prev_balance': to_float(a['prev_balance']) if a else 0,
+                            'defect': to_float(a['defect']) if a else 0,
+                            'bonus': to_float(a['bonus']) if a else 0,
+                            'motivation': to_float(a['motivation']) if a else 0,
+                            'paid': to_float(a['paid']) if a else 0,
+                            'days': days,
+                        })
+                    return {'statusCode': 200, 'headers': cors(),
+                            'body': json.dumps({'rows': result, 'from': d_from, 'to': d_to})}
+
                 if rec_type == 'reports':
                     staff_id = params.get('staff_id')
                     date_from = params.get('from', '')
@@ -278,6 +336,22 @@ def handler(event: dict, context) -> dict:
                            VALUES (%s, 'order_consume', %s, 0, %s, %s)""",
                         (catalog_name, -delta, comment, created_by)
                     )
+                return {'statusCode': 200, 'headers': cors(), 'body': json.dumps({'ok': True})}
+
+            if b_type == 'salary_adj':
+                # Сохранить корректировку по сотруднику за период
+                sid   = int(body.get('staff_id'))
+                year  = int(body.get('year')); month = int(body.get('month')); half = int(body.get('half'))
+                field = body.get('field')
+                if field not in ('prev_balance', 'defect', 'bonus', 'motivation', 'paid'):
+                    return {'statusCode': 400, 'headers': cors(), 'body': json.dumps({'error': 'bad field'})}
+                val = float(body.get('value') or 0)
+                with conn.cursor() as cur:
+                    cur.execute(f"""INSERT INTO salary_periods (staff_id, year, month, half, {field})
+                        VALUES (%s,%s,%s,%s,%s)
+                        ON CONFLICT (staff_id, year, month, half)
+                        DO UPDATE SET {field} = %s, updated_at = NOW()""",
+                        (sid, year, month, half, val, val))
                 return {'statusCode': 200, 'headers': cors(), 'body': json.dumps({'ok': True})}
 
             if b_type == 'warehouse_cleanup':

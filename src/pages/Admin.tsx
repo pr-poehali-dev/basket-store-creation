@@ -11,6 +11,7 @@ import AdminTasks from '@/components/admin/AdminTasks';
 import AdminClients from '@/components/admin/AdminClients';
 import AdminIncome from '@/components/admin/AdminIncome';
 import { AdminStaffCabinetPage } from '@/components/admin/AdminStaffCabinet';
+import AdminSalary from '@/components/admin/AdminSalary';
 import AdminPlaceholder from '@/components/admin/AdminPlaceholder';
 
 const Admin = () => (
@@ -25,7 +26,7 @@ const Admin = () => (
       <Route path="income"       element={<AdminIncome />} />
       <Route path="clients"      element={<AdminClients />} />
       <Route path="products"     element={<AdminProducts />} />
-      <Route path="salary"       element={<AdminPlaceholder title="Зарплата" />} />
+      <Route path="salary"       element={<AdminSalary />} />
       <Route path="staff-report" element={<AdminPlaceholder title="Сводка по сотрудникам" />} />
       <Route path="handbook"     element={<AdminHandbook />} />
       <Route path="access"       element={<AdminAccess />} />

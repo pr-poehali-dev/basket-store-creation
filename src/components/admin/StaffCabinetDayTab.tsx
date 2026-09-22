@@ -62,16 +62,85 @@ const StaffCabinetDayTab = ({
   const groupedPositions = useMemo(() => {
     const map = new Map<string, MergedPosition[]>();
     for (const r of sortedPositions) {
-      const g = (r.position_group || '').trim() || r.staff_name;
-      if (!map.has(g)) map.set(g, []);
-      map.get(g)!.push(r);
+      // Без названия подкатегории позиция остаётся сама по себе (без обёртки)
+      const g = (r.position_group || '').trim();
+      const key = g || `__solo_${r.id}`;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(r);
     }
     return Array.from(map.entries()).sort((a, b) => {
       const af = favGroups.includes(a[0]) ? 0 : 1;
       const bf = favGroups.includes(b[0]) ? 0 : 1;
-      return af - bf || a[0].localeCompare(b[0], 'ru');
+      const an = a[0].startsWith('__solo_') ? a[1][0].staff_name : a[0];
+      const bn = b[0].startsWith('__solo_') ? b[1][0].staff_name : b[0];
+      return af - bf || an.localeCompare(bn, 'ru');
     });
   }, [sortedPositions, favGroups]);
+
+  const renderRow = (row: MergedPosition, _k: string, _f: boolean) => {
+          const isPosOpen = !!openPositions[row.id];
+          const selectedId = selectedRow[row.id] ?? row.id;
+          const activeRow = sortedPositions.find(r => r.id === selectedId) || row;
+          const cats = CATEGORY_KEYS.filter(c => categoryPrice(activeRow, c) > 0);
+          // Другие варианты плетения для этой же позиции (совпадающие по catalog_name)
+          const weaveVariants = sortedPositions.filter(r => r.catalog_name && r.catalog_name === row.catalog_name && r.weave_type);
+          const showWeaveButtons = weaveVariants.length > 1;
+
+          return (
+            <div className="border border-primary/30 rounded-2xl overflow-hidden">
+              <button onClick={() => setOpenPositions(p => ({ ...p, [row.id]: !p[row.id] }))}
+                className="w-full flex items-center justify-between px-4 py-2.5 bg-primary/5 hover:bg-primary/8 transition-colors">
+                <span className="font-semibold text-primary text-sm">{row.staff_name}</span>
+                <Icon name={isPosOpen ? 'ChevronUp' : 'ChevronDown'} size={16} className="text-primary/50" />
+              </button>
+
+              {isPosOpen && (
+                <div className="px-4 py-3">
+                  {showWeaveButtons && (
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      {weaveVariants.map(r => (
+                        <button key={r.id}
+                          onClick={() => setSelectedRow(p => ({ ...p, [row.id]: r.id }))}
+                          className={`px-3 py-1.5 rounded-xl border text-xs font-medium transition-colors ${
+                            selectedId === r.id ? 'bg-primary text-white border-primary' : 'border-primary/30 text-primary hover:border-primary'
+                          }`}>
+                          {r.weave_type}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {cats.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">Нет цен для этой позиции</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {cats.map(cat => {
+                        const price = categoryPrice(activeRow, cat);
+                        const qty   = getDraft(activeRow.id, cat);
+                        return (
+                          <div key={cat} className="flex items-center gap-3">
+                            <span className="text-sm text-primary flex-1">{CATEGORY_LABEL[cat]}</span>
+                            <input type="number" min={0} placeholder="0" value={qty || ''}
+                              onChange={e => setDraft(activeRow.id, cat, parseInt(e.target.value, 10) || 0)}
+                              className="w-16 text-center border border-primary/30 rounded-lg px-1 py-1.5 text-sm outline-none focus:border-accent [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                            <span className="text-xs text-muted-foreground w-20 text-right">{price.toLocaleString('ru-RU')} ₽</span>
+                            <span className="text-sm font-semibold w-20 text-right" style={{ color: OLIVE }}>{qty > 0 ? fmtRub(qty * price) : '—'}</span>
+                          </div>
+                        );
+                      })}
+                      <div className="flex justify-end pt-1">
+                        <button onClick={() => addToReport(activeRow)}
+                          className="px-4 py-1.5 rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground text-xs font-semibold transition-colors">
+                          + Добавить в отчёт
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+  };
 
   return (
     <div>
@@ -167,18 +236,21 @@ const StaffCabinetDayTab = ({
 
       {/* Позиции — сгруппированы по подкатегориям (position_group), избранные вверху */}
       <div className="space-y-2 mb-5">
-        {groupedPositions.map(([groupName, groupRows]) => {
-          const isFav      = favGroups.includes(groupName);
-          const isGroupOpen = !!openGroups[groupName];
+        {groupedPositions.map(([groupKey, groupRows]) => {
+          const isSolo = groupKey.startsWith('__solo_');
+          const groupName = isSolo ? groupRows[0].staff_name : groupKey;
+          const isFav      = favGroups.includes(groupKey);
+          const isGroupOpen = !!openGroups[groupKey];
+          if (isSolo) return <div key={groupKey}>{renderRow(groupRows[0], groupKey, isFav)}</div>;
           return (
           <div key={groupName} className="border border-primary/30 rounded-2xl overflow-hidden">
             <div className="w-full flex items-center gap-2 px-3 py-2.5 bg-primary/8">
-              <button onClick={() => toggleFav(groupName)} title="В избранное"
+              <button onClick={() => toggleFav(groupKey)} title="В избранное"
                 className="flex-shrink-0 transition-transform active:scale-90">
                 <Icon name="Heart" size={18}
                   className={isFav ? 'text-red-500 fill-red-500' : 'text-primary/30'} />
               </button>
-              <button onClick={() => setOpenGroups(p => ({ ...p, [groupName]: !p[groupName] }))}
+              <button onClick={() => setOpenGroups(p => ({ ...p, [groupKey]: !p[groupKey] }))}
                 className="flex-1 flex items-center justify-between min-w-0">
                 <span className="font-bold text-primary text-sm truncate">{groupName}</span>
                 <Icon name={isGroupOpen ? 'ChevronUp' : 'ChevronDown'} size={16} className="text-primary/50" />
@@ -186,70 +258,7 @@ const StaffCabinetDayTab = ({
             </div>
             {isGroupOpen && (
         <div className="p-2 space-y-2">
-        {groupRows.map(row => {
-          const isPosOpen = !!openPositions[row.id];
-          const selectedId = selectedRow[row.id] ?? row.id;
-          const activeRow = sortedPositions.find(r => r.id === selectedId) || row;
-          const cats = CATEGORY_KEYS.filter(c => categoryPrice(activeRow, c) > 0);
-          // Другие варианты плетения для этой же позиции (совпадающие по catalog_name)
-          const weaveVariants = sortedPositions.filter(r => r.catalog_name && r.catalog_name === row.catalog_name && r.weave_type);
-          const showWeaveButtons = weaveVariants.length > 1;
-
-          return (
-            <div key={row.id} className="border border-primary/30 rounded-2xl overflow-hidden">
-              <button onClick={() => setOpenPositions(p => ({ ...p, [row.id]: !p[row.id] }))}
-                className="w-full flex items-center justify-between px-4 py-2.5 bg-primary/5 hover:bg-primary/8 transition-colors">
-                <span className="font-semibold text-primary text-sm">{row.staff_name}</span>
-                <Icon name={isPosOpen ? 'ChevronUp' : 'ChevronDown'} size={16} className="text-primary/50" />
-              </button>
-
-              {isPosOpen && (
-                <div className="px-4 py-3">
-                  {showWeaveButtons && (
-                    <div className="flex flex-wrap gap-2 mb-3">
-                      {weaveVariants.map(r => (
-                        <button key={r.id}
-                          onClick={() => setSelectedRow(p => ({ ...p, [row.id]: r.id }))}
-                          className={`px-3 py-1.5 rounded-xl border text-xs font-medium transition-colors ${
-                            selectedId === r.id ? 'bg-primary text-white border-primary' : 'border-primary/30 text-primary hover:border-primary'
-                          }`}>
-                          {r.weave_type}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-
-                  {cats.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">Нет цен для этой позиции</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {cats.map(cat => {
-                        const price = categoryPrice(activeRow, cat);
-                        const qty   = getDraft(activeRow.id, cat);
-                        return (
-                          <div key={cat} className="flex items-center gap-3">
-                            <span className="text-sm text-primary flex-1">{CATEGORY_LABEL[cat]}</span>
-                            <input type="number" min={0} placeholder="0" value={qty || ''}
-                              onChange={e => setDraft(activeRow.id, cat, parseInt(e.target.value, 10) || 0)}
-                              className="w-16 text-center border border-primary/30 rounded-lg px-1 py-1.5 text-sm outline-none focus:border-accent [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
-                            <span className="text-xs text-muted-foreground w-20 text-right">{price.toLocaleString('ru-RU')} ₽</span>
-                            <span className="text-sm font-semibold w-20 text-right" style={{ color: OLIVE }}>{qty > 0 ? fmtRub(qty * price) : '—'}</span>
-                          </div>
-                        );
-                      })}
-                      <div className="flex justify-end pt-1">
-                        <button onClick={() => addToReport(activeRow)}
-                          className="px-4 py-1.5 rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground text-xs font-semibold transition-colors">
-                          + Добавить в отчёт
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          );
-        })}
+        {groupRows.map(row => <div key={row.id}>{renderRow(row, groupKey, isFav)}</div>)}
         </div>
             )}
           </div>

@@ -89,6 +89,47 @@ const AdminHandbook = () => {
   const [importMode, setImportMode]     = useState<'append' | 'replace'>('append');
   const [importResult, setImportResult] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
+  const fullRef = useRef<HTMLInputElement>(null);
+  const [exporting, setExporting] = useState(false);
+
+  // Выгрузка полной таблицы справочника в Excel
+  const exportHandbook = async () => {
+    setExporting(true);
+    try {
+      const res  = await fetch(`${urls['export-excel']}?type=handbook`);
+      const data = await res.json();
+      const bin  = atob(data.file);
+      const arr  = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+      const url = URL.createObjectURL(new Blob([arr], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+      const a = document.createElement('a'); a.href = url; a.download = 'handbook.xlsx'; a.click();
+      URL.revokeObjectURL(url);
+    } catch { alert('Не удалось выгрузить файл'); }
+    setExporting(false);
+  };
+
+  // Загрузка полной таблицы обратно (по id — обновление, без id — создание)
+  const handleFullImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImporting(true);
+    const reader = new FileReader();
+    reader.onload = async ev => {
+      try {
+        const b64 = btoa(String.fromCharCode(...new Uint8Array(ev.target?.result as ArrayBuffer)));
+        const res  = await fetch(urls['upload-excel'], {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'handbook', file: b64 }),
+        });
+        const data = await res.json();
+        setImportResult(data.ok ? `Обновлено: ${data.updated}, добавлено: ${data.inserted}` : 'Ошибка загрузки');
+        await load();
+      } catch { setImportResult('Ошибка загрузки'); }
+      setImporting(false);
+      if (fullRef.current) fullRef.current.value = '';
+    };
+    reader.readAsArrayBuffer(file);
+  };
 
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
   const [showPlanForm, setShowPlanForm]   = useState(false);
@@ -226,6 +267,7 @@ const AdminHandbook = () => {
                 Колонки строго по порядку (первая строка — заголовки, не важны): <code className="bg-secondary px-1">название в каталоге, названия позиций для набора из каталога, названия позиций для набора из зп, название для зп, вид плетения, цена за готовую корзину (с ручкой), цена за корзину без ручки, цена за ручку, цена за уши, сортировка, цена за готовую корзину с ушами</code>
               </p>
               <p className="text-xs text-muted-foreground mb-4">
+                Кнопка «Выгрузить .xlsx» даёт полную таблицу со всеми столбцами (включая подкатегорию и активность) — отредактируйте её и загрузите обратно кнопкой «Загрузить полный .xlsx». Пояснение к каждому столбцу — в первой строке файла.<br />
                 Позиции набора перечисляются через «;». В режиме «Добавить/обновить» — обновление происходит по совпадению «название для зп».
               </p>
               <div className="flex flex-wrap items-center gap-4 mb-4">
@@ -243,11 +285,20 @@ const AdminHandbook = () => {
                   <Icon name="Upload" size={16} className="mr-2" />
                   {importing ? 'Загружаю...' : 'Загрузить .xlsx'}
                 </Button>
+                <Button onClick={exportHandbook} disabled={exporting} variant="outline" className="rounded-xl">
+                  <Icon name="Download" size={16} className="mr-2" />
+                  {exporting ? 'Готовлю...' : 'Выгрузить .xlsx'}
+                </Button>
+                <Button onClick={() => fullRef.current?.click()} disabled={importing} variant="outline" className="rounded-xl">
+                  <Icon name="FileUp" size={16} className="mr-2" />
+                  Загрузить полный .xlsx
+                </Button>
                 {importResult && (
                   <span className={`text-sm ${importResult.startsWith('Ошибка') ? 'text-red-500' : 'text-muted-foreground'}`}>{importResult}</span>
                 )}
               </div>
               <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleExcelImport} disabled={importing} />
+              <input ref={fullRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFullImport} disabled={importing} />
             </div>
 
             {/* Шапка таблицы */}

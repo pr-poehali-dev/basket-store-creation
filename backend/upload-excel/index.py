@@ -32,6 +32,61 @@ def get_size_category(size_str: str) -> str:
 def get_conn():
     return psycopg2.connect(os.environ['DATABASE_URL'], options=f"-c search_path={os.environ['MAIN_DB_SCHEMA']}")
 
+def import_handbook(file_b64):
+    """Импорт справочника позиций: строки с id обновляются, без id — создаются."""
+    wb = openpyxl.load_workbook(io.BytesIO(base64.b64decode(file_b64)))
+    ws = wb.active
+    # Шапка на 2-й строке (1-я — подсказка по столбцам)
+    hdr = [str(c.value).strip().lower() if c.value else '' for c in next(ws.iter_rows(min_row=2, max_row=2))]
+
+    def g(row, name):
+        for i, h in enumerate(hdr):
+            if h.startswith(name):
+                v = row[i].value
+                return v
+        return None
+
+    def num(v):
+        try: return float(str(v).replace(',', '.')) if v not in (None, '') else 0
+        except Exception: return 0
+
+    conn = get_conn(); cur = conn.cursor()
+    upd = ins = 0
+    for row in ws.iter_rows(min_row=3):
+        staff_name = g(row, 'название для зп')
+        if not staff_name or not str(staff_name).strip():
+            continue
+        vals = (
+            str(staff_name).strip(),
+            str(g(row, 'подкатегория') or '').strip(),
+            str(g(row, 'название на складе') or '').strip(),
+            str(g(row, 'вид плетения') or '').strip(),
+            num(g(row, 'цена с ручкой')), num(g(row, 'цена без ручки')),
+            num(g(row, 'цена ручки')), num(g(row, 'цена ушей')), num(g(row, 'цена с ушами')),
+            str(g(row, 'состав набора (склад)') or '').strip(),
+            str(g(row, 'состав набора (зп)') or '').strip(),
+            int(num(g(row, 'порядок'))),
+            str(g(row, 'активна') or 'да').strip().lower() in ('да', 'true', '1', 'yes'),
+        )
+        rid = g(row, 'id')
+        if rid:
+            cur.execute("""UPDATE handbook_positions SET staff_name=%s, position_group=%s,
+                catalog_name=%s, weave_type=%s, price_whole=%s, price_no_handle=%s,
+                price_handle=%s, price_ears=%s, price_whole_ears=%s, set_catalog_names=%s,
+                set_staff_names=%s, sort_order=%s, is_active=%s, updated_at=NOW()
+                WHERE id=%s""", vals + (int(rid),))
+            upd += cur.rowcount
+        else:
+            cur.execute("""INSERT INTO handbook_positions (staff_name, position_group, catalog_name,
+                weave_type, price_whole, price_no_handle, price_handle, price_ears, price_whole_ears,
+                set_catalog_names, set_staff_names, sort_order, is_active, group_name, category)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'whole')""", vals + (vals[0],))
+            ins += 1
+    conn.commit(); cur.close(); conn.close()
+    return {'statusCode': 200, 'headers': CORS,
+            'body': json.dumps({'ok': True, 'updated': upd, 'inserted': ins})}
+
+
 def handler(event: dict, context) -> dict:
     if event.get('httpMethod') == 'OPTIONS':
         return {'statusCode': 200, 'headers': CORS, 'body': ''}
@@ -39,6 +94,9 @@ def handler(event: dict, context) -> dict:
     body = json.loads(event.get('body') or '{}')
     file_b64 = body.get('file')
     mode = body.get('mode', 'append')
+
+    if body.get('type') == 'handbook' and file_b64:
+        return import_handbook(file_b64)
 
     if not file_b64:
         return {'statusCode': 400, 'headers': CORS, 'body': json.dumps({'error': 'Файл не передан'})}
