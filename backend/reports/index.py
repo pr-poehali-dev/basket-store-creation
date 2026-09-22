@@ -115,6 +115,18 @@ def handler(event: dict, context) -> dict:
                         GROUP BY staff_id""", (d_from, d_to))
                     agg = {r['staff_id']: r for r in cur.fetchall()}
 
+                    # Расшифровка по дням — для раскрытия строки сотрудника
+                    cur.execute("""SELECT staff_id, report_date, total_rub, hours
+                        FROM staff_reports WHERE report_date BETWEEN %s AND %s
+                        ORDER BY report_date""", (d_from, d_to))
+                    days_map = {}
+                    for d in cur.fetchall():
+                        days_map.setdefault(d['staff_id'], []).append({
+                            'date': d['report_date'].isoformat(),
+                            'rub': to_float(d['total_rub']),
+                            'hours': to_float(d['hours']),
+                        })
+
                     cur.execute("""SELECT staff_id,
                           COALESCE(SUM(motivation),0) AS mot, COALESCE(SUM(bonus),0) AS bon
                         FROM salary_periods WHERE year=%s AND month=%s GROUP BY staff_id""",
@@ -151,6 +163,7 @@ def handler(event: dict, context) -> dict:
                             'pct_month': round(fact_rub / plan_month * 100) if plan_month > 0 else 0,
                             'motivation': to_float(e['mot']) if e else 0,
                             'bonus': to_float(e['bon']) if e else 0,
+                            'days': days_map.get(r['id'], []),
                         })
                     res.sort(key=lambda x: (not x['no_plan'], x['full_name']))
                     return {'statusCode': 200, 'headers': cors(),

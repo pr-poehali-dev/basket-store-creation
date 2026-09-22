@@ -20,6 +20,7 @@ interface Row {
   pct_month: number;
   motivation: number;
   bonus: number;
+  days: { date: string; rub: number; hours: number }[];
 }
 
 const MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
@@ -74,6 +75,7 @@ const AdminStaffReport = () => {
   const [staffFilter, setStaffFilter] = useState<number[]>([]);
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
+  const [openStaff, setOpenStaff] = useState<Record<number, boolean>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -91,6 +93,7 @@ const AdminStaffReport = () => {
         ex.plan_hours += r.plan_hours; ex.fact_hours += r.fact_hours; ex.lag_hours += r.lag_hours;
         ex.fact_days += r.fact_days; ex.lag_days += r.lag_days;
         ex.motivation += r.motivation; ex.bonus += r.bonus;
+        ex.days = [...(ex.days || []), ...(r.days || [])];
         ex.speed = ex.fact_hours > 0 ? Math.round(ex.fact_rub / ex.fact_hours) : 0;
         ex.pct_today = ex.plan_now > 0 ? Math.round(ex.fact_rub / ex.plan_now * 100) : 0;
       }
@@ -119,19 +122,31 @@ const AdminStaffReport = () => {
   const tPctMonth = calc.length ? Math.round(calc.reduce((a, b) => a + b.pct_month, 0) / calc.length) : 0;
 
   // Красный — отставание, зелёный — перевыполнение
-  const neg = (v: number) => (v < 0 ? 'text-red-600 font-bold' : 'text-primary');
-  const pctCell = (v: number) => (v >= 100 ? 'bg-[#92d050] text-black font-bold' : 'text-red-600 font-bold');
+  const neg = (v: number) => (v < 0 ? 'text-red-600 font-semibold' : 'text-primary');
+  const pctCell = (v: number) => (v >= 100 ? 'bg-[#92d050] text-black font-bold' : 'text-red-600 font-semibold');
+  // Жирная граница — разделитель смысловых блоков
+  const SEP = 'border-l-2 border-l-primary/40';
 
-  const Th = ({ children, span = 1, dark = true }: { children?: React.ReactNode; span?: number; dark?: boolean }) => (
-    <th colSpan={span} className={`px-2 py-1.5 border border-white/20 text-[11px] font-bold tracking-wide ${
-      dark ? 'bg-black text-white' : 'bg-white text-black'}`}>{children}</th>
+  const Th = ({ children, span = 1, sep = false }: { children?: React.ReactNode; span?: number; sep?: boolean }) => (
+    <th colSpan={span} className={`px-2 py-2 border-b border-primary/20 bg-primary/10 text-primary text-[11px] font-bold uppercase tracking-wide ${sep ? SEP : ''}`}>
+      {children}
+    </th>
   );
-  const Th2 = ({ children }: { children?: React.ReactNode }) => (
-    <th className="px-2 py-1.5 border border-primary/20 bg-black text-white text-[10px] font-semibold whitespace-nowrap">{children}</th>
+  const Th2 = ({ children, sep = false }: { children?: React.ReactNode; sep?: boolean }) => (
+    <th className={`px-2 py-1.5 border-b-2 border-primary/25 bg-primary/5 text-primary/70 text-[10px] font-semibold whitespace-nowrap ${sep ? SEP : ''}`}>
+      {children}
+    </th>
   );
-  const Td = ({ children, cls = '' }: { children?: React.ReactNode; cls?: string }) => (
-    <td className={`px-2 py-1 border border-primary/20 text-center text-[11px] whitespace-nowrap ${cls}`}>{children}</td>
+  const Td = ({ children, cls = '', sep = false }: { children?: React.ReactNode; cls?: string; sep?: boolean }) => (
+    <td className={`px-2 py-1.5 text-center text-[11px] whitespace-nowrap ${sep ? SEP : ''} ${cls}`}>{children}</td>
   );
+
+  const fmtD = (iso: string) => {
+    const d = new Date(iso + 'T00:00:00');
+    return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}`;
+  };
+
+  let idx = 0;
 
   return (
     <div className="p-6">
@@ -147,73 +162,112 @@ const AdminStaffReport = () => {
       </div>
 
       {loading ? <p className="text-muted-foreground">Загружаю...</p> : (
-        <div className="border border-primary/25 rounded-xl overflow-x-auto">
-          <table className="border-collapse w-full min-w-[1500px]">
+        <div className="border border-primary/25 rounded-2xl overflow-x-auto bg-card">
+          <table className="border-collapse w-full min-w-[1360px]">
             <thead>
               <tr>
-                <Th dark={false} /><Th dark={false} />
-                <Th span={2}>ЗП</Th>
-                <Th span={2} dark={false}>ЗП</Th>
-                <Th span={3}>ЧАСЫ</Th>
-                <Th span={2} dark={false}>ДНИ</Th>
-                <Th>V плетения</Th>
-                <Th span={2} dark={false}>% ИТОГ</Th>
-                <Th>МОТИВАЦИЯ</Th>
-                <Th dark={false}>ПРЕМИЯ</Th>
+                <Th /><Th />
+                <Th span={4} sep>ЗП</Th>
+                <Th span={2} sep>Часы</Th>
+                <Th span={2} sep>Дни</Th>
+                <Th sep>V плетения</Th>
+                <Th span={2} sep>% итог</Th>
+                <Th sep>Мотивация</Th>
+                <Th sep>Премия</Th>
               </tr>
               <tr>
                 <Th2>№</Th2><Th2>ФИО</Th2>
-                <Th2>тренд</Th2><Th2>план</Th2>
-                <Th2>факт</Th2><Th2>отставание</Th2>
-                <Th2>план</Th2><Th2>факт</Th2><Th2>отставание</Th2>
-                <Th2>факт</Th2><Th2>отставание</Th2>
-                <Th2>₽/час</Th2>
-                <Th2>% на сегодня</Th2><Th2>% на месяц</Th2>
-                <Th2>рубли</Th2><Th2>рубли</Th2>
+                <Th2 sep>тренд</Th2><Th2>план</Th2><Th2>факт</Th2><Th2>отставание</Th2>
+                <Th2 sep>факт</Th2><Th2>отставание</Th2>
+                <Th2 sep>факт</Th2><Th2>отставание</Th2>
+                <Th2 sep>₽/час</Th2>
+                <Th2 sep>на сегодня</Th2><Th2>на месяц</Th2>
+                <Th2 sep>рубли</Th2>
+                <Th2 sep>рубли</Th2>
               </tr>
             </thead>
             <tbody>
-              {visible.map((r, i) => (
-                <tr key={r.staff_id} className={r.no_plan ? 'bg-primary/10' : 'hover:bg-primary/5'}>
-                  <Td cls="text-primary/60">{r.no_plan ? '' : i + 1}</Td>
-                  <td className="px-3 py-1 border border-primary/20 text-[11px] font-semibold text-primary whitespace-nowrap">{r.full_name}</td>
-                  <Td>{r.no_plan ? '—' : num(r.trend)}</Td>
-                  <Td>{r.no_plan ? '—' : rub(r.plan_now)}</Td>
-                  <Td cls="font-semibold">{rub(r.fact_rub)}</Td>
-                  <Td cls={r.no_plan ? '' : neg(r.lag_rub)}>{r.no_plan ? '—' : rub(r.lag_rub)}</Td>
-                  <Td>{r.no_plan ? '—' : num(r.plan_hours)}</Td>
-                  <Td>{num(r.fact_hours)}</Td>
-                  <Td cls={r.no_plan ? '' : neg(r.lag_hours)}>{r.no_plan ? '—' : num(r.lag_hours)}</Td>
-                  <Td>{r.fact_days}</Td>
-                  <Td cls={r.no_plan ? '' : neg(r.lag_days)}>{r.no_plan ? '—' : r.lag_days}</Td>
-                  <Td>{r.no_plan ? '—' : rub(r.speed)}</Td>
-                  <Td cls={r.no_plan ? '' : pctCell(r.pct_today)}>{r.no_plan ? '—' : `${r.pct_today}%`}</Td>
-                  <Td cls={r.no_plan ? '' : pctCell(r.pct_month)}>{r.no_plan ? '—' : `${r.pct_month}%`}</Td>
-                  <Td>{rub(r.motivation)}</Td>
-                  <Td cls={r.bonus > 0 ? 'bg-[#92d050] text-black font-bold' : ''}>{rub(r.bonus)}</Td>
-                </tr>
-              ))}
+              {visible.map(r => {
+                const isOpen = !!openStaff[r.staff_id];
+                if (!r.no_plan) idx += 1;
+                return [
+                  <tr key={r.staff_id} className={`border-t border-primary/10 ${r.no_plan ? 'bg-primary/5' : 'hover:bg-primary/5'}`}>
+                    <Td cls="text-primary/50">{r.no_plan ? '' : idx}</Td>
+                    <td onClick={() => setOpenStaff(p => ({ ...p, [r.staff_id]: !p[r.staff_id] }))}
+                      className="px-3 py-1.5 text-[11px] font-semibold text-primary whitespace-nowrap cursor-pointer">
+                      <span className="flex items-center gap-1">
+                        <Icon name={isOpen ? 'ChevronDown' : 'ChevronRight'} size={12} className="text-primary/40" />
+                        {r.full_name}
+                      </span>
+                    </td>
+                    <Td sep>{r.no_plan ? '—' : num(r.trend)}</Td>
+                    <Td>{r.no_plan ? '—' : rub(r.plan_now)}</Td>
+                    <Td cls="font-semibold">{rub(r.fact_rub)}</Td>
+                    <Td cls={r.no_plan ? '' : neg(r.lag_rub)}>{r.no_plan ? '—' : rub(r.lag_rub)}</Td>
+                    <Td sep>{num(r.fact_hours)}</Td>
+                    <Td cls={r.no_plan ? '' : neg(r.lag_hours)}>{r.no_plan ? '—' : num(r.lag_hours)}</Td>
+                    <Td sep>{r.fact_days}</Td>
+                    <Td cls={r.no_plan ? '' : neg(r.lag_days)}>{r.no_plan ? '—' : r.lag_days}</Td>
+                    <Td sep>{r.no_plan ? '—' : rub(r.speed)}</Td>
+                    <Td sep cls={r.no_plan ? '' : pctCell(r.pct_today)}>{r.no_plan ? '—' : `${r.pct_today}%`}</Td>
+                    <Td cls={r.no_plan ? '' : pctCell(r.pct_month)}>{r.no_plan ? '—' : `${r.pct_month}%`}</Td>
+                    <Td sep>{rub(r.motivation)}</Td>
+                    <Td sep cls={r.bonus > 0 ? 'bg-[#92d050] text-black font-bold' : ''}>{rub(r.bonus)}</Td>
+                  </tr>,
+                  isOpen && (
+                    <tr key={`${r.staff_id}-d`} className="bg-primary/[0.03]">
+                      <td colSpan={16} className="px-0 py-0">
+                        <div className="sticky left-0 w-[min(100vw-340px,560px)] px-6 py-2">
+                          {(r.days || []).length === 0 ? (
+                            <span className="text-[11px] text-muted-foreground">Нет отчётов за период</span>
+                          ) : (
+                            <table className="text-[11px] border-collapse">
+                              <thead>
+                                <tr className="text-primary/50">
+                                  <th className="px-3 py-1 text-left font-semibold">Дата</th>
+                                  <th className="px-3 py-1 text-right font-semibold">ЗП</th>
+                                  <th className="px-3 py-1 text-right font-semibold">Часы</th>
+                                  <th className="px-3 py-1 text-right font-semibold">₽/час</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {r.days.map(d => (
+                                  <tr key={d.date} className="border-t border-primary/10">
+                                    <td className="px-3 py-1 text-primary">{fmtD(d.date)}</td>
+                                    <td className="px-3 py-1 text-right font-semibold text-primary">{rub(d.rub)}</td>
+                                    <td className="px-3 py-1 text-right text-primary/70">{d.hours || '—'}</td>
+                                    <td className="px-3 py-1 text-right text-primary/70">{d.hours > 0 ? rub(Math.round(d.rub / d.hours)) : '—'}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ),
+                ];
+              })}
               {visible.length === 0 && (
                 <tr><td colSpan={16} className="px-3 py-6 text-center text-muted-foreground text-sm">Нет данных</td></tr>
               )}
               {visible.length > 0 && (
-                <tr className="bg-[#a6a6a6] text-black font-bold">
+                <tr className="border-t-2 border-primary/30 bg-primary/10 font-bold text-primary">
                   <Td />
-                  <td className="px-3 py-1.5 border border-primary/20 text-[11px] font-bold">ИТОГ</td>
-                  <Td>{rub(sumC(x => x.trend))}</Td>
+                  <td className="px-3 py-2 text-[11px] font-bold">ИТОГ</td>
+                  <Td sep>{rub(sumC(x => x.trend))}</Td>
                   <Td>{rub(tPlan)}</Td>
                   <Td>{rub(tFact)}</Td>
-                  <Td cls={sum(x => x.lag_rub) < 0 ? 'text-red-700' : ''}>{rub(sumC(x => x.lag_rub))}</Td>
-                  <Td>{num(sumC(x => x.plan_hours))}</Td>
-                  <Td>{num(sum(x => x.fact_hours))}</Td>
-                  <Td cls={sumC(x => x.lag_hours) < 0 ? 'text-red-700' : ''}>{num(sumC(x => x.lag_hours))}</Td>
-                  <Td>{sum(x => x.fact_days)}</Td>
-                  <Td cls={sumC(x => x.lag_days) < 0 ? 'text-red-700' : ''}>{sumC(x => x.lag_days)}</Td>
-                  <Td />
-                  <Td cls={pctCell(tPctToday)}>{tPctToday}%</Td>
+                  <Td cls={sumC(x => x.lag_rub) < 0 ? 'text-red-600' : ''}>{rub(sumC(x => x.lag_rub))}</Td>
+                  <Td sep>{num(sum(x => x.fact_hours))}</Td>
+                  <Td cls={sumC(x => x.lag_hours) < 0 ? 'text-red-600' : ''}>{num(sumC(x => x.lag_hours))}</Td>
+                  <Td sep>{sum(x => x.fact_days)}</Td>
+                  <Td cls={sumC(x => x.lag_days) < 0 ? 'text-red-600' : ''}>{sumC(x => x.lag_days)}</Td>
+                  <Td sep />
+                  <Td sep cls={pctCell(tPctToday)}>{tPctToday}%</Td>
                   <Td cls={pctCell(tPctMonth)}>{tPctMonth}%</Td>
-                  <Td>{rub(sum(x => x.motivation))}</Td>
-                  <Td>{rub(sum(x => x.bonus))}</Td>
+                  <Td sep>{rub(sum(x => x.motivation))}</Td>
+                  <Td sep>{rub(sum(x => x.bonus))}</Td>
                 </tr>
               )}
             </tbody>
