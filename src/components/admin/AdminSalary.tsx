@@ -227,26 +227,7 @@ const AdminSalary = () => {
                                   <td className="px-3 py-1 text-right text-primary/70">{d.hours || '—'}</td>
                                 </tr>
                               ))}
-                              {list.length > 0 && (() => {
-                const sum = (f: (x: PeriodRow) => number) => list.reduce((a, b) => a + f(b), 0);
-                return (
-                  <tr className="border-t-2 border-primary/30 bg-primary/5 font-bold text-primary">
-                    <td className="px-3 py-2 sticky left-0 z-10 bg-[#faf8f4] shadow-[3px_0_5px_-3px_rgba(0,0,0,0.15)]">Итого</td>
-                    {multiPeriod && <td className="border border-primary/10 w-[92px]" />}
-                    <td className="border border-primary/10 w-[92px]" />
-                    <td className="px-2 py-2 text-center border border-primary/10 w-[92px]">{rub(sum(x => x.earned))}</td>
-                    <td className="border border-primary/10 w-[92px]" />
-                    <td className="border border-primary/10 w-[92px]" />
-                    <td className="px-2 py-2 text-center border border-primary/10 w-[92px]">{rub(sum(x => x.prev_balance))}</td>
-                    <td className="px-2 py-2 text-center border border-primary/10 w-[92px]">{rub(sum(x => x.defect))}</td>
-                    <td className="px-2 py-2 text-center border border-primary/10 w-[92px]">{rub(sum(x => x.bonus))}</td>
-                    <td className="px-2 py-2 text-center border border-primary/10 w-[92px]">{rub(sum(x => x.motivation))}</td>
-                    <td className="px-2 py-2 text-center border border-primary/10 w-[92px]">{rub(sum(x => x.paid))}</td>
-                    <td className="px-2 py-2 text-center border border-primary/10 w-[92px]" style={{ color: sum(finalBalance) < 0 ? '#dc2626' : OLIVE }}>{rub(sum(finalBalance))}</td>
-                  </tr>
-                );
-              })()}
-            </tbody>
+                            </tbody>
                           </table>
                         )}
                         </div>
