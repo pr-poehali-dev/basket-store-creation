@@ -323,22 +323,17 @@ def handler(event: dict, context) -> dict:
                         })
 
                     created, updated, errors = 0, 0, []
+                    kept_ids = []
                     with conn.cursor() as cur:
-                        if mode == 'replace':
-                            cur.execute("DELETE FROM handbook_price_history")
-                            cur.execute("DELETE FROM handbook_positions")
-
                         for pr in parsed_rows:
                             try:
                                 staff_name = pr['staff_name']
-                                existing = None
-                                if mode != 'replace':
-                                    cur.execute(
-                                        "SELECT id, price_whole, price_no_handle, price_handle, price_ears, price_whole_ears "
-                                        "FROM handbook_positions WHERE staff_name=%s LIMIT 1",
-                                        (staff_name,)
-                                    )
-                                    existing = cur.fetchone()
+                                cur.execute(
+                                    "SELECT id, price_whole, price_no_handle, price_handle, price_ears, price_whole_ears "
+                                    "FROM handbook_positions WHERE LOWER(TRIM(staff_name))=LOWER(TRIM(%s)) LIMIT 1",
+                                    (staff_name,)
+                                )
+                                existing = cur.fetchone()
 
                                 if existing:
                                     pos_id = existing[0]
@@ -359,6 +354,7 @@ def handler(event: dict, context) -> dict:
                                             (pos_id, pr['price_whole'], pr['price_no_handle'], pr['price_handle'], pr['price_ears'], pr['price_whole_ears'], pr['price_whole'])
                                         )
                                     updated += 1
+                                    kept_ids.append(pos_id)
                                 else:
                                     cur.execute(
                                         "INSERT INTO handbook_positions (group_name, catalog_name, set_catalog_names, set_staff_names, staff_name, weave_type, sort_order, "
@@ -374,9 +370,21 @@ def handler(event: dict, context) -> dict:
                                         (new_id, pr['price_whole'], pr['price_no_handle'], pr['price_handle'], pr['price_ears'], pr['price_whole_ears'], pr['price_whole'])
                                     )
                                     created += 1
+                                    kept_ids.append(new_id)
                             except Exception as row_err:
                                 errors.append(f"строка {pr['row_num']}: {row_err}")
-                    result = {'created': created, 'updated': updated}
+
+                        deleted = 0
+                        if mode == 'replace':
+                            if kept_ids:
+                                ids = ','.join(str(i) for i in kept_ids)
+                                cur.execute(f"DELETE FROM handbook_price_history WHERE position_id NOT IN ({ids})")
+                                cur.execute(f"DELETE FROM handbook_positions WHERE id NOT IN ({ids})")
+                            else:
+                                cur.execute("DELETE FROM handbook_price_history")
+                                cur.execute("DELETE FROM handbook_positions")
+                            deleted = cur.rowcount
+                    result = {'created': created, 'updated': updated, 'deleted': deleted}
                     if errors:
                         result['row_errors'] = errors[:20]
                     return {'statusCode': 200, 'headers': cors(), 'body': json.dumps(result, ensure_ascii=False)}

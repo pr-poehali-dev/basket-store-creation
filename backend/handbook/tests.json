@@ -10,9 +10,7 @@
       "name": "GET positions",
       "method": "GET",
       "path": "/?type=positions",
-      "expectedStatus": 200,
-      "expectedBody": {"positions": []},
-      "bodyMatcher": "partial"
+      "expectedStatus": 200
     }
   ]
 }

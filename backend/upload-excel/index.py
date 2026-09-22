@@ -32,8 +32,8 @@ def get_size_category(size_str: str) -> str:
 def get_conn():
     return psycopg2.connect(os.environ['DATABASE_URL'], options=f"-c search_path={os.environ['MAIN_DB_SCHEMA']}")
 
-def import_handbook(file_b64):
-    """Импорт справочника позиций: строки с id обновляются, без id — создаются."""
+def import_handbook(file_b64, mode='append'):
+    """Импорт справочника позиций. mode='append' — обновление по id/названию, mode='replace' — полная замена: всё, чего нет в файле, удаляется."""
     wb = openpyxl.load_workbook(io.BytesIO(base64.b64decode(file_b64)))
     ws = wb.active
     # Шапка на 2-й строке (1-я — подсказка по столбцам)
@@ -42,8 +42,7 @@ def import_handbook(file_b64):
     def g(row, name):
         for i, h in enumerate(hdr):
             if h.startswith(name):
-                v = row[i].value
-                return v
+                return row[i].value if i < len(row) else None
         return None
 
     def num(v):
@@ -52,12 +51,21 @@ def import_handbook(file_b64):
 
     conn = get_conn(); cur = conn.cursor()
     upd = ins = 0
+    kept_ids = []
+
+    # Существующие позиции для сопоставления по названию для зп
+    cur.execute("SELECT id, LOWER(TRIM(staff_name)) FROM handbook_positions")
+    by_name = {}
+    for r in cur.fetchall():
+        by_name.setdefault(r[1], r[0])
+
     for row in ws.iter_rows(min_row=3):
         staff_name = g(row, 'название для зп')
         if not staff_name or not str(staff_name).strip():
             continue
+        sn = str(staff_name).strip()
         vals = (
-            str(staff_name).strip(),
+            sn,
             str(g(row, 'подкатегория') or '').strip(),
             str(g(row, 'название на складе') or '').strip(),
             str(g(row, 'вид плетения') or '').strip(),
@@ -69,22 +77,44 @@ def import_handbook(file_b64):
             str(g(row, 'активна') or 'да').strip().lower() in ('да', 'true', '1', 'yes'),
         )
         rid = g(row, 'id')
+        try:
+            rid = int(rid) if rid not in (None, '') else None
+        except Exception:
+            rid = None
+        if rid is None:
+            rid = by_name.get(sn.lower())
+
         if rid:
             cur.execute("""UPDATE handbook_positions SET staff_name=%s, position_group=%s,
                 catalog_name=%s, weave_type=%s, price_whole=%s, price_no_handle=%s,
                 price_handle=%s, price_ears=%s, price_whole_ears=%s, set_catalog_names=%s,
-                set_staff_names=%s, sort_order=%s, is_active=%s, updated_at=NOW()
-                WHERE id=%s""", vals + (int(rid),))
-            upd += cur.rowcount
+                set_staff_names=%s, sort_order=%s, is_active=%s, group_name=%s, price=%s, updated_at=NOW()
+                WHERE id=%s""", vals + (sn, vals[4], rid))
+            if cur.rowcount:
+                upd += 1
+                kept_ids.append(rid)
+                continue
+        cur.execute("""INSERT INTO handbook_positions (staff_name, position_group, catalog_name,
+            weave_type, price_whole, price_no_handle, price_handle, price_ears, price_whole_ears,
+            set_catalog_names, set_staff_names, sort_order, is_active, group_name, category, price)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'whole',%s) RETURNING id""", vals + (sn, vals[4]))
+        kept_ids.append(cur.fetchone()[0])
+        ins += 1
+
+    deleted = 0
+    if mode == 'replace':
+        if kept_ids:
+            ids = ','.join(str(i) for i in kept_ids)
+            cur.execute(f"DELETE FROM handbook_price_history WHERE position_id NOT IN ({ids})")
+            cur.execute(f"DELETE FROM handbook_positions WHERE id NOT IN ({ids})")
         else:
-            cur.execute("""INSERT INTO handbook_positions (staff_name, position_group, catalog_name,
-                weave_type, price_whole, price_no_handle, price_handle, price_ears, price_whole_ears,
-                set_catalog_names, set_staff_names, sort_order, is_active, group_name, category)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'whole')""", vals + (vals[0],))
-            ins += 1
+            cur.execute("DELETE FROM handbook_price_history")
+            cur.execute("DELETE FROM handbook_positions")
+        deleted = cur.rowcount
+
     conn.commit(); cur.close(); conn.close()
     return {'statusCode': 200, 'headers': CORS,
-            'body': json.dumps({'ok': True, 'updated': upd, 'inserted': ins})}
+            'body': json.dumps({'ok': True, 'updated': upd, 'inserted': ins, 'deleted': deleted})}
 
 
 def handler(event: dict, context) -> dict:
@@ -96,7 +126,7 @@ def handler(event: dict, context) -> dict:
     mode = body.get('mode', 'append')
 
     if body.get('type') == 'handbook' and file_b64:
-        return import_handbook(file_b64)
+        return import_handbook(file_b64, mode)
 
     if not file_b64:
         return {'statusCode': 400, 'headers': CORS, 'body': json.dumps({'error': 'Файл не передан'})}

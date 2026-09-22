@@ -112,17 +112,26 @@ const AdminHandbook = () => {
   const handleFullImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setImporting(true);
+    if (importMode === 'replace' && !confirm('Все позиции, которых нет в файле, будут удалены. Продолжить?')) {
+      e.target.value = '';
+      return;
+    }
+    setImporting(true); setImportResult('');
     const reader = new FileReader();
     reader.onload = async ev => {
       try {
-        const b64 = btoa(String.fromCharCode(...new Uint8Array(ev.target?.result as ArrayBuffer)));
+        const bytes = new Uint8Array(ev.target?.result as ArrayBuffer);
+        let bin = '';
+        for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+        const b64 = btoa(bin);
         const res  = await fetch(urls['upload-excel'], {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ type: 'handbook', file: b64 }),
+          body: JSON.stringify({ type: 'handbook', file: b64, mode: importMode }),
         });
         const data = await res.json();
-        setImportResult(data.ok ? `Обновлено: ${data.updated}, добавлено: ${data.inserted}` : 'Ошибка загрузки');
+        setImportResult(data.ok
+          ? `Обновлено: ${data.updated}, добавлено: ${data.inserted}${data.deleted ? `, удалено: ${data.deleted}` : ''}`
+          : `Ошибка: ${data.error || 'загрузки'}`);
         await load();
       } catch { setImportResult('Ошибка загрузки'); }
       setImporting(false);
@@ -210,7 +219,7 @@ const AdminHandbook = () => {
       const res  = await fetch(urls['handbook'], { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'excel_positions', file: b64, mode: importMode }) });
       const data = await res.json();
       setImporting(false);
-      setImportResult(data.error ? `Ошибка: ${data.error}` : `Создано: ${data.created}, обновлено: ${data.updated}`);
+      setImportResult(data.error ? `Ошибка: ${data.error}` : `Создано: ${data.created}, обновлено: ${data.updated}${data.deleted ? `, удалено: ${data.deleted}` : ''}`);
       await load();
       if (fileRef.current) fileRef.current.value = '';
     };
