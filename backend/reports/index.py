@@ -84,14 +84,29 @@ def handler(event: dict, context) -> dict:
                     last = 15 if half == 1 else _cal.monthrange(year, month)[1]
                     d_to = f"{year:04d}-{month:02d}-{last:02d}"
 
-                    # Только сотрудники с личным кабинетом; план берём последний (без дублей)
-                    cur.execute("""SELECT DISTINCT ON (s.id) s.id, s.full_name,
+                    # Все активные сотрудники; план берём последний (без дублей)
+                    cur.execute("""SELECT DISTINCT ON (s.id) s.id, s.full_name, s.pages,
                           COALESCE(sp.daily_plan_rub, 0) AS daily_plan_rub
                         FROM staff s
                         LEFT JOIN staff_plans sp ON sp.staff_id = s.id
-                        WHERE s.is_active = TRUE AND 'cabinet' = ANY(s.pages)
+                        WHERE s.is_active = TRUE
                         ORDER BY s.id, sp.valid_from DESC NULLS LAST""")
-                    staff_rows = cur.fetchall()
+                    staff_rows = [r for r in cur.fetchall()
+                                  if 'акимов' not in (r['full_name'] or '').lower()]
+
+                    # Остаток предыдущего периода — для автопереноса
+                    p_year, p_month, p_half = (year, month - 1, 2) if half == 1 else (year, month, 1)
+                    if p_month == 0:
+                        p_year, p_month = year - 1, 12
+                    cur.execute("""SELECT * FROM salary_periods
+                        WHERE year=%s AND month=%s AND half=%s""", (p_year, p_month, p_half))
+                    prev_adj = {r['staff_id']: r for r in cur.fetchall()}
+                    p_from = f"{p_year:04d}-{p_month:02d}-{1 if p_half == 1 else 16:02d}"
+                    p_last = 15 if p_half == 1 else _cal.monthrange(p_year, p_month)[1]
+                    cur.execute("""SELECT staff_id, COALESCE(SUM(total_rub),0) AS t
+                        FROM staff_reports WHERE report_date BETWEEN %s AND %s GROUP BY staff_id""",
+                        (p_from, f"{p_year:04d}-{p_month:02d}-{p_last:02d}"))
+                    prev_earned = {r['staff_id']: to_float(r['t']) for r in cur.fetchall()}
 
                     cur.execute("""SELECT staff_id, report_date, total_rub, hours
                         FROM staff_reports WHERE report_date BETWEEN %s AND %s
@@ -124,6 +139,15 @@ def handler(event: dict, context) -> dict:
                         earned = sum(d['total_rub'] for d in days)
                         a = adj.get(s_row['id'])
                         daily = to_float(s_row['daily_plan_rub'])
+                        # Остаток прошлого периода: своё значение, иначе — итог прошлого
+                        if a and a['prev_balance'] is not None and to_float(a['prev_balance']) != 0:
+                            prev_bal = to_float(a['prev_balance'])
+                        else:
+                            pa = prev_adj.get(s_row['id'])
+                            prev_bal = ((to_float(pa['prev_balance']) - to_float(pa['defect'])
+                                         + to_float(pa['bonus']) + to_float(pa['motivation'])
+                                         + prev_earned.get(s_row['id'], 0) - to_float(pa['paid']))
+                                        if pa else prev_earned.get(s_row['id'], 0) and 0)
                         plan_total = daily * len(days) if days else 0
                         result.append({
                             'staff_id': s_row['id'],
@@ -134,7 +158,8 @@ def handler(event: dict, context) -> dict:
                             'month_pct': (round(month_agg.get(s_row['id'], (0, 0))[1]
                                           / (daily * month_agg.get(s_row['id'], (0, 0))[0]) * 100)
                                           if daily > 0 and month_agg.get(s_row['id'], (0, 0))[0] > 0 else 0),
-                            'prev_balance': to_float(a['prev_balance']) if a else 0,
+                            'has_cabinet': 'cabinet' in (s_row['pages'] or []),
+                            'prev_balance': prev_bal,
                             'defect': to_float(a['defect']) if a else 0,
                             'bonus': to_float(a['bonus']) if a else 0,
                             'motivation': to_float(a['motivation']) if a else 0,
