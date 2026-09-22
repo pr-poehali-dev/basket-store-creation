@@ -74,6 +74,89 @@ def handler(event: dict, context) -> dict:
                         'locked': bool(row['locked']),
                     }})}
 
+                if rec_type == 'summary':
+                    # Сводка по сотрудникам плетения за месяц (как в Excel-отчёте)
+                    import calendar as _c
+                    from datetime import date as _date
+                    year  = int(params.get('year'))
+                    month = int(params.get('month'))
+                    m_last = _c.monthrange(year, month)[1]
+                    d_from = f"{year:04d}-{month:02d}-01"
+                    d_to   = f"{year:04d}-{month:02d}-{m_last:02d}"
+
+                    today = _date.today()
+                    # Рабочих дней прошло: с 1-го по вчера (или до конца месяца)
+                    if (today.year, today.month) == (year, month):
+                        upto = today.day - 1
+                    elif (year, month) < (today.year, today.month):
+                        upto = m_last
+                    else:
+                        upto = 0
+                    work_days = sum(1 for d in range(1, upto + 1)
+                                    if _date(year, month, d).weekday() < 5)
+                    work_days_total = sum(1 for d in range(1, m_last + 1)
+                                          if _date(year, month, d).weekday() < 5)
+
+                    cur.execute("""SELECT DISTINCT ON (s.id) s.id, s.full_name, s.pages,
+                          s.is_active, s.fired_at,
+                          COALESCE(sp.daily_plan_rub, 0) AS daily_plan_rub,
+                          COALESCE(sp.daily_plan_hours, 8) AS daily_plan_hours
+                        FROM staff s LEFT JOIN staff_plans sp ON sp.staff_id = s.id
+                        WHERE s.is_active = TRUE OR s.fired_at IS NOT NULL
+                        ORDER BY s.id, sp.valid_from DESC NULLS LAST""")
+                    st_rows = [r for r in cur.fetchall()
+                               if 'акимов' not in (r['full_name'] or '').lower()
+                               and (r['is_active'] or (r['fired_at'] and r['fired_at'].isoformat() >= d_from))
+                               and (('cabinet' in (r['pages'] or [])) or 'фомин' in (r['full_name'] or '').lower())]
+
+                    cur.execute("""SELECT staff_id, COUNT(*) AS days,
+                          COALESCE(SUM(total_rub),0) AS rub, COALESCE(SUM(hours),0) AS hrs
+                        FROM staff_reports WHERE report_date BETWEEN %s AND %s
+                        GROUP BY staff_id""", (d_from, d_to))
+                    agg = {r['staff_id']: r for r in cur.fetchall()}
+
+                    cur.execute("""SELECT staff_id,
+                          COALESCE(SUM(motivation),0) AS mot, COALESCE(SUM(bonus),0) AS bon
+                        FROM salary_periods WHERE year=%s AND month=%s GROUP BY staff_id""",
+                        (year, month))
+                    extra = {r['staff_id']: r for r in cur.fetchall()}
+
+                    res = []
+                    for r in st_rows:
+                        a = agg.get(r['id'])
+                        e = extra.get(r['id'])
+                        fact_rub  = to_float(a['rub']) if a else 0
+                        fact_hrs  = to_float(a['hrs']) if a else 0
+                        fact_days = int(a['days']) if a else 0
+                        trend     = to_float(r['daily_plan_rub'])
+                        p_hours   = to_float(r['daily_plan_hours'])
+                        is_fomin  = 'фомин' in (r['full_name'] or '').lower()
+                        plan_now   = trend * work_days
+                        plan_month = trend * work_days_total
+                        res.append({
+                            'staff_id': r['id'],
+                            'full_name': r['full_name'],
+                            'no_plan': is_fomin,
+                            'trend': trend,
+                            'plan_now': plan_now,
+                            'fact_rub': fact_rub,
+                            'lag_rub': fact_rub - plan_now,
+                            'plan_hours': p_hours * work_days_total,
+                            'fact_hours': fact_hrs,
+                            'lag_hours': fact_hrs - p_hours * work_days,
+                            'fact_days': fact_days,
+                            'lag_days': fact_days - work_days,
+                            'speed': round(fact_rub / fact_hrs) if fact_hrs > 0 else 0,
+                            'pct_today': round(fact_rub / plan_now * 100) if plan_now > 0 else 0,
+                            'pct_month': round(fact_rub / plan_month * 100) if plan_month > 0 else 0,
+                            'motivation': to_float(e['mot']) if e else 0,
+                            'bonus': to_float(e['bon']) if e else 0,
+                        })
+                    res.sort(key=lambda x: (not x['no_plan'], x['full_name']))
+                    return {'statusCode': 200, 'headers': cors(),
+                            'body': json.dumps({'rows': res, 'work_days': work_days,
+                                                'work_days_total': work_days_total})}
+
                 if rec_type == 'salary':
                     # Зарплатная сводка за период: план, заработок, корректировки
                     year  = int(params.get('year'))
