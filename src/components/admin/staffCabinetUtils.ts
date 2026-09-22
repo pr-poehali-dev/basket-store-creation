@@ -154,7 +154,19 @@ export interface VacationEntry {
 }
 
 export function isoToday(): string {
-  return new Date().toISOString().slice(0, 10);
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// Отчёт можно править весь свой день и до 9:00 следующего дня
+export function isDateEditable(date: string): boolean {
+  const today = isoToday();
+  if (date === today) return true;
+  const now = new Date();
+  if (now.getHours() >= 9) return false;
+  const y = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+  const yIso = `${y.getFullYear()}-${String(y.getMonth() + 1).padStart(2, '0')}-${String(y.getDate()).padStart(2, '0')}`;
+  return date === yIso;
 }
 
 export function fmtRub(n: number): string {

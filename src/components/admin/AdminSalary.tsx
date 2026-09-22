@@ -141,7 +141,7 @@ const AdminSalary = () => {
   const multiPeriod = years.length * months.length * halves.length > 1;
 
   const numCell = (r: PeriodRow, field: EditField) => (
-    <td className="px-1 py-1.5 border border-primary/10 w-[92px]">
+    <td className={`px-1 py-1.5 border border-primary/10 w-[92px] ${field === 'paid' ? 'bg-[#dceaf5]' : ''}`}>
       <input type="number" defaultValue={r[field] || ''} placeholder="0"
         key={`${r.staff_id}-${r.year}-${r.month}-${r.half}-${field}-${r[field]}`}
         onBlur={e => saveField(r, field, parseFloat(e.target.value) || 0)}
@@ -168,7 +168,7 @@ const AdminSalary = () => {
                 <th className="px-2 py-2 font-semibold w-[92px]">Брак</th>
                 <th className="px-2 py-2 font-semibold w-[92px]">Премия</th>
                 <th className="px-2 py-2 font-semibold w-[92px]">Мотивация</th>
-                <th className="px-2 py-2 font-semibold w-[92px]">Выдал ЗП</th>
+                <th className="px-2 py-2 font-semibold w-[92px] bg-[#dceaf5]">Выдал ЗП</th>
                 <th className="px-2 py-2 font-semibold w-[92px]">Остаток</th>
               </tr>
             </thead>
@@ -253,7 +253,7 @@ const AdminSalary = () => {
                     <td className="px-2 py-2 text-center border border-primary/10 w-[92px]">{rub(sum(x => x.defect))}</td>
                     <td className="px-2 py-2 text-center border border-primary/10 w-[92px]">{rub(sum(x => x.bonus))}</td>
                     <td className="px-2 py-2 text-center border border-primary/10 w-[92px]">{rub(sum(x => x.motivation))}</td>
-                    <td className="px-2 py-2 text-center border border-primary/10 w-[92px]">{rub(sum(x => x.paid))}</td>
+                    <td className="px-2 py-2 text-center border border-primary/10 w-[92px] bg-[#dceaf5]">{rub(sum(x => x.paid))}</td>
                     <td className="px-2 py-2 text-center border border-primary/10 w-[92px]" style={{ color: sum(finalBalance) < 0 ? '#dc2626' : OLIVE }}>{rub(sum(finalBalance))}</td>
                   </tr>
                 );

@@ -246,8 +246,8 @@ const AdminLayout = ({ children }: { children: ReactNode }) => {
                           'w-full text-center font-semibold py-2.5 md:py-2 rounded-xl border transition-colors text-sm relative',
                           item.key === 'tasks'
                             ? active
-                              ? 'bg-[#c4849a] text-white border-[#c4849a]'
-                              : 'bg-[#fce8ef] text-[#a0435a] border-[#e8a0b4]/60 hover:border-[#c4849a] hover:bg-[#f8d5e0]'
+                              ? 'bg-[#8fb4d0] text-white border-[#8fb4d0]'
+                              : 'bg-[#dceaf5] text-[#3d6a8a] border-[#a8c8de]/60 hover:border-[#8fb4d0] hover:bg-[#c9dff0]'
                             : active
                               ? 'bg-accent text-primary border-accent'
                               : 'bg-background text-primary border-primary/40 hover:border-primary',

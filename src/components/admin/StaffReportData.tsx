@@ -79,10 +79,12 @@ const StaffReportData = ({ staffIds, staffNames, dateFrom, dateTo }: Props) => {
   const [draftHours, setDraftHours] = useState('');
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const [addFor, setAddFor] = useState<number | null>(null);
-  const [addPos, setAddPos] = useState('');
-  const [addCat, setAddCat] = useState('whole');
-  const [addQty, setAddQty] = useState('');
+  const [addOpen, setAddOpen] = useState(false);
+  const [addStaff, setAddStaff] = useState<number | null>(null);
+  const [addDate, setAddDate] = useState(dateTo);
+  const [addGroup, setAddGroup] = useState('');
+  const [addVariant, setAddVariant] = useState('');
+  const [addQtys, setAddQtys] = useState<Record<string, number>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -152,23 +154,37 @@ const StaffReportData = ({ staffIds, staffNames, dateFrom, dateTo }: Props) => {
     load();
   };
 
+  // Позиции справочника: список названий и варианты плетения внутри названия
+  const groupNames = useMemo(
+    () => Array.from(new Set(hb.map(h => h.staff_name).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'ru')),
+    [hb]);
+  const variants = useMemo(() => hb.filter(h => h.staff_name === addGroup), [hb, addGroup]);
+  const activeVariantId = addVariant || (variants[0] ? String(variants[0].id) : '');
+  const activeVariant = variants.find(v => String(v.id) === activeVariantId) || null;
+
   const addPosition = async () => {
-    const rep = reports.find(r => r.id === addFor);
-    const src = hb.find(h => String(h.id) === addPos);
-    const qty = Math.max(0, parseInt(addQty, 10) || 0);
-    if (!rep || !src || !qty) return;
-    const price = Number(src[PRICE_FIELD[addCat]] || 0);
+    if (!addStaff || !addDate || !activeVariant) return;
+    const src = activeVariant;
+    const rep = reports.find(r => r.staff_id === addStaff && r.report_date === addDate);
     setSaving(true);
-    const items = [...(rep.positions || []).filter(p => p.qty > 0)];
-    const exist = items.findIndex(p => p.position_id === src.id && p.category === addCat);
-    if (exist >= 0) items[exist] = { ...items[exist], qty: items[exist].qty + qty };
-    else items.push({
-      position_id: src.id, staff_name: src.staff_name, catalog_name: src.catalog_name,
-      category: addCat, weave_type: src.weave_type, qty, price,
-    });
-    await saveReport(rep, items, rep.hours);
+    const items = [...((rep?.positions || []).filter(p => p.qty > 0))];
+    for (const c of CAT_KEYS) {
+      const qty = addQtys[c] || 0;
+      if (!qty) continue;
+      const price = Number(src[PRICE_FIELD[c]] || 0);
+      const exist = items.findIndex(p => p.position_id === src.id && p.category === c);
+      if (exist >= 0) items[exist] = { ...items[exist], qty: items[exist].qty + qty };
+      else items.push({
+        position_id: src.id, staff_name: src.staff_name, catalog_name: src.catalog_name,
+        category: c, weave_type: src.weave_type, qty, price,
+      });
+    }
+    await saveReport(
+      rep || { id: 0, staff_id: addStaff, report_date: addDate, positions: [], total_rub: 0, hours: 0, time_start: '', time_end: '', locked: false },
+      items, rep?.hours || 0);
     setSaving(false);
-    setAddFor(null); setAddPos(''); setAddQty('');
+    setAddOpen(false);
+    setAddGroup(''); setAddVariant(''); setAddQtys({});
     load();
   };
 
@@ -183,7 +199,7 @@ const StaffReportData = ({ staffIds, staffNames, dateFrom, dateTo }: Props) => {
     setExporting(false);
   };
 
-  const th = "px-3 py-2 font-semibold text-white bg-[#4472C4] border border-white/20 whitespace-nowrap";
+  const th = "px-3 py-2 font-semibold text-[#3d6a8a] bg-[#dceaf5] border border-white/60 whitespace-nowrap";
   const td = "px-3 py-1.5 border border-primary/15 whitespace-nowrap";
 
   if (loading) return <p className="text-muted-foreground">Загружаю данные...</p>;
@@ -195,6 +211,11 @@ const StaffReportData = ({ staffIds, staffNames, dateFrom, dateTo }: Props) => {
           className="px-4 py-1.5 rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground text-sm font-semibold disabled:opacity-50">
           <Icon name="Download" size={14} className="inline mr-1.5" />
           {exporting ? 'Готовлю файл...' : 'Выгрузить в Excel'}
+        </button>
+        <button onClick={() => { setAddOpen(true); setAddStaff(staffIds[0] ?? null); setAddDate(dateTo); }}
+          className="px-4 py-1.5 rounded-xl border border-primary/40 text-primary text-sm font-semibold hover:border-primary">
+          <Icon name="Plus" size={14} className="inline mr-1" />
+          Добавить позицию
         </button>
         <span className="text-xs text-muted-foreground">
           Период: {fmtDate(dateFrom)} — {fmtDate(dateTo)} · строк: {rows.length}
@@ -282,52 +303,82 @@ const StaffReportData = ({ staffIds, staffNames, dateFrom, dateTo }: Props) => {
         </div>
       )}
 
-      {/* Добавление забытой позиции в существующий день */}
-      <div className="mt-4 p-4 border border-primary/20 rounded-xl">
-        <div className="text-sm font-semibold text-primary mb-3">Добавить позицию в отчёт</div>
-        <div className="flex gap-2 flex-wrap items-end">
-          <div>
-            <label className="text-xs text-muted-foreground block mb-1">День</label>
-            <select value={addFor ?? ''} onChange={e => setAddFor(e.target.value ? Number(e.target.value) : null)}
-              className="border border-primary/30 rounded-xl px-3 py-1.5 text-sm outline-none focus:border-accent">
-              <option value="">Выберите день</option>
-              {reports.map(r => (
-                <option key={r.id} value={r.id}>
-                  {fmtDate(r.report_date)} — {staffNames[r.staff_id] || r.staff_id}
-                </option>
-              ))}
-            </select>
+      {/* Добавление забытой позиции */}
+      {addOpen && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+          onClick={() => setAddOpen(false)}>
+          <div className="bg-background rounded-2xl border border-primary/30 p-5 w-full max-w-md max-h-[85vh] overflow-y-auto"
+            onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-primary text-lg">Добавить позицию</h3>
+              <button onClick={() => setAddOpen(false)} className="text-muted-foreground hover:text-primary text-xl">✕</button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 mb-4">
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">Сотрудник *</label>
+                <select value={addStaff ?? ''} onChange={e => setAddStaff(e.target.value ? Number(e.target.value) : null)}
+                  className="w-full border border-primary/30 rounded-xl px-3 py-2 text-sm outline-none focus:border-accent">
+                  <option value="">Выберите</option>
+                  {staffIds.map(id => <option key={id} value={id}>{staffNames[id]}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">Дата *</label>
+                <input type="date" value={addDate} onChange={e => setAddDate(e.target.value)}
+                  className="w-full border border-primary/30 rounded-xl px-3 py-2 text-sm outline-none focus:border-accent" />
+              </div>
+            </div>
+
+            <div className="mb-3">
+              <label className="text-xs text-muted-foreground block mb-1">Позиция *</label>
+              <select value={addGroup} onChange={e => { setAddGroup(e.target.value); setAddVariant(''); setAddQtys({}); }}
+                className="w-full border border-primary/30 rounded-xl px-3 py-2 text-sm outline-none focus:border-accent">
+                <option value="">Выберите позицию</option>
+                {groupNames.map(g => <option key={g} value={g}>{g}</option>)}
+              </select>
+            </div>
+
+            {variants.length > 1 && (
+              <div className="flex flex-wrap gap-2 mb-3">
+                {variants.map(v => (
+                  <button key={v.id} onClick={() => { setAddVariant(String(v.id)); setAddQtys({}); }}
+                    className={`px-3 py-1.5 rounded-xl border text-xs font-medium transition-colors ${
+                      String(v.id) === activeVariantId ? 'bg-primary text-white border-primary' : 'border-primary/30 text-primary hover:border-primary'
+                    }`}>
+                    {v.weave_type || 'основной'}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {activeVariant && (
+              <div className="space-y-2 mb-4">
+                {CAT_KEYS.filter(c => Number(activeVariant[PRICE_FIELD[c]] || 0) > 0).map(c => {
+                  const price = Number(activeVariant[PRICE_FIELD[c]] || 0);
+                  const q = addQtys[c] || 0;
+                  return (
+                    <div key={c} className="flex items-center gap-2">
+                      <span className="text-sm text-primary flex-1 min-w-0">{CAT_LABEL[c]}</span>
+                      <input type="number" min={0} placeholder="0" value={q || ''}
+                        onChange={e => setAddQtys(p => ({ ...p, [c]: Math.max(0, parseInt(e.target.value, 10) || 0) }))}
+                        className="w-16 flex-shrink-0 text-center border border-primary/30 rounded-lg px-1 py-1.5 text-sm outline-none focus:border-accent" />
+                      <span className="text-xs text-muted-foreground w-16 flex-shrink-0 text-left pl-2">{num(price)} ₽</span>
+                      <span className="text-sm font-semibold w-20 flex-shrink-0 text-right text-primary">{q > 0 ? `${num(q * price)} ₽` : '—'}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <button onClick={addPosition}
+              disabled={saving || !addStaff || !addDate || !activeVariant || !Object.values(addQtys).some(v => v > 0)}
+              className="w-full py-2.5 rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground text-sm font-semibold disabled:opacity-50">
+              {saving ? 'Сохраняю...' : 'Добавить в отчёт'}
+            </button>
           </div>
-          <div>
-            <label className="text-xs text-muted-foreground block mb-1">Позиция</label>
-            <select value={addPos} onChange={e => setAddPos(e.target.value)}
-              className="border border-primary/30 rounded-xl px-3 py-1.5 text-sm outline-none focus:border-accent max-w-[280px]">
-              <option value="">Выберите позицию</option>
-              {hb.map(h => (
-                <option key={h.id} value={h.id}>
-                  {h.staff_name}{h.weave_type ? ` · ${h.weave_type}` : ''}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground block mb-1">Категория</label>
-            <select value={addCat} onChange={e => setAddCat(e.target.value)}
-              className="border border-primary/30 rounded-xl px-3 py-1.5 text-sm outline-none focus:border-accent">
-              {CAT_KEYS.map(c => <option key={c} value={c}>{CAT_LABEL[c]}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground block mb-1">Колво</label>
-            <input type="number" min={0} value={addQty} placeholder="0" onChange={e => setAddQty(e.target.value)}
-              className="w-20 border border-primary/30 rounded-xl px-3 py-1.5 text-sm outline-none focus:border-accent" />
-          </div>
-          <button onClick={addPosition} disabled={saving || !addFor || !addPos || !addQty}
-            className="px-4 py-1.5 rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground text-sm font-semibold disabled:opacity-50">
-            Добавить
-          </button>
         </div>
-      </div>
+      )}
     </div>
   );
 };

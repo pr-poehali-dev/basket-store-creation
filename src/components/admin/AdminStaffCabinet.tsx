@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import urls from '../../../backend/func2url.json';
 import {
   AuthData, getAuthFromSession, Category, Position, MergedPosition, DayReport, Plan, ReportPosition,
-  isoToday, bonusFor, hoursBetween, rowKey,
+  isoToday, isDateEditable, hoursBetween, rowKey,
   mergePositions, categoryPrice, categoryCatalog, CATEGORY_KEYS,
 } from './staffCabinetUtils';
 import StaffCabinetDayTab from './StaffCabinetDayTab';
@@ -95,7 +95,7 @@ const AdminStaffCabinet = ({ auth }: { auth: AuthData }) => {
   const sortedPositions = mergePositions(positions).sort((a, b) =>
     (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.staff_name.localeCompare(b.staff_name, 'ru'));
 
-  const isToday = selectedDate === isoToday();
+  const isToday = isDateEditable(selectedDate);
   const canEdit = !dayReport?.locked && isToday;
   const totalRub = editPositions.reduce((s, p) => s + p.price * p.qty, 0);
   const hoursWorked = hoursBetween(timeStart, timeEnd);
@@ -170,14 +170,14 @@ const AdminStaffCabinet = ({ auth }: { auth: AuthData }) => {
   // Запрос на редактирование закрытого дня — уходит в «Заявки»
   const [editRequestSent, setEditRequestSent] = useState(false);
   useEffect(() => { setEditRequestSent(false); }, [selectedDate]);
-  const requestEdit = async (comment: string) => {
+  const requestEdit = async (comment: string, date: string = selectedDate) => {
     await fetch(urls['tasks'], {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         action: 'request', staff_id: staffId, staff_name: auth.full_name || '',
         request_type: 'report_edit',
-        comment: `Отчёт за ${selectedDate}. ${comment}`,
-        date_from: selectedDate, date_to: selectedDate,
+        comment: `Отчёт за ${date}. ${comment}`,
+        date_from: date, date_to: date,
       }),
     });
     setEditRequestSent(true);
@@ -192,7 +192,6 @@ const AdminStaffCabinet = ({ auth }: { auth: AuthData }) => {
   const planMonthRub = plan ? plan.daily_plan_rub * 22 : 0;
   const planPct      = planMonthRub > 0 ? Math.min(100, Math.round(monthEarned / planMonthRub * 100)) : 0;
   const remainingToPlan = Math.max(0, planMonthRub - monthEarned);
-  const bonus        = monthBonuses[currentMonth] ?? bonusFor(monthEarned, planMonthRub);
 
   const monthsMap: Record<string, number> = {};
   for (const r of reports) {
@@ -209,7 +208,7 @@ const AdminStaffCabinet = ({ auth }: { auth: AuthData }) => {
   // ── Редактирование прошлого дня (из статистики) ─────────────────────────
   const openDayEdit = (r: DayReport) => {
     // Прошедшие дни закрыты: править можно только текущий день
-    if (r.locked || r.report_date !== isoToday()) return;
+    if (r.locked || !isDateEditable(r.report_date)) return;
     setEditingDay(r);
     setEditingDayPositions(r.positions || []);
   };
@@ -222,7 +221,7 @@ const AdminStaffCabinet = ({ auth }: { auth: AuthData }) => {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'report', staff_id: staffId, report_date: editingDay.report_date,
-          positions: editingDayPositions, total_rub: editingDayTotal, hours: editingDay.hours || 0,
+          positions: editingDayPositions.filter(p => p.qty > 0), total_rub: editingDayTotal, hours: editingDay.hours || 0,
           time_start: editingDay.time_start || null, time_end: editingDay.time_end || null,
         }),
       });
@@ -311,12 +310,12 @@ const AdminStaffCabinet = ({ auth }: { auth: AuthData }) => {
           plan={plan}
           planPct={planPct}
           remainingToPlan={remainingToPlan}
-          bonus={bonus}
           monthReports={monthReports}
           monthsList={monthsList}
           monthBonuses={monthBonuses}
           planMonthRub={planMonthRub}
           openDayEdit={openDayEdit}
+          onRequestEdit={(date, comment) => requestEdit(comment, date)}
         />
       )}
 

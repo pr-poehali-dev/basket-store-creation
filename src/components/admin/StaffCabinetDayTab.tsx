@@ -147,13 +147,13 @@ const StaffCabinetDayTab = ({
                         const price = categoryPrice(activeRow, cat);
                         const qty   = getDraft(activeRow.id, cat);
                         return (
-                          <div key={cat} className="flex items-center gap-3">
-                            <span className="text-sm text-primary flex-1">{CATEGORY_LABEL[cat]}</span>
+                          <div key={cat} className="flex items-center gap-2">
+                            <span className="text-sm text-primary flex-1 min-w-0">{CATEGORY_LABEL[cat]}</span>
                             <input type="number" min={0} placeholder="0" value={qty || ''}
                               onChange={e => setDraft(activeRow.id, cat, parseInt(e.target.value, 10) || 0)}
-                              className="w-16 text-center border border-primary/30 rounded-lg px-1 py-1.5 text-sm outline-none focus:border-accent [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
-                            <span className="text-xs text-muted-foreground w-20 text-right">{price.toLocaleString('ru-RU')} ₽</span>
-                            <span className="text-sm font-semibold w-20 text-right" style={{ color: OLIVE }}>{qty > 0 ? fmtRub(qty * price) : '—'}</span>
+                              className="w-16 flex-shrink-0 text-center border border-primary/30 rounded-lg px-1 py-1.5 text-sm outline-none focus:border-accent [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                            <span className="text-xs text-muted-foreground w-16 flex-shrink-0 text-left pl-2">{price.toLocaleString('ru-RU')} ₽</span>
+                            <span className="text-sm font-semibold w-20 flex-shrink-0 text-right" style={{ color: OLIVE }}>{qty > 0 ? fmtRub(qty * price) : '—'}</span>
                           </div>
                         );
                       })}
@@ -182,17 +182,19 @@ const StaffCabinetDayTab = ({
             onChange={e => setSelectedDate(e.target.value)}
             className="border border-primary/30 rounded-xl px-3 py-2 text-sm outline-none focus:border-accent" />
         </div>
-        <div>
-          <label className="text-xs text-muted-foreground block mb-1">Начало работы *</label>
-          <input type="time" value={timeStart} disabled={!canEdit}
-            onChange={e => setTimeStart(e.target.value)}
-            className="border border-primary/30 rounded-xl px-3 py-2 text-sm outline-none focus:border-accent disabled:opacity-60" />
-        </div>
-        <div>
-          <label className="text-xs text-muted-foreground block mb-1">Окончание работы *</label>
-          <input type="time" value={timeEnd} disabled={!canEdit}
-            onChange={e => setTimeEnd(e.target.value)}
-            className="border border-primary/30 rounded-xl px-3 py-2 text-sm outline-none focus:border-accent disabled:opacity-60" />
+        <div className="flex gap-2 items-end">
+          <div className="flex-1 min-w-0">
+            <label className="text-xs text-muted-foreground block mb-1">Начало работы *</label>
+            <input type="time" value={timeStart} disabled={!canEdit}
+              onChange={e => setTimeStart(e.target.value)}
+              className="w-full border border-primary/30 rounded-xl px-3 py-2 text-sm outline-none focus:border-accent disabled:opacity-60" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <label className="text-xs text-muted-foreground block mb-1">Окончание работы *</label>
+            <input type="time" value={timeEnd} disabled={!canEdit}
+              onChange={e => setTimeEnd(e.target.value)}
+              className="w-full border border-primary/30 rounded-xl px-3 py-2 text-sm outline-none focus:border-accent disabled:opacity-60" />
+          </div>
         </div>
         {hoursWorked > 0 && (
           <span className="text-xs text-muted-foreground pb-2.5">{hoursWorked} ч</span>

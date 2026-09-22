@@ -1,5 +1,6 @@
 import Icon from '@/components/ui/icon';
-import { DayReport, Plan, bonusFor, fmtMonth, fmtRub, OLIVE } from './staffCabinetUtils';
+import { useState } from 'react';
+import { DayReport, Plan, bonusFor, fmtMonth, fmtRub, isDateEditable, OLIVE } from './staffCabinetUtils';
 
 interface StaffCabinetStatsTabProps {
   statsPeriod: 'days' | 'months';
@@ -11,18 +12,21 @@ interface StaffCabinetStatsTabProps {
   plan: Plan | null;
   planPct: number;
   remainingToPlan: number;
-  bonus: number;
   monthReports: DayReport[];
   monthsList: [string, number][];
   monthBonuses?: Record<string, number>;
   planMonthRub: number;
   openDayEdit: (r: DayReport) => void;
+  onRequestEdit?: (date: string, comment: string) => void;
 }
 
 const StaffCabinetStatsTab = ({
   statsPeriod, setStatsPeriod, monthEarned, monthDays, weekEarned, weekReports,
-  plan, planPct, remainingToPlan, bonus, monthReports, monthsList, monthBonuses = {}, planMonthRub, openDayEdit,
+  plan, planPct, remainingToPlan, monthReports, monthsList, monthBonuses = {}, planMonthRub, openDayEdit, onRequestEdit,
 }: StaffCabinetStatsTabProps) => {
+  const [reqFor, setReqFor] = useState<string | null>(null);
+  const [reqComment, setReqComment] = useState('');
+  const [sentDates, setSentDates] = useState<string[]>([]);
   return (
     <div>
       <div className="flex gap-2 mb-5">
@@ -62,13 +66,6 @@ const StaffCabinetStatsTab = ({
             <div className="text-xl font-bold text-primary">{fmtRub(remainingToPlan)}</div>
           </div>
         )}
-        {bonus > 0 && (
-          <div className="bg-card border border-accent/40 rounded-2xl p-4">
-            <div className="text-xs text-muted-foreground mb-1">Премия</div>
-            <div className="text-xl font-bold text-primary">{fmtRub(bonus)}</div>
-            <div className="text-xs text-muted-foreground">{planPct >= 100 ? '10% за выполнение' : '5% за 80%+'}</div>
-          </div>
-        )}
       </div>
 
       {statsPeriod === 'days' ? (
@@ -79,17 +76,44 @@ const StaffCabinetStatsTab = ({
           {monthReports.length === 0 ? (
             <p className="text-sm text-muted-foreground p-4">Нет данных за этот месяц</p>
           ) : monthReports.map(r => (
-            <button key={r.id} onClick={() => openDayEdit(r)}
-              className="w-full px-4 py-2.5 grid grid-cols-3 border-b border-primary/10 last:border-0 text-sm hover:bg-primary/3 transition-colors text-left">
-              <span className="text-primary/70 flex items-center gap-1.5">
-                {new Date(r.report_date + 'T00:00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', weekday: 'short' })}
-                {(r.locked || r.report_date !== new Date().toISOString().slice(0, 10)) && <Icon name="Lock" size={11} className="text-muted-foreground" />}
-              </span>
-              <span className="text-right font-semibold text-primary">{fmtRub(r.total_rub)}</span>
-              <span className="text-right font-semibold" style={{ color: OLIVE }}>
-                {plan && plan.daily_plan_rub > 0 ? Math.round(r.total_rub / plan.daily_plan_rub * 100) : '—'}%
-              </span>
-            </button>
+            <div key={r.id} className="border-b border-primary/10 last:border-0">
+              <button onClick={() => openDayEdit(r)}
+                className="w-full px-4 py-2.5 grid grid-cols-3 text-sm hover:bg-primary/3 transition-colors text-left">
+                <span className="text-primary/70 flex items-center gap-1.5">
+                  {new Date(r.report_date + 'T00:00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', weekday: 'short' })}
+                  {(r.locked || !isDateEditable(r.report_date)) && <Icon name="Lock" size={11} className="text-muted-foreground" />}
+                </span>
+                <span className="text-right font-semibold text-primary">{fmtRub(r.total_rub)}</span>
+                <span className="text-right font-semibold" style={{ color: OLIVE }}>
+                  {plan && plan.daily_plan_rub > 0 ? Math.round(r.total_rub / plan.daily_plan_rub * 100) : '—'}%
+                </span>
+              </button>
+              {(r.locked || !isDateEditable(r.report_date)) && onRequestEdit && (
+                <div className="px-4 pb-2.5">
+                  {reqFor === r.report_date ? (
+                    <div className="space-y-2">
+                      <textarea value={reqComment} onChange={e => setReqComment(e.target.value)} rows={2}
+                        placeholder="Что именно нужно исправить? *"
+                        className="w-full border border-amber-300 rounded-xl px-3 py-2 text-sm outline-none focus:border-amber-500" />
+                      <div className="flex gap-2">
+                        <button onClick={() => { onRequestEdit(r.report_date, reqComment.trim()); setSentDates(p => [...p, r.report_date]); setReqFor(null); setReqComment(''); }}
+                          disabled={!reqComment.trim()}
+                          className="px-4 py-1.5 rounded-xl bg-accent text-accent-foreground text-xs font-semibold disabled:opacity-50">Отправить</button>
+                        <button onClick={() => setReqFor(null)}
+                          className="px-4 py-1.5 rounded-xl border border-primary/30 text-primary text-xs">Отмена</button>
+                      </div>
+                    </div>
+                  ) : sentDates.includes(r.report_date) ? (
+                    <span className="text-xs text-amber-600">Запрос отправлен</span>
+                  ) : (
+                    <button onClick={() => { setReqFor(r.report_date); setReqComment(''); }}
+                      className="text-xs text-amber-700 border border-amber-300 rounded-xl px-3 py-1 hover:bg-amber-50">
+                      Запросить редактирование
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           ))}
         </div>
       ) : (
