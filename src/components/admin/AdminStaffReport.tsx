@@ -180,11 +180,11 @@ const AdminStaffReport = () => {
             <thead>
               <tr>
                 <th className="px-1 py-2 bg-[#efece5] text-[10px] text-primary/70 sticky left-0 z-20 border-b border-primary/20">№</th>
-                <th className="px-3 py-2 bg-[#efece5] text-[10px] text-primary/70 text-left sticky left-[38px] z-20 border-b border-primary/20">ФИО</th>
-                <th className="px-1 py-2 bg-[#efece5] text-[10px] text-primary/70 sticky left-[188px] z-20 border-b border-primary/20 shadow-[2px_0_0_0_rgba(90,62,40,0.4)]">тренд</th>
+                <th className="px-3 py-2 bg-[#efece5] text-[10px] text-primary/70 text-left sticky left-[38px] z-20 border-b border-b-primary/20 border-l border-l-primary/15">ФИО</th>
+                <th className="px-1 py-2 bg-[#efece5] text-[10px] text-primary/70 sticky left-[188px] z-20 border-b border-b-primary/20 border-l border-l-primary/15 shadow-[2px_0_0_0_rgba(90,62,40,0.15)]">тренд</th>
                 {days.map(d => (
                   <th key={d} colSpan={4}
-                    className={`px-2 py-2 text-[10px] font-bold border-l-2 border-primary/40 border-b border-primary/20 ${
+                    className={`px-2 py-2 text-[10px] font-bold border-l border-l-primary/15 border-b border-b-primary/20 ${
                       isWeekend(d) ? 'bg-[#e3dfd5] text-primary/60' : 'bg-[#efece5] text-primary'}`}>
                     {String(d).padStart(2, '0')}.{MONTHS[m - 1].slice(0, 3).toLowerCase()}
                   </th>
@@ -192,10 +192,10 @@ const AdminStaffReport = () => {
               </tr>
               <tr>
                 <th className="bg-[#f6f4ef] sticky left-0 z-20 border-b-2 border-primary/25" />
-                <th className="bg-[#f6f4ef] sticky left-[38px] z-20 border-b-2 border-primary/25" />
-                <th className="bg-[#f6f4ef] sticky left-[188px] z-20 border-b-2 border-primary/25 shadow-[2px_0_0_0_rgba(90,62,40,0.4)]" />
+                <th className="bg-[#f6f4ef] sticky left-[38px] z-20 border-b-2 border-b-primary/25 border-l border-l-primary/15" />
+                <th className="bg-[#f6f4ef] sticky left-[188px] z-20 border-b-2 border-b-primary/25 border-l border-l-primary/15 shadow-[2px_0_0_0_rgba(90,62,40,0.15)]" />
                 {days.map(d => [
-                  <Hc key={`${d}h`} cls="bg-[#f6f4ef] border-l-2 border-l-primary/40 border-b-2 border-b-primary/25">ч</Hc>,
+                  <Hc key={`${d}h`} cls="bg-[#f6f4ef] border-l border-l-primary/15 border-b-2 border-b-primary/25">ч</Hc>,
                   <Hc key={`${d}r`} cls="bg-[#f6f4ef] border-l border-l-primary/15 border-b-2 border-b-primary/25">₽</Hc>,
                   <Hc key={`${d}p`} cls="bg-[#f6f4ef] border-l border-l-primary/15 border-b-2 border-b-primary/25">%</Hc>,
                   <Hc key={`${d}o`} cls="bg-[#f6f4ef] border-l border-l-primary/15 border-b-2 border-b-primary/25">откл</Hc>,
@@ -206,15 +206,15 @@ const AdminStaffReport = () => {
               {list.map((r, i) => (
                 <tr key={r.staff_id}>
                   <Dc cls={`text-primary/50 sticky left-0 z-10 border-t border-primary/10 ${r.no_plan ? 'bg-[#f2f0ea]' : 'bg-[#fdfcfa]'}`}>{r.no_plan ? '' : i + 1 - list.filter(x => x.no_plan).length}</Dc>
-                  <td className={`px-3 py-1 text-[10px] font-semibold text-primary truncate sticky left-[38px] z-10 border-t border-primary/10 ${r.no_plan ? 'bg-[#f2f0ea]' : 'bg-[#fdfcfa]'}`}>{r.full_name}</td>
-                  <Dc cls={`font-medium sticky left-[188px] z-10 border-t border-primary/10 shadow-[2px_0_0_0_rgba(90,62,40,0.4)] ${r.no_plan ? 'bg-[#f2f0ea]' : 'bg-[#fdfcfa]'}`}>{r.no_plan ? '0' : num(r.trend)}</Dc>
+                  <td className={`px-3 py-1 text-[10px] font-semibold text-primary truncate sticky left-[38px] z-10 border-t border-t-primary/10 border-l border-l-primary/15 ${r.no_plan ? 'bg-[#f2f0ea]' : 'bg-[#fdfcfa]'}`}>{r.full_name}</td>
+                  <Dc cls={`font-medium sticky left-[188px] z-10 border-t border-t-primary/10 border-l border-l-primary/15 shadow-[2px_0_0_0_rgba(90,62,40,0.15)] ${r.no_plan ? 'bg-[#f2f0ea]' : 'bg-[#fdfcfa]'}`}>{r.no_plan ? '0' : num(r.trend)}</Dc>
                   {days.map(d => {
                     const rec = dayOf(r, d);
                     const pct = r.trend > 0 && rec ? Math.round(rec.rub / r.trend * 100) : 0;
                     const dev = rec ? +(rec.hours - r.plan_hours_day).toFixed(2) : 0;
                     const wk  = isWeekend(d) ? 'bg-primary/10' : '';
                     return [
-                      <Dc key={`${d}h`} cls={`border-l-2 border-primary/40 border-t border-primary/10 ${wk}`}>{rec ? num(rec.hours) : '-'}</Dc>,
+                      <Dc key={`${d}h`} cls={`border-l border-l-primary/15 border-t border-primary/10 ${wk}`}>{rec ? num(rec.hours) : '-'}</Dc>,
                       <Dc key={`${d}r`} cls={`font-medium border-l border-primary/15 border-t border-primary/10 ${wk}`}>{rec ? num(rec.rub) : '-'}</Dc>,
                       <Dc key={`${d}p`} cls={`border-l border-primary/15 border-t border-primary/10 ${rec && !r.no_plan
                         ? (pct >= 100 ? 'bg-[#c6efce] text-black font-semibold' : 'bg-[#ffc7ce] text-black font-semibold')
@@ -229,8 +229,8 @@ const AdminStaffReport = () => {
               {/* Итоги по дню */}
               <tr className="font-bold text-primary">
                 <Dc cls="sticky left-0 z-10 bg-[#e6e2d8] border-t-2 border-primary/30" />
-                <td className="px-3 py-1.5 text-[10px] font-bold sticky left-[38px] z-10 bg-[#e6e2d8] border-t-2 border-primary/30">план-факт</td>
-                <Dc cls="sticky left-[188px] z-10 bg-[#e6e2d8] border-t-2 border-primary/30 shadow-[2px_0_0_0_rgba(90,62,40,0.4)]">{num(calc.reduce((a, b) => a + b.trend, 0))}</Dc>
+                <td className="px-3 py-1.5 text-[10px] font-bold sticky left-[38px] z-10 bg-[#e6e2d8] border-t-2 border-t-primary/30 border-l border-l-primary/15">план-факт</td>
+                <Dc cls="sticky left-[188px] z-10 bg-[#e6e2d8] border-t-2 border-t-primary/30 border-l border-l-primary/15 shadow-[2px_0_0_0_rgba(90,62,40,0.15)]">{num(calc.reduce((a, b) => a + b.trend, 0))}</Dc>
                 {days.map(d => {
                   const recs = list.map(r => dayOf(r, d)).filter(Boolean) as { rub: number; hours: number }[];
                   const planD = calc.reduce((a, b) => a + b.trend, 0);
@@ -238,7 +238,7 @@ const AdminStaffReport = () => {
                   const hrsD  = recs.reduce((a, b) => a + b.hours, 0);
                   const pctD  = planD > 0 ? Math.round(factD / planD * 100) : 0;
                   return [
-                    <Dc key={`${d}h`} cls="border-l-2 border-primary/40 border-t-2 border-primary/30 bg-[#e6e2d8]">{hrsD ? num(hrsD) : '-'}</Dc>,
+                    <Dc key={`${d}h`} cls="border-l border-l-primary/15 border-t-2 border-primary/30 bg-[#e6e2d8]">{hrsD ? num(hrsD) : '-'}</Dc>,
                     <Dc key={`${d}r`} cls="border-l border-primary/15 border-t-2 border-primary/30 bg-[#e6e2d8]">{factD ? num(factD) : '-'}</Dc>,
                     <Dc key={`${d}p`} cls={`border-l border-primary/15 border-t-2 border-primary/30 ${pctD >= 100 ? 'bg-[#c6efce] text-black' : 'bg-[#e6e2d8] text-red-600'}`}>{pctD}%</Dc>,
                     <Dc key={`${d}o`} cls={`border-l border-primary/15 border-t-2 border-primary/30 bg-[#e6e2d8] ${factD - planD < 0 ? 'text-red-600' : 'text-primary'}`}>{num(factD - planD)}</Dc>,
