@@ -79,23 +79,32 @@ def handler(event: dict, context) -> dict:
                     year  = int(params.get('year'))
                     month = int(params.get('month'))
                     half  = int(params.get('half', 1))
-                    d_from = f"{year:04d}-{month:02d}-{1 if half == 1 else 16:02d}"
-                    last = 15 if half == 1 else 31
                     import calendar as _cal
-                    if half == 2:
-                        last = _cal.monthrange(year, month)[1]
+                    d_from = f"{year:04d}-{month:02d}-{1 if half == 1 else 16:02d}"
+                    last = 15 if half == 1 else _cal.monthrange(year, month)[1]
                     d_to = f"{year:04d}-{month:02d}-{last:02d}"
 
-                    cur.execute("""SELECT s.id, s.full_name,
+                    # Только сотрудники с личным кабинетом; план берём последний (без дублей)
+                    cur.execute("""SELECT DISTINCT ON (s.id) s.id, s.full_name,
                           COALESCE(sp.daily_plan_rub, 0) AS daily_plan_rub
-                        FROM staff s LEFT JOIN staff_plans sp ON sp.staff_id = s.id
-                        WHERE s.is_active = TRUE ORDER BY s.full_name""")
+                        FROM staff s
+                        LEFT JOIN staff_plans sp ON sp.staff_id = s.id
+                        WHERE s.is_active = TRUE AND 'cabinet' = ANY(s.pages)
+                        ORDER BY s.id, sp.valid_from DESC NULLS LAST""")
                     staff_rows = cur.fetchall()
 
                     cur.execute("""SELECT staff_id, report_date, total_rub, hours
                         FROM staff_reports WHERE report_date BETWEEN %s AND %s
                         ORDER BY report_date""", (d_from, d_to))
                     rep_rows = cur.fetchall()
+
+                    # Заработок за ВЕСЬ месяц — для процента месячного плана
+                    m_last = _cal.monthrange(year, month)[1]
+                    cur.execute("""SELECT staff_id, COUNT(*) AS d, COALESCE(SUM(total_rub),0) AS t
+                        FROM staff_reports WHERE report_date BETWEEN %s AND %s
+                        GROUP BY staff_id""",
+                        (f"{year:04d}-{month:02d}-01", f"{year:04d}-{month:02d}-{m_last:02d}"))
+                    month_agg = {r['staff_id']: (int(r['d']), to_float(r['t'])) for r in cur.fetchall()}
 
                     cur.execute("""SELECT * FROM salary_periods
                         WHERE year=%s AND month=%s AND half=%s""", (year, month, half))
@@ -122,6 +131,9 @@ def handler(event: dict, context) -> dict:
                             'daily_plan_rub': daily,
                             'earned': earned,
                             'plan_pct': round(earned / plan_total * 100) if plan_total > 0 else 0,
+                            'month_pct': (round(month_agg.get(s_row['id'], (0, 0))[1]
+                                          / (daily * month_agg.get(s_row['id'], (0, 0))[0]) * 100)
+                                          if daily > 0 and month_agg.get(s_row['id'], (0, 0))[0] > 0 else 0),
                             'prev_balance': to_float(a['prev_balance']) if a else 0,
                             'defect': to_float(a['defect']) if a else 0,
                             'bonus': to_float(a['bonus']) if a else 0,
