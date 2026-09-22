@@ -11,6 +11,7 @@ interface Row {
   fact_rub: number;
   lag_rub: number;
   plan_hours: number;
+  plan_hours_day: number;
   fact_hours: number;
   lag_hours: number;
   fact_days: number;
@@ -214,36 +215,34 @@ const AdminStaffReport = () => {
                     <Td sep>{rub(r.motivation)}</Td>
                     <Td sep cls={r.bonus > 0 ? 'bg-[#92d050] text-black font-bold' : ''}>{rub(r.bonus)}</Td>
                   </tr>,
-                  isOpen && (
-                    <tr key={`${r.staff_id}-d`} className="bg-primary/[0.03]">
-                      <td colSpan={16} className="px-0 py-0">
-                        <div className="sticky left-0 w-[min(100vw-340px,560px)] px-6 py-2">
-                          {(r.days || []).length === 0 ? (
-                            <span className="text-[11px] text-muted-foreground">Нет отчётов за период</span>
-                          ) : (
-                            <table className="text-[11px] border-collapse">
-                              <thead>
-                                <tr className="text-primary/50">
-                                  <th className="px-3 py-1 text-left font-semibold">Дата</th>
-                                  <th className="px-3 py-1 text-right font-semibold">ЗП</th>
-                                  <th className="px-3 py-1 text-right font-semibold">Часы</th>
-                                  <th className="px-3 py-1 text-right font-semibold">₽/час</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {r.days.map(d => (
-                                  <tr key={d.date} className="border-t border-primary/10">
-                                    <td className="px-3 py-1 text-primary">{fmtD(d.date)}</td>
-                                    <td className="px-3 py-1 text-right font-semibold text-primary">{rub(d.rub)}</td>
-                                    <td className="px-3 py-1 text-right text-primary/70">{d.hours || '—'}</td>
-                                    <td className="px-3 py-1 text-right text-primary/70">{d.hours > 0 ? rub(Math.round(d.rub / d.hours)) : '—'}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          )}
-                        </div>
-                      </td>
+                  ...(isOpen ? (r.days || []).map(d => {
+                    // День: план = дневной тренд, отставание — факт минус план за день
+                    const lagRub = d.rub - (r.no_plan ? 0 : r.trend);
+                    const lagHrs = d.hours - (r.no_plan ? 0 : r.plan_hours_day);
+                    const pct    = r.trend > 0 ? Math.round(d.rub / r.trend * 100) : 0;
+                    return (
+                      <tr key={`${r.staff_id}-${d.date}`} className="border-t border-primary/5 bg-primary/[0.03] text-primary/80">
+                        <Td />
+                        <td className="px-3 py-1 pl-8 text-[11px] text-primary/70 whitespace-nowrap">{fmtD(d.date)}</td>
+                        <Td sep>{r.no_plan ? '—' : num(r.trend)}</Td>
+                        <Td>{r.no_plan ? '—' : rub(r.trend)}</Td>
+                        <Td cls="font-medium">{rub(d.rub)}</Td>
+                        <Td cls={r.no_plan ? '' : neg(lagRub)}>{r.no_plan ? '—' : rub(lagRub)}</Td>
+                        <Td sep>{num(d.hours)}</Td>
+                        <Td cls={r.no_plan ? '' : neg(lagHrs)}>{r.no_plan ? '—' : num(lagHrs)}</Td>
+                        <Td sep>1</Td>
+                        <Td>—</Td>
+                        <Td sep>{d.hours > 0 ? rub(Math.round(d.rub / d.hours)) : '—'}</Td>
+                        <Td sep cls={r.no_plan ? '' : pctCell(pct)}>{r.no_plan ? '—' : `${pct}%`}</Td>
+                        <Td>—</Td>
+                        <Td sep />
+                        <Td sep />
+                      </tr>
+                    );
+                  }) : []),
+                  isOpen && (r.days || []).length === 0 && (
+                    <tr key={`${r.staff_id}-empty`} className="bg-primary/[0.03]">
+                      <td colSpan={16} className="px-6 py-2 text-[11px] text-muted-foreground">Нет отчётов за период</td>
                     </tr>
                   ),
                 ];
