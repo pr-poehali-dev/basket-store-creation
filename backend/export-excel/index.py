@@ -102,12 +102,95 @@ def export_handbook():
     }
 
 
+CAT_LABEL = {
+    'whole': 'Целая корзина с ручкой',
+    'whole_ears': 'Целая корзина с ушами',
+    'no_handle': 'Без ручки',
+    'handle': 'Ручки',
+    'ears': 'Уши',
+}
+
+
+def export_reports(params):
+    """Выгрузка отчётов сотрудников построчно — формат как в рабочем Excel."""
+    d_from = params.get('from', '')
+    d_to = params.get('to', '')
+    staff_ids = [int(x) for x in (params.get('staff_ids') or '').split(',') if x.strip().isdigit()]
+
+    conn = get_conn()
+    cur = conn.cursor()
+    q = ("SELECT r.report_date, s.full_name, r.hours, r.positions "
+         "FROM staff_reports r JOIN staff s ON s.id = r.staff_id WHERE 1=1")
+    args = []
+    if d_from:
+        q += " AND r.report_date >= %s"; args.append(d_from)
+    if d_to:
+        q += " AND r.report_date <= %s"; args.append(d_to)
+    if staff_ids:
+        q += " AND r.staff_id = ANY(%s)"; args.append(staff_ids)
+    q += " ORDER BY r.report_date, s.full_name"
+    cur.execute(q, args)
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = 'Отчёты'
+    headers = ['дата', 'фио', 'часы', 'позиция', 'колво', 'цена', 'сумма', 'руб/ч', 'ручки/без ручки']
+    hfont = Font(bold=True, color='FFFFFF')
+    hfill = PatternFill(fill_type='solid', fgColor='4472C4')
+    for i, h in enumerate(headers, start=1):
+        c = ws.cell(row=1, column=i, value=h)
+        c.font = hfont
+        c.fill = hfill
+        c.alignment = Alignment(horizontal='center')
+
+    r_idx = 2
+    for report_date, full_name, hours, positions in rows:
+        items = positions if isinstance(positions, list) else json.loads(positions or '[]')
+        items = [p for p in items if int(p.get('qty', 0)) > 0]
+        day_total = sum(float(p.get('price', 0)) * int(p.get('qty', 0)) for p in items)
+        hrs = float(hours or 0)
+        per_hour = round(day_total / hrs) if hrs > 0 else 0
+        for n, p in enumerate(items):
+            qty = int(p.get('qty', 0))
+            price = float(p.get('price', 0))
+            ws.cell(row=r_idx, column=1, value=report_date.strftime('%d.%m.%Y'))
+            ws.cell(row=r_idx, column=2, value=full_name)
+            ws.cell(row=r_idx, column=3, value=(hrs if n == 0 and hrs else None))
+            ws.cell(row=r_idx, column=4, value=p.get('staff_name', ''))
+            ws.cell(row=r_idx, column=5, value=qty)
+            ws.cell(row=r_idx, column=6, value=price)
+            ws.cell(row=r_idx, column=7, value=qty * price)
+            ws.cell(row=r_idx, column=8, value=per_hour)
+            ws.cell(row=r_idx, column=9, value=CAT_LABEL.get(p.get('category', ''), '---'))
+            r_idx += 1
+
+    for i, w in enumerate([13, 20, 9, 38, 9, 9, 11, 9, 24], start=1):
+        ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = w
+    ws.freeze_panes = 'A2'
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return {
+        'statusCode': 200,
+        'headers': {**CORS, 'Content-Type': 'application/json'},
+        'body': json.dumps({'file': base64.b64encode(buf.read()).decode(),
+                            'filename': 'staff_reports.xlsx'})
+    }
+
+
 def handler(event: dict, context) -> dict:
     if event.get('httpMethod') == 'OPTIONS':
         return {'statusCode': 200, 'headers': CORS, 'body': ''}
 
-    if (event.get('queryStringParameters') or {}).get('type') == 'handbook':
+    params = event.get('queryStringParameters') or {}
+    if params.get('type') == 'handbook':
         return export_handbook()
+    if params.get('type') == 'reports':
+        return export_reports(params)
 
     conn = get_conn()
     cur = conn.cursor()

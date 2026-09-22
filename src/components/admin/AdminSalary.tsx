@@ -158,7 +158,7 @@ const AdminSalary = () => {
           <table className="text-xs border-collapse w-full min-w-[1280px]">
             <thead>
               <tr className="bg-primary/5 text-primary/70">
-                <th className="px-3 py-2 text-left font-semibold sticky left-0 z-10 bg-[#faf8f4] w-[120px] min-w-[120px] max-w-[120px] shadow-[3px_0_5px_-3px_rgba(0,0,0,0.15)]">Сотрудник</th>
+                <th className="px-3 py-2 text-left font-semibold sticky left-0 z-10 bg-[#faf8f4] w-[145px] min-w-[145px] max-w-[145px] shadow-[3px_0_5px_-3px_rgba(0,0,0,0.15)]">Сотрудник</th>
                 {multiPeriod && <th className="px-2 py-2 font-semibold w-[92px]">Период</th>}
                 <th className="px-2 py-2 font-semibold w-[92px]">Дневной план</th>
                 <th className="px-2 py-2 font-semibold w-[92px]">ЗП за период</th>
@@ -180,7 +180,7 @@ const AdminSalary = () => {
                 return [
                   <tr key={key} className="border-t border-primary/10 hover:bg-primary/3">
                     <td onClick={() => expandable && setOpenKey(p => ({ ...p, [key]: !p[key] }))}
-                      className={`px-3 py-1.5 font-medium text-primary sticky left-0 z-10 bg-background w-[120px] min-w-[120px] max-w-[120px] shadow-[3px_0_5px_-3px_rgba(0,0,0,0.15)] ${expandable ? 'cursor-pointer' : ''}`}>
+                      className={`px-3 py-1.5 font-medium text-primary sticky left-0 z-10 bg-background w-[145px] min-w-[145px] max-w-[145px] shadow-[3px_0_5px_-3px_rgba(0,0,0,0.15)] ${expandable ? 'cursor-pointer' : ''}`}>
                       <span className="flex items-center gap-1">
                         {expandable && <Icon name={isOpen ? 'ChevronDown' : 'ChevronRight'} size={13} className="text-primary/40" />}
                         {r.full_name}

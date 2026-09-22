@@ -37,12 +37,10 @@ const StaffCabinetEditDayModal = ({
                     {CATEGORY_LABEL[item.category]}{item.weave_type ? ` · ${item.weave_type}` : ''} · {item.price.toLocaleString('ru-RU')} ₽/шт
                   </div>
                 </div>
-                <input type="number" min={0} value={item.qty}
+                <input type="number" min={0} value={item.qty || ''} placeholder="0"
                   onChange={e => {
-                    const qty = parseInt(e.target.value, 10) || 0;
-                    setEditingDayPositions(prev => qty <= 0
-                      ? prev.filter((_, idx) => idx !== i)
-                      : prev.map((p, idx) => idx === i ? { ...p, qty } : p));
+                    const qty = Math.max(0, parseInt(e.target.value, 10) || 0);
+                    setEditingDayPositions(prev => prev.map((p, idx) => idx === i ? { ...p, qty } : p));
                   }}
                   className="w-14 text-center border border-primary/30 rounded-lg px-1 py-1 text-sm outline-none focus:border-accent [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
                 <span className="text-sm font-semibold w-20 text-right" style={{ color: OLIVE }}>{fmtRub(item.qty * item.price)}</span>

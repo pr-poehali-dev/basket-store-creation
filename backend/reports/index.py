@@ -402,6 +402,17 @@ def handler(event: dict, context) -> dict:
                         positions = json.dumps(merged, ensure_ascii=False)
                         total_rub = sum(float(p.get('price', 0)) * int(p.get('qty', 0)) for p in merged)
 
+                # Позиции, которые уже были учтены на складе по этому дню.
+                # Склад меняем только на РАЗНИЦУ — иначе повторное сохранение
+                # (редактирование отчёта) задублировало бы приход.
+                with conn.cursor() as cur:
+                    cur.execute("SELECT positions FROM staff_reports WHERE staff_id=%s AND report_date=%s",
+                                (staff_id, report_date))
+                    _prev = cur.fetchone()
+                old_positions = []
+                if _prev and _prev[0]:
+                    old_positions = _prev[0] if isinstance(_prev[0], list) else json.loads(_prev[0] or '[]')
+
                 with conn.cursor() as cur:
                     cur.execute(
                         """INSERT INTO staff_reports (staff_id, report_date, positions, total_rub, hours, time_start, time_end)
@@ -414,34 +425,46 @@ def handler(event: dict, context) -> dict:
                     )
                     report_id = cur.fetchone()[0]
 
-                # Обновляем склад — перебираем позиции и суммируем по catalog_name
-                positions_data = body.get('positions', [])
-                # positions: [{position_id, catalog_name, category, qty}]
-                warehouse_delta: dict = {}  # catalog_name -> {full, no_handle}
-                for p in positions_data:
-                    cname = p.get('catalog_name', '')
-                    if not cname:
-                        continue
-                    cat = p.get('category', 'whole')
-                    qty = int(p.get('qty', 0))
-                    if cname not in warehouse_delta:
-                        warehouse_delta[cname] = {'full': 0, 'no_handle': 0}
-                    if cat == 'no_handle':
-                        warehouse_delta[cname]['no_handle'] += qty
-                    elif cat == 'handle':
-                        # Ручка НЕ создаёт новую корзину: она превращает уже
-                        # сплетённую корзину без ручки в корзину с ручкой.
-                        warehouse_delta[cname]['handle'] = warehouse_delta[cname].get('handle', 0) + qty
-                    else:
-                        warehouse_delta[cname]['full'] += qty
+                # Склад меняем на разницу «стало минус было»
+                final_positions = json.loads(positions) if isinstance(positions, str) else positions
+
+                def _fold(items, sign):
+                    acc = {}
+                    for p in items:
+                        cname = p.get('catalog_name', '')
+                        if not cname:
+                            continue
+                        cat = p.get('category', 'whole')
+                        qty = int(p.get('qty', 0)) * sign
+                        d = acc.setdefault(cname, {'full': 0, 'no_handle': 0, 'handle': 0})
+                        if cat == 'no_handle':
+                            d['no_handle'] += qty
+                        elif cat == 'handle':
+                            # Ручка НЕ создаёт новую корзину: она превращает уже
+                            # сплетённую корзину без ручки в корзину с ручкой.
+                            d['handle'] += qty
+                        else:
+                            d['full'] += qty
+                    return acc
+
+                warehouse_delta: dict = {}
+                for src, sign in ((final_positions, 1), (old_positions, -1)):
+                    for cname, d in _fold(src, sign).items():
+                        t = warehouse_delta.setdefault(cname, {'full': 0, 'no_handle': 0, 'handle': 0})
+                        for k in ('full', 'no_handle', 'handle'):
+                            t[k] += d[k]
 
                 # Ручки «поглощают» корзины без ручки: без ручки + ручка = с ручкой
                 for cname, d in warehouse_delta.items():
                     h = d.pop('handle', 0)
-                    if h:
-                        used = min(h, d['no_handle'])
-                        d['no_handle'] -= used
+                    if h > 0:
+                        d['no_handle'] -= min(h, max(0, d['no_handle']))
                         d['full'] += h
+                    elif h < 0:
+                        d['full'] += h
+                        d['no_handle'] -= h
+                warehouse_delta = {c: d for c, d in warehouse_delta.items()
+                                   if d['full'] or d['no_handle']}
 
                 # Имя сотрудника для истории склада
                 staff_name = str(staff_id)
@@ -458,21 +481,22 @@ def handler(event: dict, context) -> dict:
                         # склада отчётами сотрудников не создаются.
                         cur.execute(
                             """UPDATE warehouse SET
-                                 qty_full = qty_full + %s,
-                                 qty_no_handle = qty_no_handle + %s,
+                                 qty_full = GREATEST(0, qty_full + %s),
+                                 qty_no_handle = GREATEST(0, qty_no_handle + %s),
                                  updated_at = NOW()
                                WHERE catalog_name = %s""",
                             (delta['full'], delta['no_handle'], cname)
                         )
                         if cur.rowcount == 0:
                             continue  # позиции нет на складе — пропускаем
-                        if delta['full'] > 0 or delta['no_handle'] > 0:
+                        if delta['full'] or delta['no_handle']:
                             cur.execute(
                                 """INSERT INTO warehouse_log
                                    (catalog_name, operation, qty_full, qty_no_handle, comment, created_by)
                                    VALUES (%s, 'income_staff', %s, %s, %s, %s)""",
                                 (cname, delta['full'], delta['no_handle'],
-                                 f"Отчёт за {report_date}", staff_name)
+                                 f"Отчёт за {report_date}" if not old_positions
+                                 else f"Правка отчёта за {report_date}", staff_name)
                             )
 
                 return {'statusCode': 200, 'headers': cors(),

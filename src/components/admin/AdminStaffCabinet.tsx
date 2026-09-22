@@ -208,7 +208,8 @@ const AdminStaffCabinet = ({ auth }: { auth: AuthData }) => {
 
   // ── Редактирование прошлого дня (из статистики) ─────────────────────────
   const openDayEdit = (r: DayReport) => {
-    if (r.locked) return;
+    // Прошедшие дни закрыты: править можно только текущий день
+    if (r.locked || r.report_date !== isoToday()) return;
     setEditingDay(r);
     setEditingDayPositions(r.positions || []);
   };

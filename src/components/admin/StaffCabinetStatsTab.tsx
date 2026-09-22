@@ -83,7 +83,7 @@ const StaffCabinetStatsTab = ({
               className="w-full px-4 py-2.5 grid grid-cols-3 border-b border-primary/10 last:border-0 text-sm hover:bg-primary/3 transition-colors text-left">
               <span className="text-primary/70 flex items-center gap-1.5">
                 {new Date(r.report_date + 'T00:00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', weekday: 'short' })}
-                {r.locked && <Icon name="Lock" size={11} className="text-muted-foreground" />}
+                {(r.locked || r.report_date !== new Date().toISOString().slice(0, 10)) && <Icon name="Lock" size={11} className="text-muted-foreground" />}
               </span>
               <span className="text-right font-semibold text-primary">{fmtRub(r.total_rub)}</span>
               <span className="text-right font-semibold" style={{ color: OLIVE }}>
