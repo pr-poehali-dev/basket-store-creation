@@ -72,21 +72,24 @@ const StaffCabinetDayTab = ({
   const displayPositions = useMemo(
     () => Array.from(variantsByBase.values()).map(v => v[0]), [variantsByBase]);
 
-  // Группировка по подкатегории (position_group); без группы — «Другое»
-  const OTHER = 'Другое';
+  // Группировка по подкатегории (position_group); без подкатегории — позиция сама по себе.
+  // Подкатегория «ДРУГОЕ» всегда идёт первой в списке.
   const groupedPositions = useMemo(() => {
     const map = new Map<string, MergedPosition[]>();
     for (const r of displayPositions) {
-      const key = (r.position_group || '').trim() || OTHER;
+      const g = (r.position_group || '').trim();
+      const key = g || `__solo_${r.id}`;
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(r);
     }
+    const isOther = (k: string) => k.trim().toLowerCase() === 'другое';
     return Array.from(map.entries()).sort((a, b) => {
-      if (a[0] === OTHER) return -1;
-      if (b[0] === OTHER) return 1;
+      if (isOther(a[0]) !== isOther(b[0])) return isOther(a[0]) ? -1 : 1;
       const af = favGroups.includes(a[0]) ? 0 : 1;
       const bf = favGroups.includes(b[0]) ? 0 : 1;
-      return af - bf || a[0].localeCompare(b[0], 'ru');
+      const an = a[0].startsWith('__solo_') ? a[1][0].staff_name : a[0];
+      const bn = b[0].startsWith('__solo_') ? b[1][0].staff_name : b[0];
+      return af - bf || an.localeCompare(bn, 'ru');
     });
   }, [displayPositions, favGroups]);
 
@@ -98,7 +101,8 @@ const StaffCabinetDayTab = ({
           // Варианты плетения этой же позиции
           const weaveVariants = variantsByBase.get(
             `${(row.position_group || '').trim()}::${baseName(row.staff_name, row.weave_type)}`) || [row];
-          const showWeaveButtons = weaveVariants.filter(r => r.weave_type).length > 1;
+          // Кнопка вида плетения показывается всегда, когда плетение указано
+          const showWeaveButtons = weaveVariants.some(r => !!(r.weave_type || '').trim());
 
           return (
             <div className="border border-primary/30 rounded-2xl overflow-hidden">
@@ -251,9 +255,11 @@ const StaffCabinetDayTab = ({
       {/* Позиции — сгруппированы по подкатегориям (position_group), избранные вверху */}
       <div className="space-y-2 mb-5">
         {groupedPositions.map(([groupKey, groupRows]) => {
-          const groupName = groupKey;
+          const isSolo = groupKey.startsWith('__solo_');
+          const groupName = isSolo ? groupRows[0].staff_name : groupKey;
           const isFav      = favGroups.includes(groupKey);
           const isGroupOpen = !!openGroups[groupKey];
+          if (isSolo) return <div key={groupKey}>{renderRow(groupRows[0], groupKey, isFav)}</div>;
           return (
           <div key={groupName} className="border border-primary/30 rounded-2xl overflow-hidden">
             <div className="w-full flex items-center gap-2 px-3 py-2.5 bg-primary/8">
