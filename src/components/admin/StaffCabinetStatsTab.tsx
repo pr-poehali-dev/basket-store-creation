@@ -14,13 +14,14 @@ interface StaffCabinetStatsTabProps {
   bonus: number;
   monthReports: DayReport[];
   monthsList: [string, number][];
+  monthBonuses?: Record<string, number>;
   planMonthRub: number;
   openDayEdit: (r: DayReport) => void;
 }
 
 const StaffCabinetStatsTab = ({
   statsPeriod, setStatsPeriod, monthEarned, monthDays, weekEarned, weekReports,
-  plan, planPct, remainingToPlan, bonus, monthReports, monthsList, planMonthRub, openDayEdit,
+  plan, planPct, remainingToPlan, bonus, monthReports, monthsList, monthBonuses = {}, planMonthRub, openDayEdit,
 }: StaffCabinetStatsTabProps) => {
   return (
     <div>
@@ -97,7 +98,7 @@ const StaffCabinetStatsTab = ({
             <span>Месяц</span><span className="text-right">Заработано</span><span className="text-right">% плана</span><span className="text-right">Премия</span>
           </div>
           {monthsList.map(([ym, sum]) => {
-            const monthBonus = bonusFor(sum, planMonthRub);
+            const monthBonus = monthBonuses[ym] ?? bonusFor(sum, planMonthRub);
             return (
               <div key={ym} className="px-4 py-2.5 grid grid-cols-4 border-b border-primary/10 last:border-0 text-sm hover:bg-primary/3">
                 <span className="text-primary">{fmtMonth(ym)}</span>

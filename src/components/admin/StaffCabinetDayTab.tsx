@@ -9,7 +9,7 @@ interface StaffCabinetDayTabProps {
   staffId?: number;
   monthEarned?: number;
   planMonthRub?: number;
-  onRequestEdit?: () => void;
+  onRequestEdit?: (comment: string) => void;
   editRequestSent?: boolean;
   selectedDate: string;
   setSelectedDate: (v: string) => void;
@@ -45,7 +45,7 @@ interface StaffCabinetDayTabProps {
 const StaffCabinetDayTab = ({
   staffId, monthEarned = 0, planMonthRub = 0, onRequestEdit, editRequestSent,
   selectedDate, setSelectedDate, timeStart, setTimeStart, timeEnd, setTimeEnd, hoursWorked,
-  isToday, canEdit, dayReport, submitError, summaryOpen, setSummaryOpen, totalRub, plan,
+  canEdit, dayReport, submitError, summaryOpen, setSummaryOpen, totalRub, plan,
   editPositions, editSummaryQty, removeSummaryItem, saving, saved, saveReport,
   sortedPositions, openPositions, setOpenPositions, selectedRow, setSelectedRow,
   getDraft, setDraft, addToReport,
@@ -57,6 +57,9 @@ const StaffCabinetDayTab = ({
     try { setFavGroups(JSON.parse(localStorage.getItem(favKey) || '[]')); } catch { setFavGroups([]); }
   }, [favKey]);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+  const [editRequestOpen, setEditRequestOpen] = useState(false);
+  const [editComment, setEditComment] = useState('');
+  useEffect(() => { setEditRequestOpen(false); setEditComment(''); }, [selectedDate]);
 
   const toggleFav = (g: string) => {
     setFavGroups(prev => {
@@ -194,21 +197,41 @@ const StaffCabinetDayTab = ({
         {hoursWorked > 0 && (
           <span className="text-xs text-muted-foreground pb-2.5">{hoursWorked} ч</span>
         )}
-        {!isToday && (
-          <div className="flex items-center gap-2 pb-1">
-            <span className="text-xs text-muted-foreground">День закрыт — редактирование недоступно</span>
-            {onRequestEdit && (
-              <button onClick={onRequestEdit} disabled={editRequestSent}
-                className="px-3 py-1.5 rounded-xl border border-primary/40 text-primary text-xs font-medium hover:border-primary disabled:opacity-50">
-                {editRequestSent ? 'Запрос отправлен' : 'Запросить редактирование'}
+      </div>
+
+      {!canEdit && (
+        <div className="mb-4 p-3 rounded-2xl border border-amber-200 bg-amber-50">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Icon name="Lock" size={14} className="text-amber-600" />
+            <span className="text-xs text-amber-700">
+              {dayReport?.locked ? 'Отчёт заблокирован для редактирования' : 'День закрыт — редактирование недоступно'}
+            </span>
+            {onRequestEdit && !editRequestSent && !editRequestOpen && (
+              <button onClick={() => setEditRequestOpen(true)}
+                className="px-3 py-1.5 rounded-xl border border-amber-400 text-amber-700 text-xs font-medium hover:bg-amber-100">
+                Запросить редактирование
               </button>
             )}
+            {editRequestSent && <span className="text-xs font-medium text-amber-700">Запрос отправлен</span>}
           </div>
-        )}
-        {dayReport?.locked && (
-          <span className="text-xs text-amber-600 bg-amber-50 border border-amber-200 px-2 py-1 rounded-lg mb-0.5">Заблокирован для редактирования</span>
-        )}
-      </div>
+          {editRequestOpen && !editRequestSent && (
+            <div className="mt-3 space-y-2">
+              <textarea value={editComment} onChange={e => setEditComment(e.target.value)} rows={2}
+                placeholder="Опишите, что именно нужно исправить *"
+                className="w-full border border-amber-300 rounded-xl px-3 py-2 text-sm outline-none focus:border-amber-500 bg-white" />
+              <div className="flex gap-2">
+                <button onClick={() => { onRequestEdit?.(editComment.trim()); setEditRequestOpen(false); }}
+                  disabled={!editComment.trim()}
+                  className="px-4 py-1.5 rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground text-xs font-semibold disabled:opacity-50">
+                  Отправить запрос
+                </button>
+                <button onClick={() => setEditRequestOpen(false)}
+                  className="px-4 py-1.5 rounded-xl border border-amber-300 text-amber-700 text-xs">Отмена</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
       {submitError && <p className="text-xs text-red-500 mb-4">{submitError}</p>}
 
       {/* Выполнение месячного плана */}
@@ -258,7 +281,7 @@ const StaffCabinetDayTab = ({
                 </div>
                 {canEdit ? (
                   <div className="flex items-center gap-2 flex-shrink-0">
-                    <input type="number" min={0} value={item.qty}
+                    <input type="number" min={0} value={item.qty || ''} placeholder="0"
                       onChange={e => editSummaryQty(item.position_id, item.category, parseInt(e.target.value, 10) || 0)}
                       className="w-14 text-center border border-primary/30 rounded-lg px-1 py-1 text-sm outline-none focus:border-accent [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
                     <span className="text-sm font-semibold w-20 text-right" style={{ color: OLIVE }}>{fmtRub(item.qty * item.price)}</span>
@@ -288,7 +311,7 @@ const StaffCabinetDayTab = ({
       </div>
 
       {/* Позиции — сгруппированы по подкатегориям (position_group), избранные вверху */}
-      <div className="space-y-2 mb-5">
+      <div className={`space-y-2 mb-5 ${canEdit ? '' : 'hidden'}`}>
         {groupedPositions.map(([groupKey, groupRows]) => {
           const isSolo = groupKey.startsWith('__solo_');
           const groupName = isSolo

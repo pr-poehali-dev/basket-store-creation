@@ -297,8 +297,18 @@ def handler(event: dict, context) -> dict:
                         'time_end': r['time_end'].strftime('%H:%M') if r.get('time_end') else '',
                         'locked': bool(r['locked']),
                     } for r in rows]
+                    # Премия по месяцам = мотивация + премия из зарплатных периодов
+                    bonuses = {}
+                    if staff_id:
+                        cur.execute(
+                            "SELECT year, month, COALESCE(SUM(motivation),0) AS mot, "
+                            "COALESCE(SUM(bonus),0) AS bon FROM salary_periods "
+                            "WHERE staff_id=%s GROUP BY year, month", (int(staff_id),))
+                        for b in cur.fetchall():
+                            bonuses['%04d-%02d' % (b['year'], b['month'])] = (
+                                to_float(b['mot']) + to_float(b['bon']))
                     return {'statusCode': 200, 'headers': cors(),
-                            'body': json.dumps({'reports': reports})}
+                            'body': json.dumps({'reports': reports, 'bonuses': bonuses})}
 
                 if rec_type == 'warehouse':
                     cur.execute("SELECT * FROM warehouse ORDER BY catalog_name")

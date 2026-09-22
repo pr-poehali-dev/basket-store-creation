@@ -19,6 +19,7 @@ const AdminStaffCabinet = ({ auth }: { auth: AuthData }) => {
 
   const [positions, setPositions]   = useState<Position[]>([]);
   const [plan, setPlan]             = useState<Plan | null>(null);
+  const [monthBonuses, setMonthBonuses] = useState<Record<string, number>>({});
   const [reports, setReports]       = useState<DayReport[]>([]);
   const [loading, setLoading]       = useState(true);
 
@@ -61,6 +62,7 @@ const AdminStaffCabinet = ({ auth }: { auth: AuthData }) => {
       setPositions(posData.positions || []);
       setPlan((planData.plans || [])[0] || null);
       setReports(reportsData.reports || []);
+      setMonthBonuses(reportsData.bonuses || {});
     } catch { /* fallback */ }
     setLoading(false);
   }, [staffId]);
@@ -131,9 +133,8 @@ const AdminStaffCabinet = ({ auth }: { auth: AuthData }) => {
     setEditPositions(prev => prev.filter(p => !(p.position_id === positionId && p.category === cat)));
 
   const editSummaryQty = (positionId: number, cat: Category, qty: number) =>
-    setEditPositions(prev => qty <= 0
-      ? prev.filter(p => !(p.position_id === positionId && p.category === cat))
-      : prev.map(p => (p.position_id === positionId && p.category === cat) ? { ...p, qty } : p));
+    setEditPositions(prev => prev.map(p =>
+      (p.position_id === positionId && p.category === cat) ? { ...p, qty: Math.max(0, qty) } : p));
 
   const saveReport = async () => {
     if (!canEdit) return;
@@ -169,12 +170,13 @@ const AdminStaffCabinet = ({ auth }: { auth: AuthData }) => {
   // Запрос на редактирование закрытого дня — уходит в «Заявки»
   const [editRequestSent, setEditRequestSent] = useState(false);
   useEffect(() => { setEditRequestSent(false); }, [selectedDate]);
-  const requestEdit = async () => {
+  const requestEdit = async (comment: string) => {
     await fetch(urls['tasks'], {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         action: 'request', staff_id: staffId, staff_name: auth.full_name || '',
-        request_type: 'report_edit', comment: `Прошу открыть отчёт за ${selectedDate} для редактирования`,
+        request_type: 'report_edit',
+        comment: `Отчёт за ${selectedDate}. ${comment}`,
         date_from: selectedDate, date_to: selectedDate,
       }),
     });
@@ -190,7 +192,7 @@ const AdminStaffCabinet = ({ auth }: { auth: AuthData }) => {
   const planMonthRub = plan ? plan.daily_plan_rub * 22 : 0;
   const planPct      = planMonthRub > 0 ? Math.min(100, Math.round(monthEarned / planMonthRub * 100)) : 0;
   const remainingToPlan = Math.max(0, planMonthRub - monthEarned);
-  const bonus        = bonusFor(monthEarned, planMonthRub);
+  const bonus        = monthBonuses[currentMonth] ?? bonusFor(monthEarned, planMonthRub);
 
   const monthsMap: Record<string, number> = {};
   for (const r of reports) {
@@ -311,6 +313,7 @@ const AdminStaffCabinet = ({ auth }: { auth: AuthData }) => {
           bonus={bonus}
           monthReports={monthReports}
           monthsList={monthsList}
+          monthBonuses={monthBonuses}
           planMonthRub={planMonthRub}
           openDayEdit={openDayEdit}
         />

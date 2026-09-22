@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import Icon from '@/components/ui/icon';
 import urls from '../../../backend/func2url.json';
 import StaffReportCharts from './StaffReportCharts';
+import StaffReportData from './StaffReportData';
 
 interface PRow extends Row { year: number; month: number }
 
@@ -81,7 +82,7 @@ const AdminStaffReport = () => {
   const [rows, setRows] = useState<PRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [openStaff, setOpenStaff] = useState<Record<number, boolean>>({});
-  const [view, setView] = useState<'total' | 'byday' | 'charts'>('total');
+  const [view, setView] = useState<'total' | 'byday' | 'charts' | 'data'>('total');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -115,6 +116,16 @@ const AdminStaffReport = () => {
       const [ay, am] = a.split('-').map(Number); const [by, bm] = b.split('-').map(Number);
       return ay - by || am - bm;
     });
+  // Диапазон дат для вкладки «Данные» — по выбранным годам и месяцам
+  const dataRange: [string, string] = (() => {
+    const ys = year.length ? year : [now.getFullYear()];
+    const ms = months.length ? months : [now.getMonth() + 1];
+    const minY = Math.min(...ys), maxY = Math.max(...ys);
+    const minM = Math.min(...ms), maxM = Math.max(...ms);
+    const last = new Date(maxY, maxM, 0).getDate();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return [`${minY}-${pad(minM)}-01`, `${maxY}-${pad(maxM)}-${pad(last)}`];
+  })();
   const yearOpts = [now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1]
     .map(y => ({ value: y, label: String(y) }));
 
@@ -395,17 +406,22 @@ const AdminStaffReport = () => {
       </div>
 
       <div className="flex gap-2 mb-5">
-        {(['total', 'byday', 'charts'] as const).map(v => (
+        {(['total', 'byday', 'charts', 'data'] as const).map(v => (
           <button key={v} onClick={() => setView(v)}
             className={`px-4 py-1.5 rounded-xl border text-sm font-medium transition-colors ${
               view === v ? 'bg-primary text-white border-primary' : 'border-primary/40 text-primary hover:border-primary'
             }`}>
-            {v === 'total' ? 'Общая' : v === 'byday' ? 'По дням' : 'Диаграммы'}
+            {v === 'total' ? 'Общая' : v === 'byday' ? 'По дням' : v === 'charts' ? 'Диаграммы' : 'Данные'}
           </button>
         ))}
       </div>
 
-      {view === 'charts' ? (
+      {view === 'data' ? (
+        <StaffReportData
+          staffIds={Array.from(new Set(visible.map(r => r.staff_id)))}
+          staffNames={Object.fromEntries(visible.map(r => [r.staff_id, r.full_name]))}
+          dateFrom={dataRange[0]} dateTo={dataRange[1]} />
+      ) : view === 'charts' ? (
         <>
           {loading && <p className="text-muted-foreground mb-3">Обновляю данные...</p>}
           <StaffReportCharts rows={visible} />
