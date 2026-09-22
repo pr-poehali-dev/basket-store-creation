@@ -155,6 +155,7 @@ def handler(event: dict, context) -> dict:
                             'lag_rub': fact_rub - plan_now,
                             'plan_hours': p_hours * work_days_total,
                             'plan_hours_day': p_hours,
+                            'plan_month': plan_month,
                             'fact_hours': fact_hrs,
                             'lag_hours': fact_hrs - p_hours * work_days,
                             'fact_days': fact_days,

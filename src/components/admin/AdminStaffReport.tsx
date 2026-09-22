@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import Icon from '@/components/ui/icon';
 import urls from '../../../backend/func2url.json';
 
+interface PRow extends Row { year: number; month: number }
+
 interface Row {
   staff_id: number;
   full_name: string;
@@ -12,6 +14,7 @@ interface Row {
   lag_rub: number;
   plan_hours: number;
   plan_hours_day: number;
+  plan_month: number;
   fact_hours: number;
   lag_hours: number;
   fact_days: number;
@@ -74,7 +77,7 @@ const AdminStaffReport = () => {
   const [year, setYears]   = useState<number[]>([now.getFullYear()]);
   const [months, setMonths] = useState<number[]>([now.getMonth() + 1]);
   const [staffFilter, setStaffFilter] = useState<number[]>([]);
-  const [rows, setRows] = useState<Row[]>([]);
+  const [rows, setRows] = useState<PRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [openStaff, setOpenStaff] = useState<Record<number, boolean>>({});
 
@@ -85,21 +88,14 @@ const AdminStaffReport = () => {
       for (const y of year) for (const m of months) combos.push({ y, m });
       const all = await Promise.all(combos.map(c =>
         fetch(`${urls['reports']}?type=summary&year=${c.y}&month=${c.m}`).then(r => r.json())));
-      // Несколько месяцев — суммируем показатели по сотруднику
-      const map = new Map<number, Row>();
-      for (const res of all) for (const r of (res.rows || []) as Row[]) {
-        const ex = map.get(r.staff_id);
-        if (!ex) { map.set(r.staff_id, { ...r }); continue; }
-        ex.plan_now += r.plan_now; ex.fact_rub += r.fact_rub; ex.lag_rub += r.lag_rub;
-        ex.plan_hours += r.plan_hours; ex.fact_hours += r.fact_hours; ex.lag_hours += r.lag_hours;
-        ex.fact_days += r.fact_days; ex.lag_days += r.lag_days;
-        ex.motivation += r.motivation; ex.bonus += r.bonus;
-        ex.days = [...(ex.days || []), ...(r.days || [])];
-        ex.speed = ex.fact_hours > 0 ? Math.round(ex.fact_rub / ex.fact_hours) : 0;
-        ex.pct_today = ex.plan_now > 0 ? Math.round(ex.fact_rub / ex.plan_now * 100) : 0;
-      }
-      setRows(Array.from(map.values()).sort((a, b) =>
-        Number(!a.no_plan) - Number(!b.no_plan) || a.full_name.localeCompare(b.full_name, 'ru')));
+      // Каждый период — своя таблица
+      const flat: PRow[] = [];
+      all.forEach((res, i) => {
+        for (const r of (res.rows || []) as Row[]) {
+          flat.push({ ...r, year: combos[i].y, month: combos[i].m });
+        }
+      });
+      setRows(flat);
     } catch { /* ignore */ }
     setLoading(false);
   }, [year, months]);
@@ -110,17 +106,16 @@ const AdminStaffReport = () => {
     set(arr.includes(v) ? arr.filter(x => x !== v) : [...arr, v]);
 
   const visible = staffFilter.length ? rows.filter(r => staffFilter.includes(r.staff_id)) : rows;
-  const staffOpts = rows.map(r => ({ value: r.staff_id, label: r.full_name }));
+  const staffOpts = Array.from(new Map(rows.map(r => [r.staff_id, r.full_name])).entries())
+    .map(([value, label]) => ({ value, label }));
+  const periods = Array.from(new Set(rows.map(r => `${r.year}-${r.month}`)))
+    .sort((a, b) => {
+      const [ay, am] = a.split('-').map(Number); const [by, bm] = b.split('-').map(Number);
+      return ay - by || am - bm;
+    });
   const yearOpts = [now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1]
     .map(y => ({ value: y, label: String(y) }));
 
-  const calc = visible.filter(r => !r.no_plan);
-  const sum = (f: (x: Row) => number) => visible.reduce((a, b) => a + f(b), 0);
-  const sumC = (f: (x: Row) => number) => calc.reduce((a, b) => a + f(b), 0);
-  const tPlan = sumC(x => x.plan_now);
-  const tFact = sum(x => x.fact_rub);
-  const tPctToday = tPlan > 0 ? Math.round(tFact / tPlan * 100) : 0;
-  const tPctMonth = calc.length ? Math.round(calc.reduce((a, b) => a + b.pct_month, 0) / calc.length) : 0;
 
   // Красный — отставание, зелёный — перевыполнение
   const neg = (v: number) => (v < 0 ? 'text-red-600 font-semibold' : 'text-primary');
@@ -147,22 +142,18 @@ const AdminStaffReport = () => {
     return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}`;
   };
 
-  let idx = 0;
-
-  return (
-    <div className="p-6">
-      <h1 className="font-display text-2xl font-semibold text-primary mb-4">Сводка по сотрудникам</h1>
-
-      <div className="flex gap-3 mb-5 flex-wrap items-start">
-        <MultiSelect label="Год" width="w-36" options={yearOpts}
-          selected={year} onToggle={v => toggle(year, v, setYears)} />
-        <MultiSelect label="Месяцы" options={MONTHS.map((m, i) => ({ value: i + 1, label: m }))}
-          selected={months} onToggle={v => toggle(months, v, setMonths)} />
-        <MultiSelect label="Сотрудники" width="w-56" options={staffOpts}
-          selected={staffFilter} onToggle={v => toggle(staffFilter, v, setStaffFilter)} />
-      </div>
-
-      {loading ? <p className="text-muted-foreground">Загружаю...</p> : (
+  const renderTable = (title: string, list: PRow[]) => {
+    const calc = list.filter(r => !r.no_plan);
+    const sum = (f: (x: PRow) => number) => list.reduce((a, b) => a + f(b), 0);
+    const sumC = (f: (x: PRow) => number) => calc.reduce((a, b) => a + f(b), 0);
+    const tPlan = sumC(x => x.plan_now);
+    const tFact = sum(x => x.fact_rub);
+    const tPctToday = tPlan > 0 ? Math.round(tFact / tPlan * 100) : 0;
+    const tPctMonth = calc.length ? Math.round(calc.reduce((a, b) => a + b.pct_month, 0) / calc.length) : 0;
+    let idx = 0;
+    return (
+      <div className="mb-8">
+        <h2 className="font-display text-lg font-semibold text-primary mb-2">{title}</h2>
         <div className="border border-primary/25 rounded-2xl overflow-x-auto bg-card">
           <table className="border-collapse w-full min-w-[1360px]">
             <thead>
@@ -188,7 +179,7 @@ const AdminStaffReport = () => {
               </tr>
             </thead>
             <tbody>
-              {visible.map(r => {
+              {list.map(r => {
                 const isOpen = !!openStaff[r.staff_id];
                 if (!r.no_plan) idx += 1;
                 return [
@@ -220,6 +211,8 @@ const AdminStaffReport = () => {
                     const lagRub = d.rub - (r.no_plan ? 0 : r.trend);
                     const lagHrs = d.hours - (r.no_plan ? 0 : r.plan_hours_day);
                     const pct    = r.trend > 0 ? Math.round(d.rub / r.trend * 100) : 0;
+                    // Доля дня в месячном плане
+                    const pctM   = r.plan_month > 0 ? Math.round(d.rub / r.plan_month * 100) : 0;
                     return (
                       <tr key={`${r.staff_id}-${d.date}`} className="border-t border-primary/5 bg-primary/[0.03] text-primary/80">
                         <Td />
@@ -234,7 +227,7 @@ const AdminStaffReport = () => {
                         <Td>—</Td>
                         <Td sep>{d.hours > 0 ? rub(Math.round(d.rub / d.hours)) : '—'}</Td>
                         <Td sep cls={r.no_plan ? '' : pctCell(pct)}>{r.no_plan ? '—' : `${pct}%`}</Td>
-                        <Td>—</Td>
+                        <Td cls={r.no_plan ? '' : 'text-primary/70'}>{r.no_plan ? '—' : `${pctM}%`}</Td>
                         <Td sep />
                         <Td sep />
                       </tr>
@@ -247,10 +240,10 @@ const AdminStaffReport = () => {
                   ),
                 ];
               })}
-              {visible.length === 0 && (
+              {list.length === 0 && (
                 <tr><td colSpan={16} className="px-3 py-6 text-center text-muted-foreground text-sm">Нет данных</td></tr>
               )}
-              {visible.length > 0 && (
+              {list.length > 0 && (
                 <tr className="border-t-2 border-primary/30 bg-primary/10 font-bold text-primary">
                   <Td />
                   <td className="px-3 py-2 text-[11px] font-bold">ИТОГ</td>
@@ -272,6 +265,32 @@ const AdminStaffReport = () => {
             </tbody>
           </table>
         </div>
+      </div>
+    );
+  };
+
+
+  return (
+    <div className="p-6">
+      <h1 className="font-display text-2xl font-semibold text-primary mb-4">Сводка по сотрудникам</h1>
+
+      <div className="flex gap-3 mb-5 flex-wrap items-start">
+        <MultiSelect label="Год" width="w-36" options={yearOpts}
+          selected={year} onToggle={v => toggle(year, v, setYears)} />
+        <MultiSelect label="Месяцы" options={MONTHS.map((m, i) => ({ value: i + 1, label: m }))}
+          selected={months} onToggle={v => toggle(months, v, setMonths)} />
+        <MultiSelect label="Сотрудники" width="w-56" options={staffOpts}
+          selected={staffFilter} onToggle={v => toggle(staffFilter, v, setStaffFilter)} />
+      </div>
+
+      {loading ? <p className="text-muted-foreground">Загружаю...</p> : (
+        <>
+          {periods.map(pk => {
+            const [y, m] = pk.split('-').map(Number);
+            const list = visible.filter(r => r.year === y && r.month === m);
+            return <div key={pk}>{renderTable(`${MONTHS[m - 1]} ${y}`, list)}</div>;
+          })}
+        </>
       )}
       <p className="text-[11px] text-primary/45 mt-3">
         План считается от дневного плана («тренд») × количество рабочих дней с начала месяца по вчерашний день.
