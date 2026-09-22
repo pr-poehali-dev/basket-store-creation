@@ -202,9 +202,20 @@ def handler(event: dict, context) -> dict:
                         warehouse_delta[cname] = {'full': 0, 'no_handle': 0}
                     if cat == 'no_handle':
                         warehouse_delta[cname]['no_handle'] += qty
+                    elif cat == 'handle':
+                        # Ручка НЕ создаёт новую корзину: она превращает уже
+                        # сплетённую корзину без ручки в корзину с ручкой.
+                        warehouse_delta[cname]['handle'] = warehouse_delta[cname].get('handle', 0) + qty
                     else:
-                        # whole и handle считаем как full корзина
                         warehouse_delta[cname]['full'] += qty
+
+                # Ручки «поглощают» корзины без ручки: без ручки + ручка = с ручкой
+                for cname, d in warehouse_delta.items():
+                    h = d.pop('handle', 0)
+                    if h:
+                        used = min(h, d['no_handle'])
+                        d['no_handle'] -= used
+                        d['full'] += h
 
                 # Имя сотрудника для истории склада
                 staff_name = str(staff_id)

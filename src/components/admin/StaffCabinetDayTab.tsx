@@ -1,3 +1,4 @@
+import { useState, useMemo } from 'react';
 import Icon from '@/components/ui/icon';
 import {
   Category, CATEGORY_KEYS, CATEGORY_LABEL, MergedPosition, ReportPosition, DayReport, Plan,
@@ -43,6 +44,35 @@ const StaffCabinetDayTab = ({
   sortedPositions, openPositions, setOpenPositions, selectedRow, setSelectedRow,
   getDraft, setDraft, addToReport,
 }: StaffCabinetDayTabProps) => {
+  // Избранные подкатегории — хранятся локально у сотрудника
+  const [favGroups, setFavGroups] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem('cabinet_fav_groups') || '[]'); } catch { return []; }
+  });
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+
+  const toggleFav = (g: string) => {
+    setFavGroups(prev => {
+      const next = prev.includes(g) ? prev.filter(x => x !== g) : [...prev, g];
+      localStorage.setItem('cabinet_fav_groups', JSON.stringify(next));
+      return next;
+    });
+  };
+
+  // Группировка по подкатегории (position_group); без группы — по названию позиции
+  const groupedPositions = useMemo(() => {
+    const map = new Map<string, MergedPosition[]>();
+    for (const r of sortedPositions) {
+      const g = (r.position_group || '').trim() || r.staff_name;
+      if (!map.has(g)) map.set(g, []);
+      map.get(g)!.push(r);
+    }
+    return Array.from(map.entries()).sort((a, b) => {
+      const af = favGroups.includes(a[0]) ? 0 : 1;
+      const bf = favGroups.includes(b[0]) ? 0 : 1;
+      return af - bf || a[0].localeCompare(b[0], 'ru');
+    });
+  }, [sortedPositions, favGroups]);
+
   return (
     <div>
       {/* Дата и время — обязательны */}
@@ -135,9 +165,28 @@ const StaffCabinetDayTab = ({
         )}
       </div>
 
-      {/* Позиции — плоский список, сортировка по sort_order из справочника */}
+      {/* Позиции — сгруппированы по подкатегориям (position_group), избранные вверху */}
       <div className="space-y-2 mb-5">
-        {sortedPositions.map(row => {
+        {groupedPositions.map(([groupName, groupRows]) => {
+          const isFav      = favGroups.includes(groupName);
+          const isGroupOpen = !!openGroups[groupName];
+          return (
+          <div key={groupName} className="border border-primary/30 rounded-2xl overflow-hidden">
+            <div className="w-full flex items-center gap-2 px-3 py-2.5 bg-primary/8">
+              <button onClick={() => toggleFav(groupName)} title="В избранное"
+                className="flex-shrink-0 transition-transform active:scale-90">
+                <Icon name="Heart" size={18}
+                  className={isFav ? 'text-red-500 fill-red-500' : 'text-primary/30'} />
+              </button>
+              <button onClick={() => setOpenGroups(p => ({ ...p, [groupName]: !p[groupName] }))}
+                className="flex-1 flex items-center justify-between min-w-0">
+                <span className="font-bold text-primary text-sm truncate">{groupName}</span>
+                <Icon name={isGroupOpen ? 'ChevronUp' : 'ChevronDown'} size={16} className="text-primary/50" />
+              </button>
+            </div>
+            {isGroupOpen && (
+        <div className="p-2 space-y-2">
+        {groupRows.map(row => {
           const isPosOpen = !!openPositions[row.id];
           const selectedId = selectedRow[row.id] ?? row.id;
           const activeRow = sortedPositions.find(r => r.id === selectedId) || row;
@@ -199,6 +248,11 @@ const StaffCabinetDayTab = ({
                 </div>
               )}
             </div>
+          );
+        })}
+        </div>
+            )}
+          </div>
           );
         })}
         {sortedPositions.length === 0 && (

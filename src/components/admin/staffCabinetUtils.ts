@@ -7,7 +7,7 @@ export interface AuthData {
 
 export function getAuthFromSession(): AuthData {
   try {
-    const raw = sessionStorage.getItem('admin_auth');
+    const raw = localStorage.getItem('admin_auth');
     if (raw) return JSON.parse(raw) as AuthData;
   } catch { /* ignore */ }
   return { is_admin: false, pages: [] };
@@ -21,6 +21,7 @@ export const CATEGORY_LABEL: Record<Category, string> = {
 
 export interface Position {
   id: number;
+  position_group: string;
   catalog_name: string;
   staff_name: string;
   weave_type: string;
@@ -39,6 +40,7 @@ export interface Position {
 // шло на правильный товар.
 export interface MergedPosition {
   id: number;
+  position_group: string;
   catalog_name: string;
   catalog_name_ears: string;
   staff_name: string;
@@ -77,7 +79,7 @@ export function mergePositions(rows: Position[]): MergedPosition[] {
     if (group.length === 1) {
       const r = group[0];
       result.push({
-        id: r.id, catalog_name: r.catalog_name, catalog_name_ears: r.catalog_name,
+        id: r.id, position_group: r.position_group || '', catalog_name: r.catalog_name, catalog_name_ears: r.catalog_name,
         staff_name: r.staff_name, weave_type: r.weave_type, sort_order: r.sort_order,
         price_whole: r.price_whole, price_no_handle: r.price_no_handle,
         price_handle: r.price_handle, price_ears: r.price_ears, price_whole_ears: r.price_whole_ears,
@@ -88,6 +90,7 @@ export function mergePositions(rows: Position[]): MergedPosition[] {
     const earsRow = group.find(r => r.price_ears > 0 || r.price_whole_ears > 0) || group[group.length - 1];
     result.push({
       id: mainRow.id,
+      position_group: mainRow.position_group || earsRow.position_group || '',
       catalog_name: mainRow.catalog_name,
       catalog_name_ears: earsRow.catalog_name,
       staff_name: staffName,

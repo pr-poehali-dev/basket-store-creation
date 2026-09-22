@@ -81,7 +81,7 @@ const AdminLayout = ({ children }: { children: ReactNode }) => {
   const location  = useLocation();
 
   const [authed, setAuthed] = useState<AuthData | null>(() => {
-    const raw = sessionStorage.getItem('admin_auth');
+    const raw = localStorage.getItem('admin_auth');
     if (!raw) return null;
     try { return JSON.parse(raw) as AuthData; } catch { return null; }
   });
@@ -114,7 +114,7 @@ const AdminLayout = ({ children }: { children: ReactNode }) => {
         full_name: data.full_name,
         pages:     data.pages || [],
       };
-      sessionStorage.setItem('admin_auth', JSON.stringify(authData));
+      localStorage.setItem('admin_auth', JSON.stringify(authData));
       setAuthed(authData);
     } else {
       setAuthError(data.error || 'Неверный логин или пароль');
@@ -122,7 +122,7 @@ const AdminLayout = ({ children }: { children: ReactNode }) => {
   };
 
   const doLogout = () => {
-    sessionStorage.removeItem('admin_auth');
+    localStorage.removeItem('admin_auth');
     setAuthed(null);
     setLogin(''); setPassword('');
   };

@@ -1,13 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import urls from '../../../backend/func2url.json';
 import {
-  AuthData, getAuthFromSession, Category, Position, MergedPosition, DayReport, Plan, ReportPosition, VacationEntry,
+  AuthData, getAuthFromSession, Category, Position, MergedPosition, DayReport, Plan, ReportPosition,
   isoToday, bonusFor, hoursBetween, rowKey,
   mergePositions, categoryPrice, categoryCatalog, CATEGORY_KEYS,
 } from './staffCabinetUtils';
 import StaffCabinetDayTab from './StaffCabinetDayTab';
 import StaffCabinetStatsTab from './StaffCabinetStatsTab';
-import StaffCabinetVacationTab from './StaffCabinetVacationTab';
 import StaffCabinetEditDayModal from './StaffCabinetEditDayModal';
 import Icon from '@/components/ui/icon';
 
@@ -15,13 +14,12 @@ export type { AuthData };
 
 const AdminStaffCabinet = ({ auth }: { auth: AuthData }) => {
   const staffId = auth.staff_id!;
-  const [tab, setTab] = useState<'day' | 'stats' | 'vacation'>('day');
+  const [tab, setTab] = useState<'day' | 'stats'>('day');
   const [statsPeriod, setStatsPeriod] = useState<'days' | 'months'>('days');
 
   const [positions, setPositions]   = useState<Position[]>([]);
   const [plan, setPlan]             = useState<Plan | null>(null);
   const [reports, setReports]       = useState<DayReport[]>([]);
-  const [vacation, setVacation]     = useState<{ total: number; entries: VacationEntry[] }>({ total: 0, entries: [] });
   const [loading, setLoading]       = useState(true);
 
   // ── Внести отчёт (дневная форма) ────────────────────────────────────────
@@ -52,19 +50,17 @@ const AdminStaffCabinet = ({ auth }: { auth: AuthData }) => {
       const from = new Date(now.getFullYear(), now.getMonth() - 2, 1).toISOString().slice(0, 10);
       const to   = isoToday();
 
-      const [posRes, planRes, reportsRes, vacRes] = await Promise.all([
+      const [posRes, planRes, reportsRes] = await Promise.all([
         fetch(`${urls['handbook']}?type=positions`),
         fetch(`${urls['handbook']}?type=plans&staff_id=${staffId}`),
         fetch(`${urls['reports']}?type=reports&staff_id=${staffId}&from=${from}&to=${to}`),
-        fetch(`${urls['reports']}?type=vacation&staff_id=${staffId}`),
       ]);
-      const [posData, planData, reportsData, vacData] = await Promise.all([
-        posRes.json(), planRes.json(), reportsRes.json(), vacRes.json(),
+      const [posData, planData, reportsData] = await Promise.all([
+        posRes.json(), planRes.json(), reportsRes.json(),
       ]);
       setPositions(posData.positions || []);
       setPlan((planData.plans || [])[0] || null);
       setReports(reportsData.reports || []);
-      setVacation({ total: vacData.total || 0, entries: vacData.entries || [] });
     } catch { /* fallback */ }
     setLoading(false);
   }, [staffId]);
@@ -238,12 +234,6 @@ const AdminStaffCabinet = ({ auth }: { auth: AuthData }) => {
           }`}>
           Статистика ЗП
         </button>
-        <button onClick={() => setTab('vacation')}
-          className={`px-3 py-1.5 rounded-xl border text-xs font-medium transition-colors ${
-            tab === 'vacation' ? 'bg-primary text-white border-primary' : 'border-primary/40 text-primary hover:border-primary'
-          }`}>
-          Отпускные
-        </button>
       </div>
 
       {/* ── ВНЕСТИ ОТЧЁТ ──────────────────────────────────────── */}
@@ -299,11 +289,6 @@ const AdminStaffCabinet = ({ auth }: { auth: AuthData }) => {
           planMonthRub={planMonthRub}
           openDayEdit={openDayEdit}
         />
-      )}
-
-      {/* ── ОТПУСКНЫЕ ─────────────────────────────────────────── */}
-      {tab === 'vacation' && (
-        <StaffCabinetVacationTab vacation={vacation} />
       )}
 
       {/* Кнопка "наверх" */}

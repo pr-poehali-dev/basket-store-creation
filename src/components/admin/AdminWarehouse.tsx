@@ -46,7 +46,7 @@ function fmtDt(iso: string): string {
 // Имя текущего сотрудника — записывается в историю операций склада
 function getAuthName(): string {
   try {
-    const raw = sessionStorage.getItem('admin_auth');
+    const raw = localStorage.getItem('admin_auth');
     if (raw) {
       const a = JSON.parse(raw);
       return a.full_name || 'Администратор';

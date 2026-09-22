@@ -28,7 +28,7 @@ from psycopg2.extras import RealDictCursor
 
 PRICE_FIELDS = ('price_whole', 'price_no_handle', 'price_handle', 'price_ears', 'price_whole_ears')
 # Поля позиции, редактируемые из админки (group_name больше не выставляется пользователем — заполняется автоматически)
-POSITION_FIELDS = ('catalog_name', 'set_catalog_names', 'set_staff_names', 'staff_name', 'weave_type', 'sort_order', *PRICE_FIELDS)
+POSITION_FIELDS = ('catalog_name', 'set_catalog_names', 'set_staff_names', 'staff_name', 'weave_type', 'sort_order', 'position_group', *PRICE_FIELDS)
 
 EXCEL_COLUMN_ORDER = (
     'catalog_name', 'set_catalog_names', 'set_staff_names', 'staff_name',
@@ -69,6 +69,7 @@ def row_to_position(r):
         'price_ears': to_float(r['price_ears']),
         'price_whole_ears': to_float(r['price_whole_ears']),
         'sort_order': r['sort_order'] if r['sort_order'] is not None else 0,
+        'position_group': r.get('position_group') or '',
         'is_active': bool(r['is_active']),
     }
 

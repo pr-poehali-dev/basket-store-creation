@@ -4,7 +4,7 @@ import AdminTasksBlock from './AdminTasksBlock';
 // Читаем auth из sessionStorage
 function getAuth() {
   try {
-    const raw = sessionStorage.getItem('admin_auth');
+    const raw = localStorage.getItem('admin_auth');
     if (raw) return JSON.parse(raw);
   } catch { /* ignore */ }
   return { is_admin: false, pages: [] };

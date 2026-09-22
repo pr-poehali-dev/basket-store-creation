@@ -14,7 +14,7 @@ interface OrderComment {
 
 function getAuth(): { staff_id?: number; full_name?: string } {
   try {
-    const raw = sessionStorage.getItem('admin_auth');
+    const raw = localStorage.getItem('admin_auth');
     if (raw) return JSON.parse(raw);
   } catch { /* ignore */ }
   return {};
