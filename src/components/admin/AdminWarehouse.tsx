@@ -115,8 +115,13 @@ const AdminWarehouse = () => {
         .slice()
         .sort((a: WarehouseItem, b: WarehouseItem) => a.catalog_name.localeCompare(b.catalog_name, 'ru'));
       setItems(warehouseItems);
-      // Выпадающий список — строго то, что есть на складе (названия без размера)
-      setAllNames(warehouseItems.map(i => i.catalog_name));
+      // Выпадающий список — только реальные позиции склада:
+      // без дублей с размером в скобках и без наборов (они собираются из корзин)
+      const plain = new Set(warehouseItems.map(i => i.catalog_name).filter(n => !/\(/.test(n)));
+      setAllNames(warehouseItems
+        .map(i => i.catalog_name)
+        .filter(n => !/набор/i.test(n))
+        .filter(n => !/\(/.test(n) || !plain.has(displayTitle(n))));
     } catch { /* fallback */ }
     setLoading(false);
   };

@@ -34,7 +34,7 @@ def row_to_client(r):
     return {
         'id': r['id'],
         'full_name': r['full_name'] or '',
-        'phone': r['phone'] or '',
+        'phone': '' if str(r['phone'] or '').startswith('нет:') else (r['phone'] or ''),
         'email': r.get('email') or '',
         'city': r.get('city') or '',
         'callsign': r.get('callsign') or ' '.join(x for x in [(r.get('city') or '').strip(), (r['full_name'] or '').strip()] if x),
@@ -171,21 +171,46 @@ def handler(event: dict, context) -> dict:
                     with conn.cursor() as cur:
                         for row in ws.iter_rows(min_row=2, values_only=True):
                             r = dict(zip(headers, row))
-                            phone = str(r.get('телефон') or r.get('phone') or '').strip()
-                            if not phone: continue
-                            full_name = str(r.get('имя') or r.get('full_name') or r.get('название') or phone).strip()
-                            email     = str(r.get('email') or r.get('почта') or '').strip()
-                            city      = str(r.get('город') or r.get('city') or '').strip()
-                            inn       = str(r.get('инн') or r.get('inn') or '').strip()
-                            cur.execute("SELECT id FROM clients WHERE phone = %s", (phone,))
-                            ex = cur.fetchone()
+                            def g(*keys):
+                                for k in keys:
+                                    v = r.get(k)
+                                    if v not in (None, ''):
+                                        return str(v).strip()
+                                return ''
+                            callsign = g('позывной', 'callsign')
+                            fio      = g('фио', 'имя', 'full_name')
+                            org      = g('организация', 'название')
+                            city     = g('город', 'city')
+                            phone    = g('телефон', 'phone')
+                            deliv    = g('доставка', 'delivery_type')
+                            note     = g('примечание', 'комментарий', 'note')
+                            email    = g('email', 'почта')
+                            inn      = g('инн', 'inn')
+                            full_name = org or fio or callsign
+                            if not (full_name or callsign):
+                                continue
+                            if '@' in phone and not email:
+                                email, phone = phone, ''
+                            ph_db = phone or ('нет:' + (callsign or full_name))[:60]
+                            ex = None
+                            if phone:
+                                cur.execute("SELECT id FROM clients WHERE phone = %s", (phone,))
+                                ex = cur.fetchone()
+                            if not ex and callsign:
+                                cur.execute("SELECT id FROM clients WHERE callsign = %s", (callsign,))
+                                ex = cur.fetchone()
                             if ex:
-                                cur.execute("UPDATE clients SET full_name=%s,email=%s,city=%s,inn=%s,updated_at=NOW() WHERE id=%s",
-                                            (full_name, email, city, inn, ex[0]))
+                                cur.execute(
+                                    "UPDATE clients SET full_name=%s, city=%s, callsign=%s, "
+                                    "delivery_type=%s, delivery_address=%s, email=COALESCE(NULLIF(%s,''),email), "
+                                    "inn=COALESCE(NULLIF(%s,''),inn), updated_at=NOW() WHERE id=%s",
+                                    (full_name, city, callsign, deliv, note, email, inn, ex[0]))
                                 updated += 1
                             else:
-                                cur.execute("INSERT INTO clients (full_name,phone,email,city,inn) VALUES (%s,%s,%s,%s,%s)",
-                                            (full_name, phone, email, city, inn))
+                                cur.execute(
+                                    "INSERT INTO clients (full_name,phone,email,city,inn,callsign,delivery_type,delivery_address) "
+                                    "VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
+                                    (full_name, ph_db, email, city, inn, callsign, deliv, note))
                                 created += 1
                     return {'statusCode': 200, 'headers': cors(), 'body': json.dumps({'created': created, 'updated': updated})}
                 except Exception as e:
