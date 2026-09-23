@@ -182,18 +182,18 @@ const StaffCabinetDayTab = ({
             onChange={e => setSelectedDate(e.target.value)}
             className="border border-primary/30 rounded-xl px-3 py-2 text-sm outline-none focus:border-accent bg-primary/10" />
         </div>
-        <div className="flex gap-4 md:gap-2 items-end">
-          <div className="flex-1 min-w-0">
-            <label className="text-xs text-muted-foreground block mb-1">Начало работы *</label>
+        <div className="flex gap-6 md:gap-2 items-end">
+          <div className="flex-shrink-0 md:flex-1">
+            <label className="text-xs text-muted-foreground block mb-1 whitespace-nowrap">Начало работы *</label>
             <input type="time" value={timeStart} disabled={!canEdit}
               onChange={e => setTimeStart(e.target.value)}
-              className="w-full border border-primary/30 rounded-xl px-3 py-2 text-sm outline-none focus:border-accent disabled:opacity-60 bg-primary/10" />
+              className="w-[115px] md:w-full border border-primary/30 rounded-xl px-3 py-2 text-sm outline-none focus:border-accent disabled:opacity-60 bg-primary/10" />
           </div>
-          <div className="flex-1 min-w-0">
-            <label className="text-xs text-muted-foreground block mb-1">Окончание работы *</label>
+          <div className="flex-shrink-0 md:flex-1">
+            <label className="text-xs text-muted-foreground block mb-1 whitespace-nowrap">Окончание работы *</label>
             <input type="time" value={timeEnd} disabled={!canEdit}
               onChange={e => setTimeEnd(e.target.value)}
-              className="w-full border border-primary/30 rounded-xl px-3 py-2 text-sm outline-none focus:border-accent disabled:opacity-60 bg-primary/10" />
+              className="w-[115px] md:w-full border border-primary/30 rounded-xl px-3 py-2 text-sm outline-none focus:border-accent disabled:opacity-60 bg-primary/10" />
           </div>
         </div>
         {hoursWorked > 0 && (

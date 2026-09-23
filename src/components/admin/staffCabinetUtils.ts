@@ -144,6 +144,7 @@ export interface DayReport {
 export interface Plan {
   daily_plan_rub: number;
   daily_plan_hours: number;
+  valid_from?: string;
 }
 
 export interface VacationEntry {
@@ -201,3 +202,9 @@ export function hoursBetween(start: string, end: string): number {
 
 export const OLIVE = '#6b7c3a';
 export const rowKey = (positionId: number, cat: Category) => `${positionId}__${cat}`;
+
+// План, действующий на указанную дату (последний с valid_from <= date)
+export function planFor(plans: Plan[], date: string): Plan | null {
+  const sorted = [...plans].sort((a, b) => (b.valid_from || '').localeCompare(a.valid_from || ''));
+  return sorted.find(p => !p.valid_from || p.valid_from <= date) || null;
+}

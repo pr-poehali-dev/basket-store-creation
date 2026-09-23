@@ -183,6 +183,17 @@ const AdminHandbook = () => {
   useEffect(() => { load(); }, [showAll]);
   useEffect(() => { if (tab === 'plans') loadPlans(selectedMonth); }, [tab, selectedMonth]);
 
+  const [historyStaff, setHistoryStaff] = useState<number | null>(null);
+  const [planHistory, setPlanHistory]   = useState<Plan[]>([]);
+  const openPlanHistory = async (staffId: number) => {
+    setHistoryStaff(staffId); setPlanHistory([]);
+    try {
+      const res = await fetch(`${urls['handbook']}?type=plans&staff_id=${staffId}`);
+      const data = await res.json();
+      setPlanHistory(data.plans || []);
+    } catch { /* ignore */ }
+  };
+
   const openAddPos = () => { setEditPosId(null); setPosForm({ ...EMPTY_POS }); setShowPosForm(true); };
   const openEditPos = (p: Position) => {
     setEditPosId(p.id);
@@ -216,6 +227,8 @@ const AdminHandbook = () => {
     setCellValue(String((pos as unknown as Record<string, unknown>)[key] ?? ''));
   };
 
+  const [priceAsk, setPriceAsk] = useState<{ id: number; key: string; value: number; date: string } | null>(null);
+
   const commitCell = async () => {
     if (!editCell) return;
     const { id, key } = editCell;
@@ -224,10 +237,27 @@ const AdminHandbook = () => {
     setEditCell(null);
     const before = positions.find(p => p.id === id);
     if (before && String((before as unknown as Record<string, unknown>)[key] ?? '') === String(value)) return;
+    if (key.startsWith('price_')) {
+      const d = new Date();
+      setPriceAsk({ id, key, value: value as number,
+        date: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` });
+      return;
+    }
     setPositions(prev => prev.map(p => p.id === id ? { ...p, [key]: value } as Position : p));
     await fetch(urls['handbook'], {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ type: 'position', id, [key]: value }),
+    });
+  };
+
+  const confirmPriceChange = async () => {
+    if (!priceAsk || !priceAsk.date) return;
+    const { id, key, value, date } = priceAsk;
+    setPriceAsk(null);
+    setPositions(prev => prev.map(p => p.id === id ? { ...p, [key]: value } as Position : p));
+    await fetch(urls['handbook'], {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'position', id, [key]: value, valid_from: date }),
     });
   };
 
@@ -486,13 +516,17 @@ const AdminHandbook = () => {
                         <td className="px-4 py-3 text-right font-bold">{plan ? plan.daily_plan_rub.toLocaleString('ru-RU') : <span className="text-muted-foreground">—</span>}</td>
                         <td className="px-4 py-3 text-right text-muted-foreground">{plan ? plan.daily_plan_hours : '—'}</td>
                         <td className="px-4 py-3 text-center text-xs text-muted-foreground">{plan?.valid_from ? new Date(plan.valid_from + 'T00:00:00').toLocaleDateString('ru-RU') : '—'}</td>
-                        <td className="px-4 py-3 text-center">
-                          <Button size="sm" variant="outline" className="rounded-lg h-8" onClick={() => {
+                        <td className="px-4 py-3 text-center whitespace-nowrap">
+                          <Button size="sm" variant="outline" className="rounded-lg h-8 mr-1" onClick={() => {
                             setPlanForm({ staff_id: s.id, daily_plan_rub: plan?.daily_plan_rub || 0, daily_plan_hours: plan?.daily_plan_hours || 9, valid_from: selectedMonth + '-01' });
                             setEditPlan(plan || null);
                             setShowPlanForm(true);
                           }}>
                             <Icon name="Pencil" size={14} />
+                          </Button>
+                          <Button size="sm" variant="outline" className="rounded-lg h-8" title="История планов"
+                            onClick={() => openPlanHistory(s.id)}>
+                            <Icon name="History" size={14} />
                           </Button>
                         </td>
                       </tr>
@@ -575,6 +609,58 @@ const AdminHandbook = () => {
       )}
 
       {/* ФОРМА ПЛАНА */}
+      {historyStaff !== null && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setHistoryStaff(null)}>
+          <div className="bg-background rounded-2xl p-6 w-full max-w-md max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <h3 className="font-semibold text-lg mb-4">История планов</h3>
+            {planHistory.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Планы не найдены</p>
+            ) : (
+              <table className="w-full text-sm">
+                <thead><tr className="text-muted-foreground text-xs border-b border-border">
+                  <th className="text-left py-2">Действует с</th>
+                  <th className="text-right py-2">План, ₽/день</th>
+                  <th className="text-right py-2">Часов</th>
+                </tr></thead>
+                <tbody>
+                  {planHistory.map((h, i) => (
+                    <tr key={h.id} className="border-b border-border last:border-0">
+                      <td className="py-2">
+                        {h.valid_from ? new Date(h.valid_from + 'T00:00:00').toLocaleDateString('ru-RU') : '—'}
+                        {i === 0 && <span className="ml-2 text-[10px] text-accent-foreground bg-accent px-1.5 py-0.5 rounded">текущий</span>}
+                      </td>
+                      <td className="py-2 text-right font-semibold">{h.daily_plan_rub.toLocaleString('ru-RU')}</td>
+                      <td className="py-2 text-right text-muted-foreground">{h.daily_plan_hours}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            <Button variant="outline" className="rounded-lg mt-5 w-full" onClick={() => setHistoryStaff(null)}>Закрыть</Button>
+          </div>
+        </div>
+      )}
+
+      {priceAsk && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setPriceAsk(null)}>
+          <div className="bg-background rounded-2xl p-6 w-full max-w-sm" onClick={e => e.stopPropagation()}>
+            <h3 className="font-semibold text-lg mb-1">Изменение цены</h3>
+            <p className="text-xs text-muted-foreground mb-4">
+              Новая цена {priceAsk.value.toLocaleString('ru-RU')} ₽ будет применяться только к отчётам с указанной даты.
+              Старые отчёты и зарплаты пересчитаны не будут.
+            </p>
+            <label className={labelCls}>Действует с *</label>
+            <input type="date" value={priceAsk.date}
+              onChange={e => setPriceAsk(p => p ? { ...p, date: e.target.value } : p)} className={inputCls} />
+            <div className="flex gap-2 mt-5">
+              <Button onClick={confirmPriceChange} disabled={!priceAsk.date}
+                className="flex-1 bg-accent hover:bg-accent/90 text-accent-foreground rounded-lg">Сохранить</Button>
+              <Button variant="outline" className="rounded-lg" onClick={() => setPriceAsk(null)}>Отмена</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showPlanForm && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center px-4" onClick={e => e.target === e.currentTarget && setShowPlanForm(false)}>
           <div className="bg-background border border-border w-full max-w-sm p-6 rounded-2xl">

@@ -101,9 +101,10 @@ def handler(event: dict, context) -> dict:
                           s.is_active, s.fired_at,
                           COALESCE(sp.daily_plan_rub, 0) AS daily_plan_rub,
                           COALESCE(sp.daily_plan_hours, 9) AS daily_plan_hours
-                        FROM staff s LEFT JOIN staff_plans sp ON sp.staff_id = s.id
+                        FROM staff s LEFT JOIN staff_plans sp
+                          ON sp.staff_id = s.id AND sp.valid_from <= %s::date
                         WHERE s.is_active = TRUE OR s.fired_at IS NOT NULL
-                        ORDER BY s.id, sp.valid_from DESC NULLS LAST""")
+                        ORDER BY s.id, sp.valid_from DESC NULLS LAST""", (d_to,))
                     st_rows = [r for r in cur.fetchall()
                                if 'акимов' not in (r['full_name'] or '').lower()
                                and (r['is_active'] or (r['fired_at'] and r['fired_at'].isoformat() >= d_from))
@@ -189,9 +190,10 @@ def handler(event: dict, context) -> dict:
                           s.is_active, s.fired_at,
                           COALESCE(sp.daily_plan_rub, 0) AS daily_plan_rub
                         FROM staff s
-                        LEFT JOIN staff_plans sp ON sp.staff_id = s.id
+                        LEFT JOIN staff_plans sp
+                          ON sp.staff_id = s.id AND sp.valid_from <= %s::date
                         WHERE s.is_active = TRUE OR s.fired_at IS NOT NULL
-                        ORDER BY s.id, sp.valid_from DESC NULLS LAST""")
+                        ORDER BY s.id, sp.valid_from DESC NULLS LAST""", (d_to,))
                     staff_rows = [r for r in cur.fetchall()
                                   if 'акимов' not in (r['full_name'] or '').lower()
                                   and (r['is_active'] or (r['fired_at'] and r['fired_at'].isoformat() >= d_from))]

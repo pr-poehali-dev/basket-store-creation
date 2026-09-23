@@ -325,7 +325,7 @@ const AdminStaffReport = () => {
                     <Td sep>{r.no_plan ? '—' : rub(r.speed)}</Td>
                     <Td sep cls={r.no_plan ? '' : pctCell(r.pct_today)}>{r.no_plan ? '—' : `${r.pct_today}%`}</Td>
                     <Td cls={r.no_plan ? '' : pctCell(r.pct_month)}>{r.no_plan ? '—' : `${r.pct_month}%`}</Td>
-                    <Td sep>{rub(r.motivation)}</Td>
+                    <Td sep cls={r.motivation > 0 ? 'bg-[#92d050] text-black font-bold' : ''}>{rub(r.motivation)}</Td>
                     <Td sep cls={r.bonus > 0 ? 'bg-[#92d050] text-black font-bold' : ''}>{rub(r.bonus)}</Td>
                   </tr>,
                   ...(isOpen ? (r.days || []).map(d => {

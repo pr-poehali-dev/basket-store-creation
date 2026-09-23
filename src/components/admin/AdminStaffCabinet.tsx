@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import urls from '../../../backend/func2url.json';
 import {
   AuthData, getAuthFromSession, Category, Position, MergedPosition, DayReport, Plan, ReportPosition,
-  isoToday, isDateEditable, hoursBetween, rowKey,
+  isoToday, isDateEditable, planFor, hoursBetween, rowKey,
   mergePositions, categoryPrice, categoryCatalog, CATEGORY_KEYS,
 } from './staffCabinetUtils';
 import StaffCabinetDayTab from './StaffCabinetDayTab';
@@ -18,7 +18,7 @@ const AdminStaffCabinet = ({ auth }: { auth: AuthData }) => {
   const [statsPeriod, setStatsPeriod] = useState<'days' | 'months'>('days');
 
   const [positions, setPositions]   = useState<Position[]>([]);
-  const [plan, setPlan]             = useState<Plan | null>(null);
+  const [allPlans, setAllPlans]     = useState<Plan[]>([]);
   const [monthBonuses, setMonthBonuses] = useState<Record<string, number>>({});
   const [reports, setReports]       = useState<DayReport[]>([]);
   const [loading, setLoading]       = useState(true);
@@ -60,7 +60,7 @@ const AdminStaffCabinet = ({ auth }: { auth: AuthData }) => {
         posRes.json(), planRes.json(), reportsRes.json(),
       ]);
       setPositions(posData.positions || []);
-      setPlan((planData.plans || [])[0] || null);
+      setAllPlans(planData.plans || []);
       setReports(reportsData.reports || []);
       setMonthBonuses(reportsData.bonuses || {});
     } catch { /* fallback */ }
@@ -189,6 +189,7 @@ const AdminStaffCabinet = ({ auth }: { auth: AuthData }) => {
   const monthReports = reports.filter(r => r.report_date.startsWith(currentMonth));
   const monthEarned  = monthReports.reduce((s, r) => s + r.total_rub, 0);
   const monthDays    = monthReports.length;
+  const plan = useMemo(() => planFor(allPlans, selectedDate), [allPlans, selectedDate]);
   const planMonthRub = plan ? plan.daily_plan_rub * 22 : 0;
   const planPct      = planMonthRub > 0 ? Math.min(100, Math.round(monthEarned / planMonthRub * 100)) : 0;
   const remainingToPlan = Math.max(0, planMonthRub - monthEarned);

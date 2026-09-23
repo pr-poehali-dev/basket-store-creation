@@ -134,9 +134,9 @@ def handler(event: dict, context) -> dict:
                     staff_id = params.get('staff_id')
                     if staff_id:
                         cur.execute(
-                            "SELECT DISTINCT ON (staff_id) sp.*, s.full_name "
+                            "SELECT sp.*, s.full_name "
                             "FROM staff_plans sp JOIN staff s ON sp.staff_id = s.id "
-                            "WHERE sp.staff_id = %s ORDER BY staff_id, valid_from DESC",
+                            "WHERE sp.staff_id = %s ORDER BY sp.valid_from DESC",
                             (int(staff_id),)
                         )
                     else:
@@ -417,6 +417,10 @@ def handler(event: dict, context) -> dict:
             rec_id = int(body.get('id'))
 
             if p_type == 'position':
+                price_changed = [f for f in PRICE_FIELDS if f in body]
+                if price_changed and not body.get('valid_from'):
+                    return {'statusCode': 400, 'headers': cors(),
+                            'body': json.dumps({'error': 'Для изменения цены обязательно укажите дату, с которой она действует'})}
                 fields, values = [], []
                 for f in POSITION_FIELDS:
                     if f in body:
@@ -436,6 +440,15 @@ def handler(event: dict, context) -> dict:
                     values.append(rec_id)
                     with conn.cursor() as cur:
                         cur.execute(f"UPDATE handbook_positions SET {', '.join(fields)} WHERE id = %s", values)
+                        if price_changed:
+                            cur.execute("SELECT price_whole, price_no_handle, price_handle, price_ears, price_whole_ears "
+                                        "FROM handbook_positions WHERE id = %s", (rec_id,))
+                            cp = cur.fetchone()
+                            cur.execute(
+                                "INSERT INTO handbook_price_history (position_id, price_whole, price_no_handle, price_handle, price_ears, price_whole_ears, price, valid_from) "
+                                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s::date)",
+                                (rec_id, cp[0], cp[1], cp[2], cp[3], cp[4], cp[0], body['valid_from'])
+                            )
             return {'statusCode': 200, 'headers': cors(), 'body': json.dumps({'ok': True})}
 
         # ── DELETE ───────────────────────────────────────────────────────────
