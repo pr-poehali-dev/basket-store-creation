@@ -262,6 +262,81 @@ def handler(event: dict, context) -> dict:
             return {'statusCode': 200, 'headers': cors_headers(),
                     'body': json.dumps({'id': new_cid})}
 
+        if method == 'POST' and body.get('type') == 'import_orders':
+            # Импорт исторических заказов из Excel. Цены берём из файла как есть,
+            # справочник товаров и склад не трогаем.
+            import io, base64 as _b64
+            import openpyxl
+            wb = openpyxl.load_workbook(io.BytesIO(_b64.b64decode(body.get('file', ''))), data_only=True)
+            ws = wb.active
+            groups = {}
+            order_seq = []
+            for r in ws.iter_rows(min_row=2, values_only=True):
+                if not r or not r[1]:
+                    continue
+                date = str(r[0] or '')[:10]
+                callsign = str(r[1]).strip()
+                key = (date, callsign)
+                if key not in groups:
+                    groups[key] = {'discount': 0, 'items': [], 'total': 0}
+                    order_seq.append(key)
+                g = groups[key]
+                try:
+                    disc = int(float(str(r[2]).replace('%', '').replace(',', '.'))) if r[2] else 0
+                except Exception:
+                    disc = 0
+                if disc:
+                    g['discount'] = disc
+                try:
+                    qty = int(float(str(r[5]).replace(',', '.'))) if r[5] else 0
+                except Exception:
+                    qty = 0
+                try:
+                    price = int(round(float(str(r[6]).replace(',', '.')))) if r[6] else 0
+                except Exception:
+                    price = 0
+                try:
+                    summ = int(round(float(str(r[7]).replace(',', '.')))) if r[7] else qty * price
+                except Exception:
+                    summ = qty * price
+                name = str(r[3] or '').strip()
+                if not name:
+                    continue
+                g['items'].append({'name': name, 'size': '', 'color': str(r[4] or '').strip(),
+                                   'qty': qty, 'price': price, 'sum': summ})
+                g['total'] += summ
+
+            created = 0
+            unmatched = []
+            with conn.cursor() as cur:
+                cur.execute("SELECT callsign, full_name, phone, city FROM clients WHERE callsign IS NOT NULL")
+                cmap = {row[0].strip().lower(): row for row in cur.fetchall() if row[0]}
+                cur.execute("SELECT COALESCE(MAX(sort_order), 0) FROM orders")
+                sort_base = cur.fetchone()[0] or 0
+                for i, key in enumerate(order_seq):
+                    date, callsign = key
+                    g = groups[key]
+                    c = cmap.get(callsign.lower())
+                    if not c:
+                        unmatched.append(callsign)
+                    name = c[1] if c else callsign
+                    phone = (c[2] or '') if c else ''
+                    city = (c[3] or '') if c else ''
+                    num = 'И-%s-%04d' % (date.replace('-', '')[2:], i + 1)
+                    cur.execute(
+                        "INSERT INTO orders (order_number, stage, city, customer_name, phone, total, "
+                        "discount, items, form, sort_order, created_at, is_archived, comment) "
+                        "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                        (num, 'Закрытые', city, name, phone, g['total'], g['discount'],
+                         json.dumps(g['items'], ensure_ascii=False),
+                         json.dumps({'callsign': callsign}, ensure_ascii=False),
+                         sort_base + i + 1, date + ' 00:00:00', True,
+                         'Импорт из таблицы поступлений. Позывной: ' + callsign))
+                    created += 1
+            return {'statusCode': 200, 'headers': cors_headers(),
+                    'body': json.dumps({'created': created,
+                                        'unmatched': sorted(set(unmatched))}, ensure_ascii=False)}
+
         if method == 'POST':
             order_number  = str(body.get('order_number', ''))
             stage         = body.get('stage', 'Новый заказ')

@@ -28,13 +28,15 @@ function pctClass(pct: number) {
   return 'text-red-500';
 }
 
-function getCost(item: OrderItem, products: Product[]): { price: number; cost: number } {
+function getCost(item: OrderItem & { price?: number }, products: Product[]): { price: number; cost: number } {
   const key  = item.size ? `${item.name}__${item.size}` : item.name;
   const prod = products.find(p => {
     const pk = p.size ? `${p.name}__${p.size}` : p.name;
     return pk.toLowerCase() === key.toLowerCase();
   });
-  return { price: prod?.price || 0, cost: prod?.cost || 0 };
+  // Цена из заказа приоритетнее справочника: исторические заказы хранят
+  // свою цену и не должны менять прайс в админке (и наоборот)
+  return { price: item.price || prod?.price || 0, cost: prod?.cost || 0 };
 }
 function calcProfit(order: Order, products: Product[]) {
   const revenue   = order.total;
