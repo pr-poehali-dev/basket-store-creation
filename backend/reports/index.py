@@ -452,6 +452,78 @@ def handler(event: dict, context) -> dict:
 
         if method == 'POST':
 
+            if b_type == 'import_reports':
+                # Импорт исторических отчётов из Excel. Цены и позиции берутся
+                # из файла как есть, справочник позиций админки не затрагивается.
+                import io, base64 as _b64
+                import openpyxl
+                CAT_MAP = {
+                    'целая корзина с ручкой': 'whole',
+                    'без ручки': 'no_handle',
+                    'ручки': 'handle',
+                    'уши': 'ears',
+                    'донышки': 'no_handle',
+                }
+                wb = openpyxl.load_workbook(io.BytesIO(_b64.b64decode(body.get('file', ''))), data_only=True)
+                ws = wb.active
+                days = {}
+                for r in ws.iter_rows(min_row=2, values_only=True):
+                    if not r or not r[1] or not r[0]:
+                        continue
+                    date = str(r[0])[:10]
+                    fio = str(r[1]).strip()
+                    key = (fio, date)
+                    d = days.setdefault(key, {'hours': 0.0, 'positions': [], 'total': 0.0})
+                    def num(v):
+                        try:
+                            return float(str(v).replace(',', '.').replace('\xa0', '').strip())
+                        except Exception:
+                            return 0.0
+                    h = num(r[2])
+                    if h > d['hours']:
+                        d['hours'] = h
+                    qty = int(num(r[4]))
+                    price = num(r[5])
+                    summ = num(r[6]) or qty * price
+                    name = str(r[3] or '').strip()
+                    if not name:
+                        continue
+                    cat = CAT_MAP.get(str(r[7] or '').strip().lower(), 'no_handle')
+                    d['positions'].append({
+                        'position_id': 0, 'staff_name': name, 'catalog_name': name,
+                        'weave_type': '', 'category': cat, 'price': price, 'qty': qty,
+                    })
+                    d['total'] += summ
+
+                # Импорт порциями — файл большой, за один вызов не успеть
+                all_keys = sorted(days.keys())
+                offset = int(body.get('offset', 0) or 0)
+                limit  = int(body.get('limit', 300) or 300)
+                batch  = all_keys[offset:offset + limit]
+                created, skipped = 0, []
+                with conn.cursor() as cur:
+                    cur.execute("SELECT id, full_name FROM staff")
+                    smap = {row[1].strip().lower(): row[0] for row in cur.fetchall()}
+                    for (fio, date) in batch:
+                        d = days[(fio, date)]
+                        sid = smap.get(fio.lower())
+                        if not sid:
+                            skipped.append(fio)
+                            continue
+                        cur.execute("""INSERT INTO staff_reports
+                                (staff_id, report_date, positions, total_rub, hours, locked)
+                            VALUES (%s,%s,%s,%s,%s,TRUE)
+                            ON CONFLICT (staff_id, report_date) DO UPDATE
+                            SET positions = EXCLUDED.positions, total_rub = EXCLUDED.total_rub,
+                                hours = EXCLUDED.hours, locked = TRUE, updated_at = NOW()""",
+                            (sid, date, json.dumps(d['positions'], ensure_ascii=False),
+                             round(d['total']), d['hours']))
+                        created += 1
+                return {'statusCode': 200, 'headers': cors(),
+                        'body': json.dumps({'created': created, 'total': len(all_keys),
+                                            'next_offset': offset + limit if offset + limit < len(all_keys) else None,
+                                            'skipped': sorted(set(skipped))}, ensure_ascii=False)}
+
             if b_type == 'report':
                 staff_id    = int(body.get('staff_id'))
                 report_date = body.get('report_date')
