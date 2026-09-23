@@ -11,8 +11,9 @@ export function nextStage(order: Order): string | null {
   if (idx === -1) return null;
   if (idx >= work.length - 1) return CLOSED_STAGE;
   const next = work[idx + 1];
-  if (next === 'Малярка' && !needsPainting(order)) {
-    return work[idx + 2] ?? CLOSED_STAGE;
+  if ((next === 'Сушилка' || next === 'Малярка') && !needsPainting(order)) {
+    const skip = work.findIndex((s, i) => i > idx && s !== 'Сушилка' && s !== 'Малярка');
+    return skip === -1 ? CLOSED_STAGE : work[skip];
   }
   return next;
 }

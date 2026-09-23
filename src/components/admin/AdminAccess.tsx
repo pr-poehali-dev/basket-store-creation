@@ -6,9 +6,9 @@ const ALL_PAGES = [
   { key: 'cabinet',     label: '👤 Личный кабинет (сотрудник)' },
   { key: 'tasks',       label: 'Задачи' },
   { key: 'orders',      label: 'Заказы' },
-  { key: 'calendar',    label: 'Календарь' },
   { key: 'production',  label: 'Производство' },
   { key: 'painting',    label: 'Малярка' },
+  { key: 'calendar',    label: 'Календарь' },
   { key: 'warehouse',   label: 'Склад' },
   { key: 'income',      label: 'Поступления' },
   { key: 'clients',     label: 'База клиентов' },
@@ -19,7 +19,7 @@ const ALL_PAGES = [
   { key: 'access',      label: 'Права доступа' },
 ];
 
-const GROUPS = ['Администрация', 'Руководители отделов плетения', 'Маляр', 'Сотрудники'];
+const GROUPS = ['Администрация', 'Руководители отделов плетения', 'Маляр', 'Смежные службы', 'Сотрудники'];
 
 interface StaffMember {
   id: number;
@@ -38,6 +38,7 @@ export const GROUP_NAMES = {
   ADMIN: 'Администрация',
   WEAVING_LEAD: 'Руководители отделов плетения',
   PAINTER: 'Маляр',
+  SUPPORT: 'Смежные службы',
   EMPLOYEE: 'Сотрудники',
 };
 

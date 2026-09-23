@@ -132,6 +132,15 @@ def handler(event: dict, context) -> dict:
 
         body = json.loads(event.get('body') or '{}')
 
+        if method == 'POST' and body.get('type') == 'purge_all':
+            # Полная очистка задач и уведомлений
+            if body.get('confirm') != 'DELETE':
+                return {'statusCode': 400, 'headers': cors(), 'body': json.dumps({'error': 'confirm required'})}
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM task_comments")
+                cur.execute("DELETE FROM tasks")
+            return {'statusCode': 200, 'headers': cors(), 'body': json.dumps({'ok': True})}
+
         if method == 'POST':
             action = body.get('action', 'task')
 

@@ -250,13 +250,13 @@ const AdminPainting = () => {
 
   const allPainting = orders.filter(o => PAINTING_STAGES.includes(o.stage) && !o.is_archived && !o.is_trashed && needsPainting(o));
 
-  // Плетутся — заказы на этапе «Плетение»
-  const weavingOrders = allPainting.filter(o => o.stage === 'Плетение');
+  // В сушилке — заказы на этапе «Сушилка»
+  const weavingOrders = allPainting.filter(o => o.stage === 'Сушилка');
   // В работе — заказы на этапе «Малярка»
   const workingOrders = allPainting.filter(o => o.stage === 'Малярка');
   // Выполнены — покраска 100% (не в очереди и не на плетении)
   const doneOrders    = allPainting.filter(o => {
-    if (o.stage === 'В очереди на плетение' || o.stage === 'Плетение') return false;
+    if (['В очереди на плетение', 'Плетение', 'Сушилка'].includes(o.stage)) return false;
     const byColor = groupByColor(o.items);
     let totalQ=0, totalP=0;
     for (const [,positions] of Array.from(byColor.entries())) {
@@ -273,7 +273,7 @@ const AdminPainting = () => {
         <h1 className="font-display text-2xl font-semibold text-primary">Малярка</h1>
         <div className="flex gap-2 flex-wrap">
           {([
-            ['weaving', 'Плетутся',  weavingOrders.length],
+            ['weaving', 'В сушилке',  weavingOrders.length],
             ['working', 'В работе',  workingOrders.length],
             ['done',    'Выполнены', doneOrders.length],
           ] as [PaintFilter, string, number][]).map(([key, label, count]) => (

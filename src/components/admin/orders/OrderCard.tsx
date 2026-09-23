@@ -25,7 +25,7 @@ export const OrderCard = ({ order, onDragStart, onUpdate, onOpenFull }: OrderCar
   const needsPaint = needsPainting(order);
   const wPct = weavingPct(order);
   const pPct = paintingPct(order);
-  const showProgress = ['В очереди на плетение', 'Плетение', 'Малярка', 'Упаковка', 'Доставка'].includes(order.stage);
+  const showProgress = ['В очереди на плетение', 'Плетение', 'Сушилка', 'Малярка', 'Упаковка', 'Доставка'].includes(order.stage);
   const next = nextStage(order);
 
   const canMoveNext = (() => {

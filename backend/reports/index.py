@@ -147,7 +147,7 @@ def handler(event: dict, context) -> dict:
                                           if _date(year, month, d).weekday() < 5)
 
                     cur.execute("""SELECT DISTINCT ON (s.id) s.id, s.full_name, s.pages,
-                          s.is_active, s.fired_at,
+                          s.is_active, s.fired_at, s.group_name,
                           COALESCE(sp.daily_plan_rub, 0) AS daily_plan_rub,
                           COALESCE(sp.daily_plan_hours, 9) AS daily_plan_hours
                         FROM staff s LEFT JOIN staff_plans sp
@@ -236,7 +236,7 @@ def handler(event: dict, context) -> dict:
                     # Уволенный виден в периоде увольнения и во всех предыдущих,
                     # но скрыт в следующих периодах
                     cur.execute("""SELECT DISTINCT ON (s.id) s.id, s.full_name, s.pages,
-                          s.is_active, s.fired_at,
+                          s.is_active, s.fired_at, s.group_name,
                           COALESCE(sp.daily_plan_rub, 0) AS daily_plan_rub
                         FROM staff s
                         LEFT JOIN staff_plans sp
@@ -291,6 +291,11 @@ def handler(event: dict, context) -> dict:
                         days = by_staff.get(s_row['id'], [])
                         earned = sum(d['total_rub'] for d in days)
                         a = adj.get(s_row['id'])
+                        # Смежные службы не ведут отчёты — их ЗП вводится вручную
+                        is_support = (s_row.get('group_name') or '') == 'Смежные службы'
+                        earned_manual = to_float(a['earned_manual']) if a and a.get('earned_manual') is not None else 0
+                        if is_support:
+                            earned = earned_manual
                         daily = to_float(s_row['daily_plan_rub'])
                         # Остаток прошлого периода: своё значение, иначе — итог прошлого
                         if a and a['prev_balance'] is not None and to_float(a['prev_balance']) != 0:
@@ -312,6 +317,9 @@ def handler(event: dict, context) -> dict:
                                           / (daily * month_agg.get(s_row['id'], (0, 0))[0]) * 100)
                                           if daily > 0 and month_agg.get(s_row['id'], (0, 0))[0] > 0 else 0),
                             'has_cabinet': 'cabinet' in (s_row['pages'] or []),
+                            'is_support': is_support,
+                            'earned_manual': earned_manual,
+                            'group_name': s_row.get('group_name') or '',
                             'prev_balance': prev_bal,
                             'defect': to_float(a['defect']) if a else 0,
                             'bonus': to_float(a['bonus']) if a else 0,
@@ -629,7 +637,7 @@ def handler(event: dict, context) -> dict:
                 sid   = int(body.get('staff_id'))
                 year  = int(body.get('year')); month = int(body.get('month')); half = int(body.get('half'))
                 field = body.get('field')
-                if field not in ('prev_balance', 'defect', 'bonus', 'motivation', 'paid'):
+                if field not in ('prev_balance', 'defect', 'bonus', 'motivation', 'paid', 'earned_manual'):
                     return {'statusCode': 400, 'headers': cors(), 'body': json.dumps({'error': 'bad field'})}
                 val = float(body.get('value') or 0)
                 with conn.cursor() as cur:

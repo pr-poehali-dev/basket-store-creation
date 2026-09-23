@@ -1,0 +1,1 @@
+UPDATE orders SET phone = '' WHERE phone LIKE 'нет:%';

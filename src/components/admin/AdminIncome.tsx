@@ -1,12 +1,16 @@
 import { useState, useEffect, useMemo, Fragment } from 'react';
 import urls from '../../../backend/func2url.json';
+import MultiSelect from './MultiSelect';
+import Icon from '@/components/ui/icon';
 
 interface OrderItem { name: string; size: string; color: string; qty: number; }
 interface Product   { id: number; name: string; size: string; price: number; cost: number; }
+const MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+
 interface Order {
   id: number; order_number: string; stage: string; city: string;
   customer_name: string; phone: string; total: number; discount: number;
-  items: OrderItem[]; created_at: string; due_date: string;
+  items: OrderItem[]; created_at: string; due_date: string; form?: Record<string,string>;
   is_archived: boolean; is_trashed: boolean;
 }
 
@@ -259,7 +263,17 @@ const AdminIncome = () => {
   const [dateFrom, setDateFrom]     = useState('');
   const [dateTo, setDateTo]         = useState('');
   const [discountMin, setDiscountMin] = useState('');
+  const [discountMax, setDiscountMax] = useState('');
   const [profitMin, setProfitMin]   = useState('');
+  const [fYears, setFYears]   = useState<number[]>([]);
+  const [fMonths, setFMonths] = useState<number[]>([]);
+  const [fCities, setFCities] = useState<string[]>([]);
+  const [fClients, setFClients] = useState<string[]>([]);
+  const [sortBy, setSortBy]   = useState<'date_desc'|'date_asc'|'sum_desc'|'sum_asc'|'profit_desc'>('date_desc');
+  const [clientSort, setClientSort] = useState<'sum_desc'|'sum_asc'|'orders_desc'|'profit_desc'|'name_asc'>('sum_desc');
+
+  const toggleF = <T,>(arr: T[], v: T, set: (x: T[]) => void) =>
+    set(arr.includes(v) ? arr.filter(x => x !== v) : [...arr, v]);
 
   useEffect(() => {
     (async () => {
@@ -274,7 +288,13 @@ const AdminIncome = () => {
   }, []);
 
   const filtered = useMemo(() => {
-    return orders.filter(o => {
+    const list = orders.filter(o => {
+      const d = o.created_at ? new Date(o.created_at) : null;
+      if (fYears.length  && (!d || !fYears.includes(d.getFullYear()))) return false;
+      if (fMonths.length && (!d || !fMonths.includes(d.getMonth() + 1))) return false;
+      if (fCities.length && !fCities.includes(o.city || '—')) return false;
+      if (fClients.length && !fClients.includes(o.phone || o.customer_name)) return false;
+      if (discountMax && (o.discount || 0) > parseInt(discountMax)) return false;
       if (search && !o.customer_name.toLowerCase().includes(search.toLowerCase()) && !o.city.toLowerCase().includes(search.toLowerCase())) return false;
       if (dateFrom && (o.created_at||'') < dateFrom) return false;
       if (dateTo   && (o.created_at||'') > dateTo + 'T23:59:59') return false;
@@ -285,7 +305,29 @@ const AdminIncome = () => {
       }
       return true;
     });
-  }, [orders, search, dateFrom, dateTo, discountMin, profitMin, products]);
+    const ts = (o: Order) => o.created_at ? new Date(o.created_at).getTime() : 0;
+    const pf = (o: Order) => calcProfit(o, products).profit;
+    const cmp: Record<string, (a: Order, b: Order) => number> = {
+      date_desc:   (a, b) => ts(b) - ts(a),
+      date_asc:    (a, b) => ts(a) - ts(b),
+      sum_desc:    (a, b) => b.total - a.total,
+      sum_asc:     (a, b) => a.total - b.total,
+      profit_desc: (a, b) => pf(b) - pf(a),
+    };
+    return [...list].sort(cmp[sortBy]);
+  }, [orders, search, dateFrom, dateTo, discountMin, discountMax, profitMin, products,
+      fYears, fMonths, fCities, fClients, sortBy]);
+
+  // Опции фильтров — строятся из всех заказов
+  const yearOpts = useMemo(() => Array.from(new Set(orders.map(o =>
+    o.created_at ? new Date(o.created_at).getFullYear() : 0).filter(Boolean)))
+    .sort((a, b) => b - a).map(y => ({ value: y, label: String(y) })), [orders]);
+  const cityOpts = useMemo(() => Array.from(new Set(orders.map(o => o.city || '—')))
+    .sort((a, b) => a.localeCompare(b, 'ru')).map(c => ({ value: c, label: c })), [orders]);
+  const clientOpts = useMemo(() => Array.from(new Map(orders.map(o =>
+    [o.phone || o.customer_name, `${o.city ? o.city + ' · ' : ''}${o.customer_name}`])).entries())
+    .sort((a, b) => a[1].localeCompare(b[1], 'ru'))
+    .map(([value, label]) => ({ value, label })), [orders]);
 
   const totalRevenue = filtered.reduce((s,o) => s+o.total, 0);
   const totalProfit  = filtered.reduce((s,o) => s+calcProfit(o,products).profit, 0);
@@ -300,8 +342,16 @@ const AdminIncome = () => {
       const c = map.get(key)!;
       c.orders += 1; c.total += o.total; c.profit += calcProfit(o, products).profit;
     }
-    return Array.from(map.entries()).sort((a,b) => b[1].total-a[1].total);
-  }, [filtered, products]);
+    const cmp: Record<string, (a: [string, typeof arr[0][1]], b: [string, typeof arr[0][1]]) => number> = {
+      sum_desc:    (a, b) => b[1].total - a[1].total,
+      sum_asc:     (a, b) => a[1].total - b[1].total,
+      orders_desc: (a, b) => b[1].orders - a[1].orders,
+      profit_desc: (a, b) => b[1].profit - a[1].profit,
+      name_asc:    (a, b) => a[1].name.localeCompare(b[1].name, 'ru'),
+    };
+    const arr = Array.from(map.entries());
+    return arr.sort(cmp[clientSort]);
+  }, [filtered, products, clientSort]);
 
   return (
     <div className="p-6 max-w-5xl">
@@ -340,30 +390,73 @@ const AdminIncome = () => {
       </div>
 
       {/* Фильтры */}
-      <div className="flex gap-2 mb-5 flex-wrap items-center bg-primary/3 rounded-2xl px-4 py-3">
-        <input value={search} onChange={e => setSearch(e.target.value)}
-          placeholder="Клиент / город..."
-          className="border border-primary/30 rounded-xl px-3 py-1.5 text-sm outline-none focus:border-accent bg-background flex-1 min-w-[150px]" />
-        <div className="flex items-center gap-1.5 text-xs text-primary/70">
-          <span>С</span>
-          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-            className="border border-primary/30 rounded-xl px-2 py-1.5 text-sm outline-none focus:border-accent bg-background" />
-          <span>по</span>
-          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-            className="border border-primary/30 rounded-xl px-2 py-1.5 text-sm outline-none focus:border-accent bg-background" />
+      <div className="bg-primary/3 border border-primary/15 rounded-2xl px-4 py-3 mb-5 space-y-3">
+        <div className="flex gap-3 flex-wrap items-start">
+          <MultiSelect label="Год" width="w-32" options={yearOpts}
+            selected={fYears} onToggle={v => toggleF(fYears, v, setFYears)} />
+          <MultiSelect label="Месяц" width="w-44" options={MONTHS.map((m, i) => ({ value: i + 1, label: m }))}
+            selected={fMonths} onToggle={v => toggleF(fMonths, v, setFMonths)} />
+          <MultiSelect label="Город" width="w-48" options={cityOpts}
+            selected={fCities} onToggle={v => toggleF(fCities, v, setFCities)} />
+          {tab === 'clients' && (
+            <MultiSelect label="Клиент" width="w-56" options={clientOpts}
+              selected={fClients} onToggle={v => toggleF(fClients, v, setFClients)} />
+          )}
+          <div className="w-52">
+            <label className="text-[11px] text-primary/50 block mb-1">Сортировка</label>
+            {tab === 'orders' ? (
+              <select value={sortBy} onChange={e => setSortBy(e.target.value as typeof sortBy)}
+                className="w-full border border-primary/30 rounded-xl px-3 py-2 text-sm bg-background text-primary outline-none focus:border-accent">
+                <option value="date_desc">Сначала новые</option>
+                <option value="date_asc">Сначала старые</option>
+                <option value="sum_desc">Сумма ↓</option>
+                <option value="sum_asc">Сумма ↑</option>
+                <option value="profit_desc">Прибыль ↓</option>
+              </select>
+            ) : (
+              <select value={clientSort} onChange={e => setClientSort(e.target.value as typeof clientSort)}
+                className="w-full border border-primary/30 rounded-xl px-3 py-2 text-sm bg-background text-primary outline-none focus:border-accent">
+                <option value="sum_desc">Сумма ↓</option>
+                <option value="sum_asc">Сумма ↑</option>
+                <option value="orders_desc">Заказов ↓</option>
+                <option value="profit_desc">Прибыль ↓</option>
+                <option value="name_asc">По названию</option>
+              </select>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-1.5 text-xs text-primary/70">
-          <span>Скидка от</span>
-          <input type="number" min={0} max={100} value={discountMin} onChange={e => setDiscountMin(e.target.value)}
-            placeholder="%" className="border border-primary/30 rounded-xl px-2 py-1.5 text-sm outline-none focus:border-accent bg-background w-16" />
-          <span>% прибыли от</span>
-          <input type="number" min={0} max={100} value={profitMin} onChange={e => setProfitMin(e.target.value)}
-            placeholder="%" className="border border-primary/30 rounded-xl px-2 py-1.5 text-sm outline-none focus:border-accent bg-background w-16" />
+
+        <div className="flex gap-3 flex-wrap items-center pt-1 border-t border-primary/10">
+          <input value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Поиск: клиент / город..."
+            className="border border-primary/30 rounded-xl px-3 py-1.5 text-sm outline-none focus:border-accent bg-background flex-1 min-w-[160px]" />
+          <div className="flex items-center gap-1.5 text-xs text-primary/60">
+            <span>Период</span>
+            <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+              className="border border-primary/30 rounded-xl px-2 py-1.5 text-sm outline-none focus:border-accent bg-background" />
+            <span>—</span>
+            <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+              className="border border-primary/30 rounded-xl px-2 py-1.5 text-sm outline-none focus:border-accent bg-background" />
+          </div>
+          <div className="flex items-center gap-1.5 text-xs text-primary/60">
+            <span>Скидка от</span>
+            <input type="number" min={0} max={100} value={discountMin} onChange={e => setDiscountMin(e.target.value)}
+              placeholder="%" className="border border-primary/30 rounded-xl px-2 py-1.5 text-sm outline-none focus:border-accent bg-background w-16" />
+            <span>до</span>
+            <input type="number" min={0} max={100} value={discountMax} onChange={e => setDiscountMax(e.target.value)}
+              placeholder="%" className="border border-primary/30 rounded-xl px-2 py-1.5 text-sm outline-none focus:border-accent bg-background w-16" />
+          </div>
+          <div className="flex items-center gap-1.5 text-xs text-primary/60">
+            <span>% прибыли от</span>
+            <input type="number" min={0} max={100} value={profitMin} onChange={e => setProfitMin(e.target.value)}
+              placeholder="%" className="border border-primary/30 rounded-xl px-2 py-1.5 text-sm outline-none focus:border-accent bg-background w-16" />
+          </div>
+          {(search||dateFrom||dateTo||discountMin||discountMax||profitMin||fYears.length||fMonths.length||fCities.length||fClients.length) ? (
+            <button onClick={() => { setSearch(''); setDateFrom(''); setDateTo(''); setDiscountMin(''); setDiscountMax('');
+              setProfitMin(''); setFYears([]); setFMonths([]); setFCities([]); setFClients([]); }}
+              className="text-xs text-primary/50 hover:text-primary underline">Сбросить всё</button>
+          ) : null}
         </div>
-        {(search||dateFrom||dateTo||discountMin||profitMin) && (
-          <button onClick={() => { setSearch(''); setDateFrom(''); setDateTo(''); setDiscountMin(''); setProfitMin(''); }}
-            className="text-xs text-muted-foreground hover:text-primary underline">Сбросить</button>
-        )}
       </div>
 
       {loading ? <p className="text-muted-foreground">Загружаю...</p> : tab === 'orders' ? (
@@ -376,39 +469,71 @@ const AdminIncome = () => {
             const posGroups  = buildPosGroups(order.items);
             return (
               <div key={order.id} className="border border-primary/20 rounded-2xl overflow-hidden">
-                <div className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-primary/3 transition-colors gap-3 flex-wrap"
+                <div className="flex items-stretch gap-4 px-5 py-3.5 cursor-pointer hover:bg-primary/3 transition-colors"
                   onClick={() => setExpandedId(isExpanded ? null : order.id)}>
-                  <div className="flex items-center gap-3 flex-wrap min-w-0">
-                    <button className="text-xs px-2 py-0.5 rounded-lg border border-primary/25 text-primary/60 hover:text-primary transition-colors flex-shrink-0"
-                      onClick={e => { e.stopPropagation(); setStatsClient(order.phone||order.customer_name); }}>📊</button>
-                    <span className="text-xs text-muted-foreground flex-shrink-0">{fmtDate(order.created_at)}</span>
-                    <span className="font-medium text-primary truncate">{order.city} {order.customer_name}</span>
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-primary/8 text-primary flex-shrink-0">{order.stage}</span>
-                    {order.discount > 0 && <span className="text-xs px-2 py-0.5 rounded-full bg-accent/15 text-accent font-semibold flex-shrink-0">−{order.discount}%</span>}
-                  </div>
-                  <div className="flex items-center gap-4 flex-shrink-0">
-                    <div className="text-right">
-                      <div className="font-bold text-primary">{fmtMoney(revenue)}</div>
-                      <div className="text-xs text-muted-foreground">
-                        прибыль: <span className="font-semibold" style={{ color: pctColor(pct) }}>{fmtMoney(profit)} ({pct}%)</span>
-                      </div>
+
+                  {/* Клиент: город → имя → позывной */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <Icon name="MapPin" size={12} className="text-primary/35 flex-shrink-0" />
+                      <span className="text-[11px] uppercase tracking-wide text-primary/45 font-semibold truncate">
+                        {order.city || 'Город не указан'}
+                      </span>
                     </div>
-                    <span className="text-primary/40 text-xs">{isExpanded?'▲':'▼'}</span>
+                    <div className="font-semibold text-primary text-[15px] leading-tight truncate">
+                      {order.customer_name}
+                    </div>
+                    {order.form?.callsign && order.form.callsign !== order.customer_name && (
+                      <div className="text-xs text-primary/45 truncate mt-0.5">{order.form.callsign}</div>
+                    )}
+                    <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                      <span className="text-[11px] text-primary/50">{fmtDate(order.created_at)}</span>
+                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-primary/8 text-primary/70 font-medium">
+                        {order.stage}
+                      </span>
+                      {order.discount > 0 && (
+                        <span className="text-[11px] px-2 py-0.5 rounded-full bg-accent/15 text-accent font-semibold">
+                          скидка {order.discount}%
+                        </span>
+                      )}
+                      <button className="text-[11px] px-2 py-0.5 rounded-full border border-primary/20 text-primary/50 hover:text-primary hover:border-primary/50 transition-colors"
+                        onClick={e => { e.stopPropagation(); setStatsClient(order.phone || order.customer_name); }}>
+                        Статистика
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Деньги: выручка / прибыль / % — колонками */}
+                  <div className="flex items-center gap-5 flex-shrink-0 pl-4 border-l border-primary/12">
+                    <div className="text-right">
+                      <div className="text-[10px] uppercase tracking-wide text-primary/40 font-semibold">Сумма</div>
+                      <div className="font-bold text-primary text-[15px] tabular-nums">{fmtMoney(revenue)}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-[10px] uppercase tracking-wide text-primary/40 font-semibold">Прибыль</div>
+                      <div className="font-bold text-[15px] tabular-nums" style={{ color: pctColor(pct) }}>{fmtMoney(profit)}</div>
+                    </div>
+                    <div className="text-center min-w-[54px] rounded-xl px-2 py-1.5"
+                      style={{ backgroundColor: pctColor(pct) + '14' }}>
+                      <div className="font-bold text-lg leading-none tabular-nums" style={{ color: pctColor(pct) }}>{pct}%</div>
+                      <div className="text-[9px] uppercase tracking-wide text-primary/40 font-semibold mt-0.5">маржа</div>
+                    </div>
+                    <Icon name={isExpanded ? 'ChevronUp' : 'ChevronDown'} size={16} className="text-primary/30" />
                   </div>
                 </div>
 
                 {isExpanded && (
-                  <div className="border-t border-primary/10 px-4 pb-3 pt-2 bg-primary/2">
+                  <div className="border-t border-primary/10 px-5 pb-4 pt-3 bg-primary/3">
                     <table className="w-full text-sm border-collapse">
                       <thead>
                         <tr className="text-xs text-primary/50 border-b border-primary/10">
-                          <th className="py-1.5 text-left font-semibold">Позиция / Цвет</th>
-                          <th className="py-1.5 text-right font-semibold">Кол-во</th>
-                          <th className="py-1.5 text-right font-semibold">Цена</th>
-                          <th className="py-1.5 text-right font-semibold">Сумма</th>
-                          <th className="py-1.5 text-right font-semibold">Затраты</th>
-                          <th className="py-1.5 text-right font-semibold">Прибыль</th>
-                          <th className="py-1.5 text-right font-semibold">%</th>
+                          <th className="py-2 pl-3 pr-2 text-left font-semibold">Позиция / Цвет</th>
+                          <th className="py-2 px-2 text-right font-semibold">Кол-во</th>
+                          <th className="py-2 px-2 text-right font-semibold">Цена</th>
+                          <th className="py-2 px-2 text-right font-semibold">Сумма</th>
+                          <th className="py-2 px-2 text-right font-semibold">Затраты</th>
+                          <th className="py-2 px-2 text-right font-semibold">Прибыль</th>
+                          <th className="py-2 px-2 text-right font-semibold">%</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -425,19 +550,19 @@ const AdminIncome = () => {
                             <Fragment key={`g-${gi}`}>
                               {/* Строка-шапка позиции */}
                               <tr className="bg-primary/5 border-b border-primary/10">
-                                <td className="py-1.5 text-primary font-bold">{g.title}</td>
-                                <td className="py-1.5 text-right font-bold text-primary">{g.total}</td>
-                                <td className="py-1.5 text-right text-primary/60">{basePrice > 0 ? fmtMoney(Math.round(basePrice*discMult)) : '—'}</td>
-                                <td className="py-1.5 text-right font-bold text-primary">{groupRev > 0 ? fmtMoney(Math.round(groupRev)) : '—'}</td>
-                                <td className="py-1.5 text-right text-primary/60">{groupCost > 0 ? fmtMoney(groupCost) : '—'}</td>
-                                <td className="py-1.5 text-right font-semibold" style={{ color: pctColor(groupPct) }}>{groupRev > 0 ? fmtMoney(Math.round(groupProfit)) : '—'}</td>
-                                <td className="py-1.5 text-right font-bold" style={{ color: pctColor(groupPct) }}>{groupRev > 0 ? groupPct+'%' : '—'}</td>
+                                <td className="py-2 pl-3 pr-2 text-primary font-semibold">{g.title}</td>
+                                <td className="py-2 px-2 text-right font-bold text-primary">{g.total}</td>
+                                <td className="py-2 px-2 text-right text-primary/60">{basePrice > 0 ? fmtMoney(Math.round(basePrice*discMult)) : '—'}</td>
+                                <td className="py-2 px-2 text-right font-bold text-primary">{groupRev > 0 ? fmtMoney(Math.round(groupRev)) : '—'}</td>
+                                <td className="py-2 px-2 text-right text-primary/60">{groupCost > 0 ? fmtMoney(groupCost) : '—'}</td>
+                                <td className="py-2 px-2 text-right font-semibold" style={{ color: pctColor(groupPct) }}>{groupRev > 0 ? fmtMoney(Math.round(groupProfit)) : '—'}</td>
+                                <td className="py-2 px-2 text-right font-bold" style={{ color: pctColor(groupPct) }}>{groupRev > 0 ? groupPct+'%' : '—'}</td>
                               </tr>
                               {/* Строки цветов */}
                               {g.colors.map((c, ci) => (
                                 <tr key={`c-${gi}-${ci}`} className="border-b border-primary/8 last:border-0">
-                                  <td className="py-1 pl-6 text-primary/60 text-xs italic">{c.color}</td>
-                                  <td className="py-1 text-right text-primary/60 text-xs">{c.qty}</td>
+                                  <td className="py-1.5 pl-7 pr-2 text-primary/55 text-xs">{c.color}</td>
+                                  <td className="py-1.5 px-2 text-right text-primary/55 text-xs tabular-nums">{c.qty}</td>
                                   <td colSpan={5} />
                                 </tr>
                               ))}
@@ -447,11 +572,11 @@ const AdminIncome = () => {
                       </tbody>
                       <tfoot>
                         <tr className="border-t-2 border-primary/20 font-bold text-sm">
-                          <td className="py-2 text-primary" colSpan={3}>ИТОГО</td>
-                          <td className="py-2 text-right text-primary">{fmtMoney(revenue)}</td>
-                          <td className="py-2 text-right text-primary/60">{fmtMoney(cost)}</td>
-                          <td className="py-2 text-right" style={{ color: pctColor(pct) }}>{fmtMoney(profit)}</td>
-                          <td className="py-2 text-right font-bold text-lg" style={{ color: pctColor(pct) }}>{pct}%</td>
+                          <td className="py-2.5 pl-3 pr-2 text-primary" colSpan={3}>ИТОГО</td>
+                          <td className="py-2.5 px-2 text-right text-primary">{fmtMoney(revenue)}</td>
+                          <td className="py-2.5 px-2 text-right text-primary/60">{fmtMoney(cost)}</td>
+                          <td className="py-2.5 px-2 text-right" style={{ color: pctColor(pct) }}>{fmtMoney(profit)}</td>
+                          <td className="py-2.5 px-2 text-right font-bold text-lg" style={{ color: pctColor(pct) }}>{pct}%</td>
                         </tr>
                       </tfoot>
                     </table>

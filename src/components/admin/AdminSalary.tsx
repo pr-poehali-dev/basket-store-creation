@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Icon from '@/components/ui/icon';
 import urls from '../../../backend/func2url.json';
+import MultiSelect from './MultiSelect';
 
 interface DayRow { date: string; total_rub: number; hours: number }
 interface SalaryRow {
@@ -11,6 +12,9 @@ interface SalaryRow {
   plan_pct: number;
   month_pct: number;
   has_cabinet: boolean;
+  is_support: boolean;
+  earned_manual: number;
+  group_name: string;
   prev_balance: number;
   defect: number;
   bonus: number;
@@ -20,7 +24,7 @@ interface SalaryRow {
 }
 // Строка таблицы = сотрудник в конкретном периоде (год/месяц/половина)
 interface PeriodRow extends SalaryRow { year: number; month: number; half: number }
-type EditField = 'prev_balance' | 'defect' | 'bonus' | 'motivation' | 'paid';
+type EditField = 'prev_balance' | 'defect' | 'bonus' | 'motivation' | 'paid' | 'earned_manual';
 
 const MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
 const OLIVE = '#6b7c3a';
@@ -34,54 +38,6 @@ function fmtD(iso: string) {
 }
 function finalBalance(r: SalaryRow) {
   return r.prev_balance - r.defect + r.bonus + r.motivation + r.earned - r.paid;
-}
-
-// ── Выпадающий список с галочками ─────────────────────────────────────────────
-function MultiSelect<T extends string | number>({ label, options, selected, onToggle, width = 'w-52' }: {
-  label: string;
-  options: { value: T; label: string }[];
-  selected: T[];
-  onToggle: (v: T) => void;
-  width?: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
-    document.addEventListener('mousedown', h);
-    return () => document.removeEventListener('mousedown', h);
-  }, []);
-
-  const text = selected.length === 0 ? 'Все'
-    : selected.length <= 2
-      ? options.filter(o => selected.includes(o.value)).map(o => o.label).join(', ')
-      : `Выбрано: ${selected.length}`;
-
-  return (
-    <div className={`relative ${width}`} ref={ref}>
-      <label className="text-[11px] text-primary/50 block mb-1">{label}</label>
-      <button onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center justify-between gap-2 border border-primary/30 rounded-xl px-3 py-2 text-sm bg-background hover:border-primary transition-colors">
-        <span className="truncate text-primary">{text}</span>
-        <Icon name={open ? 'ChevronUp' : 'ChevronDown'} size={14} className="text-primary/40 flex-shrink-0" />
-      </button>
-      {open && (
-        <div className="absolute z-30 mt-1 w-full max-h-64 overflow-y-auto bg-background border border-primary/30 rounded-xl shadow-lg py-1">
-          {options.map(o => (
-            <button key={String(o.value)} onClick={() => onToggle(o.value)}
-              className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left hover:bg-primary/5 transition-colors">
-              <span className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
-                selected.includes(o.value) ? 'bg-accent border-accent' : 'border-primary/30'
-              }`}>
-                {selected.includes(o.value) && <Icon name="Check" size={11} className="text-accent-foreground" />}
-              </span>
-              <span className="text-primary truncate">{o.label}</span>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
 }
 
 const AdminSalary = () => {
@@ -135,13 +91,15 @@ const AdminSalary = () => {
   const staffOpts = Array.from(new Map(rows.map(r => [r.staff_id, r.full_name])).entries())
     .map(([value, label]) => ({ value, label }));
 
-  const groupA = visible.filter(r => r.has_cabinet || /фомин/i.test(r.full_name));
-  const groupB = visible.filter(r => !(r.has_cabinet || /фомин/i.test(r.full_name)));
+  // Смежные службы — сотрудники из одноимённой группы в правах доступа
+  const isSupport = (r: PeriodRow) => r.is_support || !(r.has_cabinet || /фомин/i.test(r.full_name));
+  const groupA = visible.filter(r => !isSupport(r));
+  const groupB = visible.filter(r => isSupport(r));
 
   const multiPeriod = years.length * months.length * halves.length > 1;
 
   const numCell = (r: PeriodRow, field: EditField) => (
-    <td className={`px-1 py-1.5 border border-primary/10 w-[92px] ${field === 'paid' ? 'bg-[#dceaf5]' : ''}`}>
+    <td className={`px-1 py-1.5 border border-primary/10 w-[92px] ${field === 'paid' || field === 'earned_manual' ? 'bg-[#dceaf5]' : ''}`}>
       <input type="number" defaultValue={r[field] || ''} placeholder="0"
         key={`${r.staff_id}-${r.year}-${r.month}-${r.half}-${field}-${r[field]}`}
         onBlur={e => saveField(r, field, parseFloat(e.target.value) || 0)}
@@ -161,7 +119,7 @@ const AdminSalary = () => {
                 <th className="px-3 py-2 text-left font-semibold sticky left-0 z-10 bg-[#faf8f4] w-[145px] min-w-[145px] max-w-[145px] shadow-[3px_0_5px_-3px_rgba(0,0,0,0.15)]">Сотрудник</th>
                 {multiPeriod && <th className="px-2 py-2 font-semibold w-[92px]">Период</th>}
                 <th className="px-2 py-2 font-semibold w-[92px]">Дневной план</th>
-                <th className="px-2 py-2 font-semibold w-[92px]">ЗП за период</th>
+                <th className={`px-2 py-2 font-semibold w-[92px] ${expandable ? '' : 'bg-[#dceaf5]'}`}>ЗП за период</th>
                 <th className="px-2 py-2 font-semibold w-[92px]">% плана</th>
                 <th className="px-2 py-2 font-semibold w-[92px]">% плана мес.</th>
                 <th className="px-2 py-2 font-semibold w-[92px]">Остаток прошл.</th>
@@ -177,6 +135,7 @@ const AdminSalary = () => {
                 const key    = `${r.staff_id}-${r.year}-${r.month}-${r.half}`;
                 const bal    = finalBalance(r);
                 const isOpen = !!openKey[key];
+                const support = !expandable;
                 return [
                   <tr key={key} className="border-t border-primary/10 hover:bg-primary/3">
                     <td onClick={() => expandable && setOpenKey(p => ({ ...p, [key]: !p[key] }))}
@@ -193,7 +152,9 @@ const AdminSalary = () => {
                       </td>
                     )}
                     <td className="px-2 py-1.5 text-center border border-primary/10 w-[92px]">{rub(r.daily_plan_rub)}</td>
-                    <td className="px-2 py-1.5 text-center border border-primary/10 font-bold w-[92px]">{rub(r.earned)}</td>
+                    {support
+                      ? numCell(r, 'earned_manual')
+                      : <td className="px-2 py-1.5 text-center border border-primary/10 font-bold w-[92px]">{rub(r.earned)}</td>}
                     <td className="px-2 py-1.5 text-center border border-primary/10 font-semibold w-[92px]" style={{ color: OLIVE }}>{r.plan_pct}%</td>
                     <td className="px-2 py-1.5 text-center border border-primary/10 font-semibold w-[92px]" style={{ color: OLIVE }}>{r.month_pct ?? 0}%</td>
                     {numCell(r, 'prev_balance')}
@@ -246,7 +207,7 @@ const AdminSalary = () => {
                     <td className="px-3 py-2 sticky left-0 z-10 bg-[#faf8f4] shadow-[3px_0_5px_-3px_rgba(0,0,0,0.15)]">Итого</td>
                     {multiPeriod && <td className="border border-primary/10 w-[92px]" />}
                     <td className="border border-primary/10 w-[92px]" />
-                    <td className="px-2 py-2 text-center border border-primary/10 w-[92px]">{rub(sum(x => x.earned))}</td>
+                    <td className={`px-2 py-2 text-center border border-primary/10 w-[92px] ${expandable ? '' : 'bg-[#dceaf5]'}`}>{rub(sum(x => x.earned))}</td>
                     <td className="border border-primary/10 w-[92px]" />
                     <td className="border border-primary/10 w-[92px]" />
                     <td className="px-2 py-2 text-center border border-primary/10 w-[92px]">{rub(sum(x => x.prev_balance))}</td>

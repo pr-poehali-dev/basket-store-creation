@@ -18,7 +18,7 @@ from psycopg2.extras import RealDictCursor
 
 
 STAGES = ['Новый заказ', 'Согласование', 'Оплата', 'В очереди на плетение',
-          'Плетение', 'Малярка', 'Упаковка', 'Доставка', 'Закрытые']
+          'Плетение', 'Сушилка', 'Малярка', 'Упаковка', 'Доставка', 'Закрытые']
 
 # Фиксированные исполнители по имени (full_name из staff)
 STAFF_NAME_DUE_DATE     = 'Валера Акимов'
@@ -321,6 +321,8 @@ def handler(event: dict, context) -> dict:
                         unmatched.append(callsign)
                     name = c[1] if c else callsign
                     phone = (c[2] or '') if c else ''
+                    if phone.startswith('нет:'):
+                        phone = ''
                     city = (c[3] or '') if c else ''
                     num = 'И-%s-%04d' % (date.replace('-', '')[2:], i + 1)
                     cur.execute(

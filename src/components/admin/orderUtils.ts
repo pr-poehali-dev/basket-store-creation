@@ -1,8 +1,9 @@
 export const STAGES = ['Новый заказ', 'Согласование', 'Оплата', 'В очереди на плетение', 'Плетение',
-  'Малярка', 'Упаковка', 'Доставка', 'Закрытые'];
+  'Сушилка', 'Малярка', 'Упаковка', 'Доставка', 'Закрытые'];
 
 export const QUEUE_INDEX     = STAGES.indexOf('В очереди на плетение');
 export const WEAVING_INDEX   = STAGES.indexOf('Плетение');
+export const DRYING_INDEX    = STAGES.indexOf('Сушилка');
 export const PAINTING_INDEX  = STAGES.indexOf('Малярка');
 export const PACKING_INDEX   = STAGES.indexOf('Упаковка');
 export const CLOSED_STAGE    = 'Закрытые';
@@ -206,9 +207,9 @@ export function canAdvanceStage(order: Order, targetStage: string): { ok: boolea
       return { ok: false, reason: 'Не проставлен срок окраски — заполните его в карточке заказа.' };
     }
   }
-  if (targetStage === 'Малярка') {
+  if (targetStage === 'Сушилка') {
     const pct = weavingPct(order);
-    if (pct < 100) return { ok: false, reason: `Плетение ${pct}% — нужно 100% для перехода в Малярку.` };
+    if (pct < 100) return { ok: false, reason: `Плетение ${pct}% — нужно 100% для перехода в Сушилку.` };
   }
   if (targetStage === 'Упаковка') {
     if (!needsPainting(order)) {
