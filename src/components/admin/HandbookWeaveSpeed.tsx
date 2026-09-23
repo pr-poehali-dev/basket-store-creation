@@ -141,16 +141,16 @@ const HandbookWeaveSpeed = () => {
         <p className="text-sm text-muted-foreground">Нет данных за выбранный период</p>
       ) : (
         <div className="overflow-x-auto border border-border rounded-2xl">
-          <table className="w-full text-sm border-collapse">
+          <table className="w-full text-sm border-collapse table-fixed">
             <thead>
               <tr className="bg-secondary/60">
-                <th className="text-left px-3 py-2 font-medium sticky left-0 bg-secondary/60 min-w-[240px] border-r border-border">Позиция / сотрудник</th>
+                <th className="text-left px-3 py-2 font-medium sticky left-0 z-10 bg-[#e9e6dd] w-[260px] min-w-[260px] border-r border-border">Позиция / сотрудник</th>
                 {monthCols.map(m => (
-                  <th key={m} className="px-2 py-2 font-medium text-center whitespace-nowrap border-r border-border text-xs">
+                  <th key={m} className="px-2 py-2 font-medium text-center whitespace-nowrap border-r border-border text-xs w-[88px]">
                     {MONTH_NAMES[Number(m.slice(5)) - 1]}
                   </th>
                 ))}
-                <th className="px-3 py-2 font-medium text-center text-xs">Общий итог</th>
+                <th className="px-3 py-2 font-medium text-center text-xs w-[96px]">Общий итог</th>
               </tr>
             </thead>
             <tbody>
@@ -159,7 +159,7 @@ const HandbookWeaveSpeed = () => {
                 const posTotal = avg([...staffMap.values()].flatMap(s => [...s.cells.values()].filter((_, i) => monthCols.includes([...s.cells.keys()][i]))));
                 return [
                   <tr key={position} className="bg-secondary/30 font-semibold border-t border-border">
-                    <td className="px-3 py-2 sticky left-0 bg-secondary/30 border-r border-border">{position}</td>
+                    <td className="px-3 py-2 sticky left-0 z-10 bg-[#efece4] border-r border-border truncate">{position}</td>
                     {monthCols.map(m => (
                       <td key={m} className="px-2 py-2 text-center border-r border-border">{posCell(m) ?? '—'}</td>
                     ))}
@@ -169,7 +169,7 @@ const HandbookWeaveSpeed = () => {
                     const total = avg(monthCols.map(m => s.cells.get(m)).filter((v): v is number => v != null));
                     return (
                       <tr key={`${position}-${sid}`} className="border-t border-border/60 hover:bg-secondary/20">
-                        <td className="px-3 py-1.5 pl-8 sticky left-0 bg-background border-r border-border text-muted-foreground">{s.name}</td>
+                        <td className="px-3 py-1.5 pl-8 sticky left-0 z-10 bg-background border-r border-border text-muted-foreground truncate">{s.name}</td>
                         {monthCols.map(m => (
                           <td key={m} className="px-2 py-1.5 text-center border-r border-border">
                             {s.cells.get(m) != null ? s.cells.get(m) : '—'}

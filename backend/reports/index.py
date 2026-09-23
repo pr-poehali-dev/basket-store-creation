@@ -374,6 +374,12 @@ def handler(event: dict, context) -> dict:
                     return {'statusCode': 200, 'headers': cors(),
                             'body': json.dumps({'items': items})}
 
+                if rec_type == 'warehouse_sets':
+                    cur.execute("SELECT set_name, item_name, qty FROM warehouse_sets ORDER BY set_name, item_name")
+                    return {'statusCode': 200, 'headers': cors(), 'body': json.dumps({'sets': [
+                        {'set_name': r['set_name'], 'item_name': r['item_name'], 'qty': r['qty']}
+                        for r in cur.fetchall()]})}
+
                 if rec_type == 'warehouse_log':
                     catalog = params.get('catalog_name', '')
                     if catalog:
@@ -552,6 +558,24 @@ def handler(event: dict, context) -> dict:
 
                 return {'statusCode': 200, 'headers': cors(),
                         'body': json.dumps({'id': report_id})}
+
+            if b_type == 'warehouse_set_items':
+                set_name = (body.get('set_name') or '').strip()
+                items = body.get('items') or []
+                if not set_name:
+                    return {'statusCode': 400, 'headers': cors(), 'body': json.dumps({'error': 'set_name required'})}
+                with conn.cursor() as cur:
+                    cur.execute("DELETE FROM warehouse_sets WHERE set_name = %s", (set_name,))
+                    for it in items:
+                        nm = (it.get('item_name') or '').strip()
+                        if not nm:
+                            continue
+                        cur.execute(
+                            "INSERT INTO warehouse_sets (set_name, item_name, qty) VALUES (%s, %s, %s) "
+                            "ON CONFLICT (set_name, item_name) DO UPDATE SET qty = EXCLUDED.qty",
+                            (set_name, nm, int(it.get('qty') or 1))
+                        )
+                return {'statusCode': 200, 'headers': cors(), 'body': json.dumps({'ok': True})}
 
             if b_type == 'warehouse_consume':
                 # Списание ГОТОВЫХ (с ручкой) корзин со склада под заказ (Производство)

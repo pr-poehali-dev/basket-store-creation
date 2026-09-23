@@ -78,6 +78,33 @@ const AdminWarehouse = () => {
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
 
+  const [sets, setSets] = useState<Record<string, { item_name: string; qty: number }[]>>({});
+  const [openSet, setOpenSet] = useState<string | null>(null);
+  const [editSet, setEditSet] = useState<string | null>(null);
+  const [setDraft, setSetDraft] = useState<{ item_name: string; qty: number }[]>([]);
+
+  const loadSets = async () => {
+    try {
+      const res = await fetch(`${urls['reports']}?type=warehouse_sets`);
+      const data = await res.json();
+      const map: Record<string, { item_name: string; qty: number }[]> = {};
+      (data.sets || []).forEach((r: { set_name: string; item_name: string; qty: number }) => {
+        (map[r.set_name] = map[r.set_name] || []).push({ item_name: r.item_name, qty: r.qty });
+      });
+      setSets(map);
+    } catch { /* ignore */ }
+  };
+
+  const saveSet = async () => {
+    if (!editSet) return;
+    await fetch(urls['reports'], {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'warehouse_set_items', set_name: editSet, items: setDraft.filter(i => i.item_name) }),
+    });
+    setEditSet(null);
+    await loadSets();
+  };
+
   const loadItems = async () => {
     setLoading(true);
     try {
@@ -119,7 +146,7 @@ const AdminWarehouse = () => {
     } catch { /* fallback */ }
   };
 
-  useEffect(() => { loadItems(); }, []);
+  useEffect(() => { loadItems(); loadSets(); }, []);
 
   const openLog = async (catalogName?: string) => {
     setLogItem(catalogName || null);
@@ -244,18 +271,38 @@ const AdminWarehouse = () => {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((item, idx) => {
+              {filtered.flatMap((item, idx) => {
+                const isSet = /набор/i.test(item.catalog_name);
+                const parts = sets[item.catalog_name] || [];
+                const qtyOf = (n: string) => {
+                  const w = items.find(i => i.catalog_name === n);
+                  return w ? w.qty_full + w.qty_no_handle : 0;
+                };
+                const buildable = isSet && parts.length
+                  ? Math.min(...parts.map(p => Math.floor(qtyOf(p.item_name) / Math.max(1, p.qty))))
+                  : null;
                 const total = item.qty_full + item.qty_no_handle;
-                return (
+                const rows = [(
                   <tr key={item.id > 0 ? item.id : `virtual-${idx}`}
-                    className={`border-b border-primary/10 last:border-0 hover:bg-primary/3 ${total === 0 ? 'opacity-50' : ''}`}>
+                    className={`border-b border-primary/10 last:border-0 hover:bg-primary/3 ${total === 0 && !buildable ? 'opacity-50' : ''}`}>
                     <td className="px-4 py-2.5 text-primary font-medium sticky left-0 z-10 bg-background shadow-[3px_0_5px_-3px_rgba(0,0,0,0.15)]">
-                      {displayTitle(item.catalog_name)}
+                      {isSet ? (
+                        <button onClick={() => setOpenSet(v => v === item.catalog_name ? null : item.catalog_name)}
+                          className="flex items-center gap-1.5 text-left hover:text-accent-foreground">
+                          <span className={`transition-transform ${openSet === item.catalog_name ? 'rotate-90' : ''}`}>▸</span>
+                          {displayTitle(item.catalog_name)}
+                        </button>
+                      ) : displayTitle(item.catalog_name)}
                     </td>
                     <td className="px-4 py-2.5 text-right font-bold text-primary">{item.qty_full}</td>
                     <td className="px-4 py-2.5 text-right text-primary/70">{item.qty_no_handle}</td>
                     <td className="px-4 py-2.5 text-right font-bold" style={{ color: total > 0 ? '#6b7c3a' : undefined }}>
                       {total}
+                      {buildable !== null && (
+                        <span className="ml-2 text-xs font-bold text-blue-600" title="Можно собрать из корзин">
+                          +{buildable}
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-2.5 text-center text-xs text-muted-foreground whitespace-nowrap">
                       {item.updated_at ? new Date(item.updated_at).toLocaleDateString('ru-RU') : '—'}
@@ -269,10 +316,69 @@ const AdminWarehouse = () => {
                       )}
                     </td>
                   </tr>
-                );
+                )];
+                if (isSet && openSet === item.catalog_name) {
+                  rows.push(
+                    <tr key={`${item.catalog_name}-parts`} className="bg-primary/3 border-b border-primary/10">
+                      <td colSpan={6} className="px-4 py-2">
+                        {parts.length === 0 ? (
+                          <p className="text-xs text-muted-foreground">Состав набора не указан</p>
+                        ) : (
+                          <table className="w-full text-xs">
+                            <tbody>
+                              {parts.map(p => (
+                                <tr key={p.item_name}>
+                                  <td className="py-1 pl-6 text-primary/80">{displayTitle(p.item_name)}{p.qty > 1 ? ` × ${p.qty}` : ''}</td>
+                                  <td className="py-1 text-right font-semibold text-primary w-24">{qtyOf(p.item_name)} шт</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        )}
+                        <button onClick={() => { setEditSet(item.catalog_name); setSetDraft(parts.length ? [...parts] : [{ item_name: '', qty: 1 }]); }}
+                          className="text-xs text-primary/60 hover:text-primary underline mt-2">
+                          Настроить состав
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                }
+                return rows;
               })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {editSet && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setEditSet(null)}>
+          <div className="bg-background rounded-2xl border border-primary/30 p-6 w-full max-w-lg max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <h3 className="font-semibold text-primary text-lg mb-1">Состав набора</h3>
+            <p className="text-xs text-muted-foreground mb-4">{displayTitle(editSet)}</p>
+            <div className="space-y-2">
+              {setDraft.map((row, i) => (
+                <div key={i} className="flex gap-2 items-center">
+                  <select value={row.item_name}
+                    onChange={e => setSetDraft(d => d.map((r, j) => j === i ? { ...r, item_name: e.target.value } : r))}
+                    className="flex-1 border border-primary/30 rounded-xl px-3 py-2 text-sm bg-background">
+                    <option value="">— выберите корзину —</option>
+                    {allNames.filter(n => !/набор/i.test(n)).map(n => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                  <input type="number" min={1} value={row.qty}
+                    onChange={e => setSetDraft(d => d.map((r, j) => j === i ? { ...r, qty: parseInt(e.target.value) || 1 } : r))}
+                    className="w-16 border border-primary/30 rounded-xl px-2 py-2 text-sm text-center" />
+                  <button onClick={() => setSetDraft(d => d.filter((_, j) => j !== i))}
+                    className="text-red-400 hover:text-red-600 px-1">✕</button>
+                </div>
+              ))}
+            </div>
+            <button onClick={() => setSetDraft(d => [...d, { item_name: '', qty: 1 }])}
+              className="text-sm text-primary/70 hover:text-primary underline mt-3">+ Добавить корзину</button>
+            <div className="flex gap-2 mt-5">
+              <button onClick={saveSet} className="flex-1 px-4 py-2 rounded-xl bg-accent text-accent-foreground font-semibold text-sm">Сохранить</button>
+              <button onClick={() => setEditSet(null)} className="px-4 py-2 rounded-xl border border-primary/30 text-primary text-sm">Отмена</button>
+            </div>
+          </div>
         </div>
       )}
 
