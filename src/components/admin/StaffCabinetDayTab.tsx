@@ -152,7 +152,7 @@ const StaffCabinetDayTab = ({
                             <input type="number" min={0} placeholder="0" value={qty || ''}
                               onChange={e => setDraft(activeRow.id, cat, parseInt(e.target.value, 10) || 0)}
                               className="w-14 md:w-16 flex-shrink-0 text-center border border-primary/30 rounded-lg px-1 py-1.5 text-sm outline-none focus:border-accent [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
-                            <span className="text-xs text-muted-foreground w-14 md:w-16 flex-shrink-0 text-center md:text-left md:pl-2">{price.toLocaleString('ru-RU')} ₽</span>
+                            <span className="text-xs text-muted-foreground w-14 md:w-16 flex-shrink-0 text-center">{price.toLocaleString('ru-RU')} ₽</span>
                             <span className="text-sm font-semibold w-16 md:w-20 flex-shrink-0 text-right" style={{ color: OLIVE }}>{qty > 0 ? fmtRub(qty * price) : '—'}</span>
                           </div>
                         );
@@ -279,7 +279,7 @@ const StaffCabinetDayTab = ({
                   <div className="text-sm font-medium text-primary truncate">{item.staff_name}</div>
                   <div className="text-xs text-muted-foreground truncate">
                     {CATEGORY_LABEL[item.category]}{item.weave_type ? ` · ${item.weave_type}` : ''}
-                    <span className="hidden md:inline"> · {item.price.toLocaleString('ru-RU')} ₽/шт</span>
+
                   </div>
                 </div>
                 {canEdit ? (
@@ -287,7 +287,7 @@ const StaffCabinetDayTab = ({
                     <input type="number" min={0} value={item.qty || ''} placeholder="0"
                       onChange={e => editSummaryQty(item.position_id, item.category, parseInt(e.target.value, 10) || 0)}
                       className="w-12 md:w-14 text-center border border-primary/30 rounded-lg px-1 py-1 text-sm outline-none focus:border-accent [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
-                    <span className="md:hidden text-[11px] text-muted-foreground w-12 text-center">{item.price.toLocaleString('ru-RU')} ₽</span>
+                    <span className="text-[11px] md:text-xs text-muted-foreground w-12 md:w-16 text-center">{item.price.toLocaleString('ru-RU')} ₽</span>
                     <span className="text-sm font-semibold w-16 md:w-20 text-right" style={{ color: OLIVE }}>{fmtRub(item.qty * item.price)}</span>
                     <button onClick={() => removeSummaryItem(item.position_id, item.category)} className="text-red-400 hover:text-red-600">
                       <Icon name="Trash2" size={16} />
@@ -295,8 +295,9 @@ const StaffCabinetDayTab = ({
                   </div>
                 ) : (
                   <div className="flex items-center gap-2 flex-shrink-0">
-                    <span className="text-sm font-bold text-primary w-10 text-center">{item.qty}</span>
-                    <span className="text-sm font-semibold w-20 text-right" style={{ color: OLIVE }}>{fmtRub(item.qty * item.price)}</span>
+                    <span className="text-sm font-bold text-primary w-12 md:w-14 text-center">{item.qty}</span>
+                    <span className="text-[11px] md:text-xs text-muted-foreground w-12 md:w-16 text-center">{item.price.toLocaleString('ru-RU')} ₽</span>
+                    <span className="text-sm font-semibold w-16 md:w-20 text-right" style={{ color: OLIVE }}>{fmtRub(item.qty * item.price)}</span>
                   </div>
                 )}
               </div>

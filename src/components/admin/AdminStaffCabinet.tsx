@@ -185,7 +185,7 @@ const AdminStaffCabinet = ({ auth }: { auth: AuthData }) => {
 
   // ── Статистика по дням/месяцам ───────────────────────────────────────────
   const now = new Date();
-  const currentMonth = now.toISOString().slice(0, 7);
+  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const monthReports = reports.filter(r => r.report_date.startsWith(currentMonth));
   const monthEarned  = monthReports.reduce((s, r) => s + r.total_rub, 0);
   const monthDays    = monthReports.length;

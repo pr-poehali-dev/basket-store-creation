@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import Icon from '@/components/ui/icon';
 import urls from '../../../backend/func2url.json';
+import HandbookWeaveSpeed from './HandbookWeaveSpeed';
 
 interface Position {
   id: number;
@@ -52,11 +53,15 @@ function fmtMonth(ym: string): string {
   return `${months[parseInt(m)]} ${y}`;
 }
 
+function ym(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
 function getMonthOptions() {
   const opts = [];
   const now = new Date();
   for (let i = 0; i < 12; i++) {
-    opts.push(new Date(now.getFullYear(), now.getMonth() - i, 1).toISOString().slice(0, 7));
+    opts.push(ym(new Date(now.getFullYear(), now.getMonth() - i, 1)));
   }
   return opts;
 }
@@ -67,7 +72,7 @@ const inputCls = "w-full border border-border bg-background px-3 py-2 text-sm ou
 const labelCls = "text-xs uppercase tracking-wider text-muted-foreground mb-1 block";
 
 const AdminHandbook = () => {
-  const [tab, setTab] = useState<'positions' | 'plans'>('positions');
+  const [tab, setTab] = useState<'positions' | 'plans' | 'speed'>('positions');
   const [positions, setPositions] = useState<Position[]>([]);
   const [plans, setPlans]         = useState<Plan[]>([]);
   const [staff, setStaff]         = useState<StaffMember[]>([]);
@@ -144,7 +149,7 @@ const AdminHandbook = () => {
     reader.readAsArrayBuffer(file);
   };
 
-  const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [selectedMonth, setSelectedMonth] = useState(ym(new Date()));
   const [showPlanForm, setShowPlanForm]   = useState(false);
   const [editPlan, setEditPlan]           = useState<Plan | null>(null);
   const [planForm, setPlanForm]           = useState({ staff_id: 0, daily_plan_rub: 0, daily_plan_hours: 9, valid_from: '' });
@@ -182,6 +187,17 @@ const AdminHandbook = () => {
 
   useEffect(() => { load(); }, [showAll]);
   useEffect(() => { if (tab === 'plans') loadPlans(selectedMonth); }, [tab, selectedMonth]);
+
+  const [priceHistPos, setPriceHistPos] = useState<Position | null>(null);
+  const [priceHist, setPriceHist] = useState<Record<string, unknown>[]>([]);
+  const openPriceHistory = async (pos: Position) => {
+    setPriceHistPos(pos); setPriceHist([]);
+    try {
+      const res = await fetch(`${urls['handbook']}?type=price_history&position_id=${pos.id}`);
+      const data = await res.json();
+      setPriceHist(data.history || []);
+    } catch { /* ignore */ }
+  };
 
   const [historyStaff, setHistoryStaff] = useState<number | null>(null);
   const [planHistory, setPlanHistory]   = useState<Plan[]>([]);
@@ -327,15 +343,17 @@ const AdminHandbook = () => {
         <h1 className="font-display text-2xl font-semibold text-primary mb-1">Справочник</h1>
 
         <div className="flex gap-2 mb-6 mt-4">
-          {(['positions', 'plans'] as const).map(t => (
+          {(['positions', 'plans', 'speed'] as const).map(t => (
             <button key={t} onClick={() => setTab(t)}
               className={`px-4 py-1.5 rounded-xl border text-sm font-medium transition-colors ${tab === t ? 'bg-primary text-white border-primary' : 'border-primary/40 text-primary hover:border-primary'}`}>
-              {t === 'positions' ? 'Позиции' : 'Планы сотрудников'}
+              {t === 'positions' ? 'Позиции' : t === 'plans' ? 'Планы сотрудников' : 'Скорость плетения'}
             </button>
           ))}
         </div>
 
-        {tab === 'positions' ? (
+        {tab === 'speed' ? (
+          <HandbookWeaveSpeed />
+        ) : tab === 'positions' ? (
           <>
             {/* Excel блок */}
             <div className="bg-card border border-border p-6 mb-8 rounded-2xl">
@@ -465,6 +483,9 @@ const AdminHandbook = () => {
                           <div className="flex gap-2 justify-center">
                             <Button size="sm" variant="outline" className="rounded-lg h-8" onClick={() => openEditPos(pos)}>
                               <Icon name="Pencil" size={14} />
+                            </Button>
+                            <Button size="sm" variant="outline" className="rounded-lg h-8" title="История цен" onClick={() => openPriceHistory(pos)}>
+                              <Icon name="History" size={14} />
                             </Button>
                             {pos.is_active
                               ? <Button size="sm" variant="outline" className="rounded-lg h-8 text-red-500 hover:text-red-600" onClick={() => deactivatePos(pos.id)}>
@@ -609,6 +630,43 @@ const AdminHandbook = () => {
       )}
 
       {/* ФОРМА ПЛАНА */}
+      {priceHistPos && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setPriceHistPos(null)}>
+          <div className="bg-background rounded-2xl p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <h3 className="font-semibold text-lg mb-1">История цен</h3>
+            <p className="text-xs text-muted-foreground mb-4">{priceHistPos.staff_name}{priceHistPos.weave_type ? ` · ${priceHistPos.weave_type}` : ''}</p>
+            {priceHist.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Изменений цены не было</p>
+            ) : (
+              <table className="w-full text-sm">
+                <thead><tr className="text-muted-foreground text-xs border-b border-border">
+                  <th className="text-left py-2">Действует с</th>
+                  <th className="text-right py-2">С ручкой</th>
+                  <th className="text-right py-2">Без ручки</th>
+                  <th className="text-right py-2">Ручка</th>
+                  <th className="text-right py-2">Уши</th>
+                  <th className="text-right py-2">С ушами</th>
+                </tr></thead>
+                <tbody>
+                  {priceHist.map((h, i) => (
+                    <tr key={String(h.id)} className="border-b border-border last:border-0">
+                      <td className="py-2 whitespace-nowrap">
+                        {h.valid_from ? new Date(String(h.valid_from) + 'T00:00:00').toLocaleDateString('ru-RU') : '—'}
+                        {i === 0 && <span className="ml-2 text-[10px] text-accent-foreground bg-accent px-1.5 py-0.5 rounded">текущая</span>}
+                      </td>
+                      {['price_whole', 'price_no_handle', 'price_handle', 'price_ears', 'price_whole_ears'].map(k => (
+                        <td key={k} className="py-2 text-right">{Number(h[k] || 0) > 0 ? Number(h[k]).toLocaleString('ru-RU') : '—'}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            <Button variant="outline" className="rounded-lg mt-5 w-full" onClick={() => setPriceHistPos(null)}>Закрыть</Button>
+          </div>
+        </div>
+      )}
+
       {historyStaff !== null && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setHistoryStaff(null)}>
           <div className="bg-background rounded-2xl p-6 w-full max-w-md max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>

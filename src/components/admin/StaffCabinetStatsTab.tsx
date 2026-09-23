@@ -1,6 +1,6 @@
 import Icon from '@/components/ui/icon';
 import { useState } from 'react';
-import { DayReport, Plan, bonusFor, fmtMonth, fmtRub, isDateEditable, OLIVE } from './staffCabinetUtils';
+import { CATEGORY_LABEL, DayReport, Plan, bonusFor, fmtMonth, fmtRub, isDateEditable, OLIVE } from './staffCabinetUtils';
 
 interface StaffCabinetStatsTabProps {
   statsPeriod: 'days' | 'months';
@@ -27,6 +27,7 @@ const StaffCabinetStatsTab = ({
   const [reqFor, setReqFor] = useState<string | null>(null);
   const [reqComment, setReqComment] = useState('');
   const [sentDates, setSentDates] = useState<string[]>([]);
+  const [openDay, setOpenDay] = useState<string | null>(null);
   return (
     <div>
       <div className="flex gap-2 mb-5">
@@ -77,7 +78,9 @@ const StaffCabinetStatsTab = ({
             <p className="text-sm text-muted-foreground p-4">Нет данных за этот месяц</p>
           ) : monthReports.map(r => (
             <div key={r.id} className="border-b border-primary/10 last:border-0">
-              <button onClick={() => openDayEdit(r)}
+              <button onClick={() => (r.locked || !isDateEditable(r.report_date))
+                  ? setOpenDay(v => v === r.report_date ? null : r.report_date)
+                  : openDayEdit(r)}
                 className="w-full px-4 py-2.5 grid grid-cols-3 text-sm hover:bg-primary/3 transition-colors text-left">
                 <span className="text-primary/70 flex items-center gap-1.5">
                   {new Date(r.report_date + 'T00:00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', weekday: 'short' })}
@@ -88,6 +91,23 @@ const StaffCabinetStatsTab = ({
                   {plan && plan.daily_plan_rub > 0 ? Math.round(r.total_rub / plan.daily_plan_rub * 100) : '—'}%
                 </span>
               </button>
+              {openDay === r.report_date && (
+                <div className="px-3 pb-2.5 bg-primary/3">
+                  {(r.positions || []).length === 0 ? (
+                    <p className="text-xs text-muted-foreground py-2 px-1">Позиции не указаны</p>
+                  ) : (r.positions || []).map((p, i) => (
+                    <div key={i} className="flex items-center gap-1.5 md:gap-3 py-1.5 border-b border-primary/10 last:border-0">
+                      <div className="min-w-0 flex-1">
+                        <div className="text-xs font-medium text-primary truncate">{p.staff_name}</div>
+                        <div className="text-[11px] text-muted-foreground truncate">{CATEGORY_LABEL[p.category]}</div>
+                      </div>
+                      <span className="text-xs text-center w-12 md:w-16 flex-shrink-0 text-primary">{p.qty} шт</span>
+                      <span className="text-[11px] text-muted-foreground w-12 md:w-16 flex-shrink-0 text-center">{p.price.toLocaleString('ru-RU')} ₽</span>
+                      <span className="text-xs font-semibold w-16 md:w-20 flex-shrink-0 text-right" style={{ color: OLIVE }}>{fmtRub(p.qty * p.price)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
               {(r.locked || !isDateEditable(r.report_date)) && onRequestEdit && (
                 <div className="px-4 pb-2.5">
                   {reqFor === r.report_date ? (

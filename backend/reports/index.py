@@ -74,6 +74,55 @@ def handler(event: dict, context) -> dict:
                         'locked': bool(row['locked']),
                     }})}
 
+                if rec_type == 'weave_speed':
+                    # Скорость плетения: только дни, когда сотрудник делал РОВНО одну позицию
+                    year_f = params.get('year', '')
+                    d_from = params.get('from') or (f"{year_f}-01-01" if year_f else '2000-01-01')
+                    d_to = params.get('to') or (f"{year_f}-12-31" if year_f else '2999-12-31')
+                    cur.execute("""SELECT r.staff_id, s.full_name, r.report_date, r.positions, r.hours
+                        FROM staff_reports r JOIN staff s ON s.id = r.staff_id
+                        WHERE r.report_date BETWEEN %s AND %s AND r.hours > 0
+                        ORDER BY r.report_date""", (d_from, d_to))
+                    rows = cur.fetchall()
+
+                    def pos_key(p):
+                        cat = p.get('category') or 'whole'
+                        name = (p.get('staff_name') or '').strip()
+                        weave = (p.get('weave_type') or '').strip()
+                        cat_label = {'whole': 'с ручкой', 'whole_ears': 'с ушами',
+                                     'no_handle': 'без ручки', 'handle': 'ручка', 'ears': 'уши'}.get(cat, cat)
+                        if cat in ('handle', 'ears'):
+                            return f"{cat_label} {name}", cat
+                        base = f"{name} {weave}".strip() if weave else name
+                        return f"{base} {cat_label}", cat
+
+                    acc = {}
+                    for r in rows:
+                        plist = [p for p in (r['positions'] or []) if int(p.get('qty') or 0) > 0]
+                        keys = set()
+                        for p in plist:
+                            keys.add(pos_key(p)[0])
+                        if len(keys) != 1:
+                            continue
+                        qty = sum(int(p.get('qty') or 0) for p in plist)
+                        hrs = to_float(r['hours'])
+                        if hrs <= 0:
+                            continue
+                        speed = qty / hrs * 8
+                        key, cat = pos_key(plist[0])
+                        m = r['report_date'].strftime('%Y-%m')
+                        k = (key, cat, r['staff_id'], r['full_name'], m)
+                        a = acc.setdefault(k, [0.0, 0])
+                        a[0] += speed
+                        a[1] += 1
+
+                    result = [{
+                        'position': k[0], 'category': k[1], 'staff_id': k[2],
+                        'staff_name': k[3], 'month': k[4],
+                        'speed': round(v[0] / v[1], 1), 'days': v[1],
+                    } for k, v in acc.items()]
+                    return {'statusCode': 200, 'headers': cors(), 'body': json.dumps({'rows': result})}
+
                 if rec_type == 'summary':
                     # Сводка по сотрудникам плетения за месяц (как в Excel-отчёте)
                     import calendar as _c
