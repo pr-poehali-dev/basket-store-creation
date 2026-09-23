@@ -7,6 +7,7 @@ interface Client {
   phone: string;
   email: string;
   city: string;
+  callsign: string;
   inn: string;
   delivery_days: string;
   delivery_time: string;
@@ -32,7 +33,7 @@ function fmtDate(iso: string) {
 }
 
 const emptyForm = () => ({
-  full_name: '', phone: '', email: '', city: '',
+  full_name: '', phone: '', email: '', city: '', callsign: '',
   inn: '', delivery_days: '', delivery_time: '',
   payment_method: '', delivery_address: '', delivery_type: '',
 });
@@ -66,7 +67,8 @@ const ClientCard = ({ client, onDelete, onEdit }: {
       <div className="flex items-center justify-between p-4 cursor-pointer hover:bg-primary/3 transition-colors" onClick={loadOrders}>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3 flex-wrap">
-            <span className="font-bold text-primary">{client.full_name}</span>
+            <span className="font-bold text-primary">{client.callsign || [client.city, client.full_name].filter(Boolean).join(' ')}</span>
+            {client.full_name && client.callsign && <span className="text-sm text-muted-foreground">{client.full_name}</span>}
             {client.city && <span className="text-sm text-muted-foreground">{client.city}</span>}
             {client.inn && <span className="text-xs text-muted-foreground">ИНН: {client.inn}</span>}
           </div>
@@ -176,6 +178,7 @@ const ClientForm = ({ initial, onSave, onClose }: {
             ['phone', 'Телефон *'],
             ['email', 'Email'],
             ['city', 'Город'],
+            ['callsign', 'Позывной'],
             ['inn', 'ИНН'],
             ['payment_method', 'Способ оплаты'],
             ['delivery_address', 'Адрес доставки'],
@@ -210,6 +213,16 @@ const AdminClients = () => {
   const [formData, setFormData] = useState<(ReturnType<typeof emptyForm> & { id?: number }) | null>(null);
   const [syncing, setSyncing]   = useState(false);
   const [importing, setImporting] = useState(false);
+
+  const purgeAll = async () => {
+    if (!confirm('Удалить ВСЕХ клиентов и ВСЕ заказы? Данные нельзя будет вернуть.')) return;
+    if (prompt('Для подтверждения введите DELETE') !== 'DELETE') return;
+    await fetch(urls['clients'], {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'purge_all', confirm: 'DELETE' }),
+    });
+    window.location.reload();
+  };
   const [importMsg, setImportMsg] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -284,7 +297,8 @@ const AdminClients = () => {
     !search ||
     c.full_name.toLowerCase().includes(search.toLowerCase()) ||
     c.phone.includes(search) ||
-    c.city.toLowerCase().includes(search.toLowerCase())
+    c.city.toLowerCase().includes(search.toLowerCase()) ||
+    (c.callsign || '').toLowerCase().includes(search.toLowerCase())
   );
 
   const totalOrders  = clients.reduce((s, c) => s + c.order_count, 0);
@@ -319,6 +333,10 @@ const AdminClients = () => {
           {importing ? 'Загружаю...' : '📥 Excel'}
           <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleExcel} disabled={importing} />
         </label>
+        <button onClick={purgeAll}
+          className="px-4 py-2 rounded-xl border border-red-300 text-red-500 text-sm hover:bg-red-50">
+          🗑 Очистить клиентов и заказы
+        </button>
       </div>
 
       {importMsg && (

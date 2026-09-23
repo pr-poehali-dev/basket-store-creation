@@ -13,7 +13,7 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 from decimal import Decimal
 
-CLIENT_FIELDS = ('full_name','phone','email','city','inn','delivery_days','delivery_time','payment_method','delivery_address','delivery_type')
+CLIENT_FIELDS = ('full_name','phone','email','city','callsign','inn','delivery_days','delivery_time','payment_method','delivery_address','delivery_type')
 
 def get_conn():
     return psycopg2.connect(os.environ['DATABASE_URL'])
@@ -37,6 +37,7 @@ def row_to_client(r):
         'phone': r['phone'] or '',
         'email': r.get('email') or '',
         'city': r.get('city') or '',
+        'callsign': r.get('callsign') or ' '.join(x for x in [(r.get('city') or '').strip(), (r['full_name'] or '').strip()] if x),
         'inn': r.get('inn') or '',
         'delivery_days': r.get('delivery_days') or '',
         'delivery_time': r.get('delivery_time') or '',
@@ -102,6 +103,17 @@ def handler(event: dict, context) -> dict:
 
         if method == 'POST':
             b_type = body.get('type', 'client')
+
+            if b_type == 'purge_all':
+                # Полная очистка тестовых данных: клиенты + заказы
+                if body.get('confirm') != 'DELETE':
+                    return {'statusCode': 400, 'headers': cors(), 'body': json.dumps({'error': 'confirm required'})}
+                with conn.cursor() as cur:
+                    cur.execute("DELETE FROM order_comments")
+                    cur.execute("DELETE FROM tasks WHERE order_id IS NOT NULL")
+                    cur.execute("DELETE FROM orders")
+                    cur.execute("DELETE FROM clients")
+                return {'statusCode': 200, 'headers': cors(), 'body': json.dumps({'ok': True})}
 
             if b_type == 'upsert_from_order':
                 phone = (body.get('phone') or '').strip()
@@ -184,7 +196,7 @@ def handler(event: dict, context) -> dict:
                 if not phone:
                     return {'statusCode': 400, 'headers': cors(), 'body': json.dumps({'error': 'phone required'})}
                 cols, vals = ['full_name','phone'], [body.get('full_name', phone).strip(), phone]
-                for f in ('email','city','inn','delivery_days','delivery_time','payment_method','delivery_address','delivery_type'):
+                for f in ('email','city','callsign','inn','delivery_days','delivery_time','payment_method','delivery_address','delivery_type'):
                     if f in body and body[f] is not None:
                         cols.append(f); vals.append(str(body[f]).strip())
                 placeholders = ','.join(['%s']*len(cols))

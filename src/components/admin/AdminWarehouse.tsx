@@ -316,27 +316,39 @@ const AdminWarehouse = () => {
                   </tr>
                 )];
                 if (isSet && openSet === item.catalog_name) {
+                  if (parts.length === 0) {
+                    rows.push(
+                      <tr key={`${item.catalog_name}-empty`} className="bg-primary/3 border-b border-primary/10">
+                        <td colSpan={6} className="px-4 py-2 pl-10 text-xs text-muted-foreground">Состав набора не указан</td>
+                      </tr>
+                    );
+                  }
+                  parts.forEach(p => {
+                    const w = items.find(i => i.catalog_name === p.item_name);
+                    const pTotal = w ? w.qty_full + w.qty_no_handle : 0;
+                    rows.push(
+                      <tr key={`${item.catalog_name}-${p.item_name}`}
+                        className={`border-b border-primary/10 bg-primary/3 hover:bg-primary/5 ${pTotal === 0 ? 'opacity-50' : ''}`}>
+                        <td className="px-4 py-2.5 text-primary font-medium sticky left-0 z-10 bg-[#f6f3ed] shadow-[3px_0_5px_-3px_rgba(0,0,0,0.15)] pl-10">
+                          {displayTitle(p.item_name)}{p.qty > 1 ? ` × ${p.qty}` : ''}
+                        </td>
+                        <td className="px-4 py-2.5 text-right font-bold text-primary">{w ? w.qty_full : 0}</td>
+                        <td className="px-4 py-2.5 text-right text-primary/70">{w ? w.qty_no_handle : 0}</td>
+                        <td className="px-4 py-2.5 text-right font-bold" style={{ color: pTotal > 0 ? '#6b7c3a' : undefined }}>{pTotal}</td>
+                        <td className="px-4 py-2.5 text-center text-xs text-muted-foreground whitespace-nowrap">
+                          {w?.updated_at ? new Date(w.updated_at).toLocaleDateString('ru-RU') : '—'}
+                        </td>
+                        <td className="px-4 py-2.5 text-center">
+                          <button onClick={() => openLog(p.item_name)} className="text-xs text-primary/50 hover:text-primary underline">История</button>
+                        </td>
+                      </tr>
+                    );
+                  });
                   rows.push(
-                    <tr key={`${item.catalog_name}-parts`} className="bg-primary/3 border-b border-primary/10">
-                      <td colSpan={6} className="px-4 py-2">
-                        {parts.length === 0 ? (
-                          <p className="text-xs text-muted-foreground">Состав набора не указан</p>
-                        ) : (
-                          <table className="w-full text-xs">
-                            <tbody>
-                              {parts.map(p => (
-                                <tr key={p.item_name}>
-                                  <td className="py-1 pl-6 text-primary/80">{displayTitle(p.item_name)}{p.qty > 1 ? ` × ${p.qty}` : ''}</td>
-                                  <td className="py-1 text-right font-semibold text-primary w-24">{qtyOf(p.item_name)} шт</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        )}
+                    <tr key={`${item.catalog_name}-cfg`} className="bg-primary/3 border-b border-primary/10">
+                      <td colSpan={6} className="px-4 py-1.5 pl-10">
                         <button onClick={() => { setEditSet(item.catalog_name); setSetDraft(parts.length ? [...parts] : [{ item_name: '', qty: 1 }]); }}
-                          className="text-xs text-primary/60 hover:text-primary underline mt-2">
-                          Настроить состав
-                        </button>
+                          className="text-xs text-primary/60 hover:text-primary underline">Настроить состав</button>
                       </td>
                     </tr>
                   );
