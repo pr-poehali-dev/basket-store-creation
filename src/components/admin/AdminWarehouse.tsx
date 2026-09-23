@@ -7,6 +7,7 @@ interface WarehouseItem {
   catalog_name: string;
   qty_full: number;
   qty_no_handle: number;
+  buildable?: number | null;
   updated_at: string;
 }
 
@@ -272,15 +273,15 @@ const AdminWarehouse = () => {
             </thead>
             <tbody>
               {filtered.flatMap((item, idx) => {
-                const isSet = /набор/i.test(item.catalog_name);
                 const parts = sets[item.catalog_name] || [];
+                const isSet = parts.length > 0 || /набор/i.test(item.catalog_name);
                 const qtyOf = (n: string) => {
                   const w = items.find(i => i.catalog_name === n);
                   return w ? w.qty_full + w.qty_no_handle : 0;
                 };
-                const buildable = isSet && parts.length
+                const buildable = item.buildable ?? (parts.length
                   ? Math.min(...parts.map(p => Math.floor(qtyOf(p.item_name) / Math.max(1, p.qty))))
-                  : null;
+                  : null);
                 const total = item.qty_full + item.qty_no_handle;
                 const rows = [(
                   <tr key={item.id > 0 ? item.id : `virtual-${idx}`}
@@ -297,12 +298,9 @@ const AdminWarehouse = () => {
                     <td className="px-4 py-2.5 text-right font-bold text-primary">{item.qty_full}</td>
                     <td className="px-4 py-2.5 text-right text-primary/70">{item.qty_no_handle}</td>
                     <td className="px-4 py-2.5 text-right font-bold" style={{ color: total > 0 ? '#6b7c3a' : undefined }}>
-                      {total}
-                      {buildable !== null && (
-                        <span className="ml-2 text-xs font-bold text-blue-600" title="Можно собрать из корзин">
-                          +{buildable}
-                        </span>
-                      )}
+                      {buildable !== null && buildable !== undefined ? (
+                        <span className="text-blue-600" title="Можно собрать из имеющихся корзин">{buildable}</span>
+                      ) : total}
                     </td>
                     <td className="px-4 py-2.5 text-center text-xs text-muted-foreground whitespace-nowrap">
                       {item.updated_at ? new Date(item.updated_at).toLocaleDateString('ru-RU') : '—'}

@@ -176,7 +176,7 @@ const AdminProduction = () => {
     const res  = await fetch(`${urls['reports']}?type=warehouse`);
     const data = await res.json();
     const map: Record<string, number> = {};
-    for (const item of (data.items || [])) map[item.catalog_name] = item.qty_full;
+    for (const item of (data.items || [])) map[item.catalog_name] = item.buildable ?? item.qty_full;
     setWarehouseMap(map);
   };
 
@@ -207,6 +207,7 @@ const AdminProduction = () => {
         comment: `Заказ #${order.order_number}`, created_by: 'Производство',
       }) }),
     ]);
+    await loadWarehouse();
   };
 
   const updateStage = async (id: number, stage: string) => {

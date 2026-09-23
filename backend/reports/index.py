@@ -364,13 +364,25 @@ def handler(event: dict, context) -> dict:
                 if rec_type == 'warehouse':
                     cur.execute("SELECT * FROM warehouse ORDER BY catalog_name")
                     rows = cur.fetchall()
-                    items = [{
-                        'id': r['id'],
-                        'catalog_name': r['catalog_name'],
-                        'qty_full': r['qty_full'],
-                        'qty_no_handle': r['qty_no_handle'],
-                        'updated_at': r['updated_at'].isoformat() if r['updated_at'] else '',
-                    } for r in rows]
+                    stock = {r['catalog_name']: (r['qty_full'] or 0) + (r['qty_no_handle'] or 0) for r in rows}
+                    cur.execute("SELECT set_name, item_name, qty FROM warehouse_sets")
+                    set_map = {}
+                    for sr in cur.fetchall():
+                        set_map.setdefault(sr['set_name'], []).append((sr['item_name'], sr['qty'] or 1))
+                    items = []
+                    for r in rows:
+                        parts = set_map.get(r['catalog_name'])
+                        buildable = None
+                        if parts:
+                            buildable = min(stock.get(n, 0) // max(1, q) for n, q in parts)
+                        items.append({
+                            'id': r['id'],
+                            'catalog_name': r['catalog_name'],
+                            'qty_full': r['qty_full'],
+                            'qty_no_handle': r['qty_no_handle'],
+                            'buildable': buildable,
+                            'updated_at': r['updated_at'].isoformat() if r['updated_at'] else '',
+                        })
                     return {'statusCode': 200, 'headers': cors(),
                             'body': json.dumps({'items': items})}
 
@@ -588,21 +600,28 @@ def handler(event: dict, context) -> dict:
                     return {'statusCode': 200, 'headers': cors(), 'body': json.dumps({'ok': True, 'skipped': True})}
 
                 with conn.cursor() as cur:
-                    cur.execute(
-                        """INSERT INTO warehouse (catalog_name, qty_full, qty_no_handle)
-                           VALUES (%s, %s, 0)
-                           ON CONFLICT (catalog_name)
-                           DO UPDATE SET
-                             qty_full = GREATEST(0, warehouse.qty_full - %s),
-                             updated_at = NOW()""",
-                        (catalog_name, max(0, -delta), delta)
-                    )
-                    cur.execute(
-                        """INSERT INTO warehouse_log
-                           (catalog_name, operation, qty_full, qty_no_handle, comment, created_by)
-                           VALUES (%s, 'order_consume', %s, 0, %s, %s)""",
-                        (catalog_name, -delta, comment, created_by)
-                    )
+                    cur.execute("SELECT item_name, qty FROM warehouse_sets WHERE set_name = %s", (catalog_name,))
+                    parts = cur.fetchall()
+                    # Набор физически не хранится — списываем входящие в него корзины
+                    targets = ([(p[0], delta * max(1, p[1])) for p in parts]
+                               if parts else [(catalog_name, delta)])
+                    set_note = f' (из набора: {catalog_name})' if parts else ''
+                    for nm, d in targets:
+                        cur.execute(
+                            """INSERT INTO warehouse (catalog_name, qty_full, qty_no_handle)
+                               VALUES (%s, %s, 0)
+                               ON CONFLICT (catalog_name)
+                               DO UPDATE SET
+                                 qty_full = GREATEST(0, warehouse.qty_full - %s),
+                                 updated_at = NOW()""",
+                            (nm, max(0, -d), d)
+                        )
+                        cur.execute(
+                            """INSERT INTO warehouse_log
+                               (catalog_name, operation, qty_full, qty_no_handle, comment, created_by)
+                               VALUES (%s, 'order_consume', %s, 0, %s, %s)""",
+                            (nm, -d, (comment or '') + set_note, created_by)
+                        )
                 return {'statusCode': 200, 'headers': cors(), 'body': json.dumps({'ok': True})}
 
             if b_type == 'salary_adj':
