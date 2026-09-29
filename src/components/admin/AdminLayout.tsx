@@ -98,6 +98,25 @@ const AdminLayout = ({ children }: { children: ReactNode }) => {
   // Закрываем мобильное меню при смене страницы
   useEffect(() => { setMobileMenuOpen(false); }, [location.pathname]);
 
+  // Подтягиваем актуальные права с сервера — иначе новые разделы
+  // не появятся у тех, кто уже авторизован
+  useEffect(() => {
+    if (!authed?.staff_id) return;
+    (async () => {
+      try {
+        const res  = await fetch(urls['staff']);
+        const data = await res.json();
+        const me   = (data.staff || []).find((s: { id: number }) => s.id === authed.staff_id);
+        if (!me) return;
+        const fresh = (me.pages || []) as string[];
+        if (fresh.join(',') === (authed.pages || []).join(',')) return;
+        const next = { ...authed, pages: fresh };
+        localStorage.setItem('admin_auth', JSON.stringify(next));
+        setAuthed(next);
+      } catch { /* ignore */ }
+    })();
+  }, [authed?.staff_id]);
+
   const doLogin = async () => {
     setAuthLoading(true); setAuthError('');
     const body: Record<string, string> = { password };
