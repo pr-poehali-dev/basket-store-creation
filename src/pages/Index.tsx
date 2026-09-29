@@ -3,6 +3,7 @@ import Icon from '@/components/ui/icon';
 import { Button } from '@/components/ui/button';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
+import StoryScroll from '@/components/StoryScroll';
 
 const scrollTo = (id: string) => {
   document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
@@ -61,6 +62,9 @@ const Index = () => {
           ))}
         </div>
       </section>
+
+      {/* Story */}
+      <StoryScroll />
 
       {/* About */}
       <section id="about" className="py-24 px-6 bg-secondary/40">
