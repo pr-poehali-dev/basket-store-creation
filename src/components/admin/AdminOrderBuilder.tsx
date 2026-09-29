@@ -2,10 +2,13 @@ import { useState, useEffect, useMemo } from 'react';
 import Icon from '@/components/ui/icon';
 import urls from '../../../backend/func2url.json';
 import { STAGES, Order, RESPONSIBLES, DELIVERY_LABELS, fmtMoney } from './orderUtils';
+import { WHOLESALE_TIERS } from '../PriceTiers';
+
+const PAYMENTS = ['По счёту', 'QR-код'];
 
 interface Product { id: number; name: string; size: string; color: string; price: number; }
-interface Client  { id: number; callsign: string; full_name: string; phone: string; city: string; }
-interface Line    { key: string; name: string; color: string; base: number; price: number; qty: number; }
+interface Client  { id: number; callsign: string; full_name: string; phone: string; city: string; delivery_address: string; delivery_type: string; }
+interface Line    { key: string; name: string; color: string; base: number; price: number; qty: number; manual?: boolean; }
 interface Catalog { name: string; price: number; colors: string[]; }
 
 const EMPTY = {
@@ -47,6 +50,10 @@ const AdminOrderBuilder = () => {
 
   const [search, setSearch]         = useState('');
   const [prodSearch, setProdSearch] = useState('');
+  const [prodOpen, setProdOpen]     = useState(false);
+  const [cliSearch, setCliSearch]   = useState('');
+  const [cliOpen, setCliOpen]       = useState(false);
+  const [autoWholesale, setAutoWholesale] = useState(true);
 
   const calcNext = (list: Order[]) => {
     const max = list.reduce((m, o) => {
@@ -107,6 +114,29 @@ const AdminOrderBuilder = () => {
 
   const total = useMemo(() => Math.round(lines.reduce((s, l) => s + l.price * l.qty, 0)), [lines]);
 
+  // Оптовая скидка как в корзине: считаем от суммы по базовым ценам
+  const baseSum = useMemo(() => lines.reduce((s, l) => s + l.base * l.qty, 0), [lines]);
+  const autoPct = useMemo(() => {
+    let pct = 0;
+    for (const t of WHOLESALE_TIERS) if (baseSum >= t.threshold) pct = Math.max(pct, t.pct);
+    return pct;
+  }, [baseSum]);
+
+  useEffect(() => {
+    if (!autoWholesale) return;
+    setLines(prev => {
+      let changed = false;
+      const next = prev.map(l => {
+        if (l.manual || l.base <= 0) return l;
+        const want = round(l.base * (1 - autoPct / 100));
+        if (want === l.price) return l;
+        changed = true;
+        return { ...l, price: want };
+      });
+      return changed ? next : prev;
+    });
+  }, [autoPct, autoWholesale]);
+
   const startNew = () => {
     setMode('new'); setEditId(null); setSaved('');
     setHead({ ...EMPTY, order_number: calcNext(orders) });
@@ -142,11 +172,11 @@ const AdminOrderBuilder = () => {
   const setLine = (key: string, patch: Partial<Line>) =>
     setLines(prev => prev.map(l => l.key === key ? { ...l, ...patch } : l));
 
-  const changePrice = (l: Line, price: number) => setLine(l.key, { price: round(price) });
+  const changePrice = (l: Line, price: number) => setLine(l.key, { price: round(price), manual: true });
 
   const changeDiscount = (l: Line, disc: number) => {
     const d = Math.min(100, Math.max(0, disc));
-    setLine(l.key, { price: round(l.base * (1 - d / 100)) });
+    setLine(l.key, { price: round(l.base * (1 - d / 100)), manual: true });
   };
 
   const changeName = (l: Line, name: string) => {
@@ -162,7 +192,11 @@ const AdminOrderBuilder = () => {
   const pickClient = (tag: string) => {
     const c = clientList.find(x => x.tag === tag);
     if (!c) { setHead(h => ({ ...h, customer_name: tag })); return; }
-    setHead(h => ({ ...h, customer_name: c.tag, phone: c.phone || '', city: c.city || '' }));
+    setHead(h => ({
+      ...h, customer_name: c.tag, phone: c.phone || '', city: c.city || '',
+      delivery_address: c.delivery_address || h.delivery_address,
+      delivery_type: c.delivery_type || h.delivery_type,
+    }));
   };
 
   const save = async () => {
@@ -203,13 +237,20 @@ const AdminOrderBuilder = () => {
     return list.slice(0, 40);
   }, [orders, search]);
 
+  const foundClients = useMemo(() => {
+    const q = cliSearch.trim().toLowerCase();
+    const list = q ? clientList.filter(c =>
+      c.tag.toLowerCase().includes(q) || (c.city || '').toLowerCase().includes(q)) : clientList;
+    return list.slice(0, 60);
+  }, [clientList, cliSearch]);
+
   const foundItems = useMemo(() => {
     const q = prodSearch.trim().toLowerCase();
-    if (!q) return catalog.slice(0, 14);
-    return catalog.filter(c => c.name.toLowerCase().includes(q)).slice(0, 24);
+    if (!q) return catalog;
+    return catalog.filter(c => c.name.toLowerCase().includes(q));
   }, [catalog, prodSearch]);
 
-  const inp = 'w-full border border-primary/25 rounded-xl px-3 py-2 text-sm bg-background text-primary outline-none focus:border-accent';
+  const inp = 'w-full h-10 border border-primary/25 rounded-xl px-3 text-sm bg-background text-primary outline-none focus:border-accent appearance-none';
   const lbl = 'text-[11px] text-primary/50 block mb-1';
 
   return (
@@ -274,12 +315,29 @@ const AdminOrderBuilder = () => {
 
                 <Section title="Клиент и доставка" open={openClient} onToggle={() => setOpenClient(v => !v)}>
                   <div className="grid gap-3 sm:grid-cols-3">
-                    <div className="sm:col-span-2">
+                    <div className="sm:col-span-2 relative">
                       <label className={lbl}>Клиент (позывной)</label>
-                      <select value={head.customer_name} onChange={e => pickClient(e.target.value)} className={inp}>
-                        <option value="">— выберите клиента —</option>
-                        {clientList.map(c => <option key={c.id} value={c.tag}>{c.tag}</option>)}
-                      </select>
+                      <input
+                        value={cliOpen ? cliSearch : (head.customer_name || '')}
+                        onFocus={() => { setCliOpen(true); setCliSearch(''); }}
+                        onChange={e => { setCliSearch(e.target.value); setCliOpen(true); }}
+                        onBlur={() => setTimeout(() => setCliOpen(false), 150)}
+                        placeholder="Начните вводить позывной..." className={inp} />
+                      {cliOpen && (
+                        <div className="absolute z-20 left-0 right-0 top-full mt-1 max-h-60 overflow-y-auto bg-background border border-primary/25 rounded-xl shadow-lg">
+                          {foundClients.length === 0 && (
+                            <div className="px-3 py-2 text-xs text-muted-foreground">Клиент не найден</div>
+                          )}
+                          {foundClients.map(c => (
+                            <button key={c.id} type="button"
+                              onMouseDown={() => { pickClient(c.tag); setCliOpen(false); }}
+                              className="w-full text-left px-3 py-2 text-sm text-primary hover:bg-primary/8 transition-colors">
+                              {c.tag}
+                              {c.city && <span className="text-primary/40 text-xs"> · {c.city}</span>}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     <div>
                       <label className={lbl}>Город</label>
@@ -329,7 +387,10 @@ const AdminOrderBuilder = () => {
                     </div>
                     <div>
                       <label className={lbl}>Оплата</label>
-                      <input value={head.payment_method} onChange={e => setHead(h => ({ ...h, payment_method: e.target.value }))} className={inp} />
+                      <select value={head.payment_method} onChange={e => setHead(h => ({ ...h, payment_method: e.target.value }))} className={inp}>
+                        <option value="">—</option>
+                        {PAYMENTS.map(p => <option key={p} value={p}>{p}</option>)}
+                      </select>
                     </div>
                     <div className="sm:col-span-3">
                       <label className={lbl}>Комментарий</label>
@@ -342,23 +403,32 @@ const AdminOrderBuilder = () => {
                   <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
                     <div className="text-sm font-semibold text-primary">Позиции заказа</div>
                     <div className="flex gap-2 items-center">
-                      <input value={prodSearch} onChange={e => setProdSearch(e.target.value)}
-                        placeholder="Поиск позиции..." className="border border-primary/25 rounded-xl px-3 py-1.5 text-sm bg-background outline-none focus:border-accent w-48" />
+                      <div className="relative">
+                        <input value={prodSearch}
+                          onFocus={() => setProdOpen(true)}
+                          onBlur={() => setTimeout(() => setProdOpen(false), 150)}
+                          onChange={e => { setProdSearch(e.target.value); setProdOpen(true); }}
+                          placeholder="Поиск позиции..." className="h-10 border border-primary/25 rounded-xl px-3 text-sm bg-background outline-none focus:border-accent w-56" />
+                        {prodOpen && (
+                          <div className="absolute z-20 left-0 right-0 top-full mt-1 max-h-64 overflow-y-auto bg-background border border-primary/25 rounded-xl shadow-lg w-72">
+                            {foundItems.length === 0 && (
+                              <div className="px-3 py-2 text-xs text-muted-foreground">Не найдено</div>
+                            )}
+                            {foundItems.map(c => (
+                              <button key={c.name} type="button"
+                                onMouseDown={() => { addItem(c); setProdSearch(''); setProdOpen(false); }}
+                                className="w-full text-left px-3 py-2 text-sm text-primary hover:bg-primary/8 transition-colors">
+                                {c.name} <span className="text-primary/45">({Math.round(c.price)}р)</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                       <button onClick={addBlank}
-                        className="text-xs px-3 py-1.5 rounded-xl border border-primary/30 text-primary hover:border-primary transition-colors">
+                        className="text-xs h-10 px-3 rounded-xl border border-primary/30 text-primary hover:border-primary transition-colors whitespace-nowrap">
                         + Своя позиция
                       </button>
                     </div>
-                  </div>
-
-                  <div className="flex flex-wrap gap-1.5 mb-3 pb-3 border-b border-primary/10">
-                    {foundItems.map(c => (
-                      <button key={c.name} onClick={() => { addItem(c); setProdSearch(''); }}
-                        className="text-xs px-2.5 py-1.5 rounded-xl border border-primary/20 text-primary hover:border-primary hover:bg-primary/5 transition-colors">
-                        {c.name} ({Math.round(c.price)}р)
-                      </button>
-                    ))}
-                    {foundItems.length === 0 && <span className="text-xs text-muted-foreground">Не найдено</span>}
                   </div>
 
                   <datalist id="colors-all">
@@ -401,7 +471,14 @@ const AdminOrderBuilder = () => {
                     </div>
                   )}
 
-                  <div className="flex justify-end items-center gap-6 mt-4 pt-3 border-t border-primary/15">
+                  <div className="flex justify-between items-center gap-6 mt-4 pt-3 border-t border-primary/15 flex-wrap">
+                    <label className="flex items-center gap-2 text-xs text-primary/70 cursor-pointer">
+                      <input type="checkbox" checked={autoWholesale}
+                        onChange={e => setAutoWholesale(e.target.checked)} className="accent-primary" />
+                      Оптовая скидка автоматически
+                      {autoPct > 0 && <span className="font-bold text-accent">−{autoPct}%</span>}
+                    </label>
+                    <div className="flex items-center gap-6">
                     <div className="text-right">
                       <div className="text-[10px] uppercase tracking-wide text-primary/40 font-semibold">Позиций</div>
                       <div className="font-bold text-primary tabular-nums">{lines.reduce((s, l) => s + l.qty, 0)} шт</div>
@@ -409,6 +486,7 @@ const AdminOrderBuilder = () => {
                     <div className="text-right">
                       <div className="text-[10px] uppercase tracking-wide text-primary/40 font-semibold">Итого</div>
                       <div className="font-bold text-primary text-xl tabular-nums">{fmtMoney(total)}</div>
+                    </div>
                     </div>
                   </div>
                 </div>
