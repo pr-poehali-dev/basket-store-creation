@@ -129,7 +129,7 @@ const AdminOrderBuilder = () => {
   }, [baseSum]);
 
   useEffect(() => {
-    if (!autoWholesale) return;
+    if (!autoWholesale || mode === 'edit') return;
     setLines(prev => {
       let changed = false;
       const next = prev.map(l => {
@@ -141,7 +141,7 @@ const AdminOrderBuilder = () => {
       });
       return changed ? next : prev;
     });
-  }, [autoPct, autoWholesale]);
+  }, [autoPct, autoWholesale, mode]);
 
   const startNew = () => {
     setMode('new'); setEditId(null); setSaved('');
@@ -163,7 +163,7 @@ const AdminOrderBuilder = () => {
     setLines((o.items || []).map((it, i) => {
       const price = (it as { price?: number }).price || 0;
       const base  = catalog.find(c => c.name === it.name)?.price || price;
-      return { key: `l${i}`, name: it.name, color: it.color || '', base, price, qty: it.qty };
+      return { key: `l${i}`, name: it.name, color: it.color || '', base, price, qty: it.qty, manual: true };
     }));
   };
 
@@ -184,7 +184,7 @@ const AdminOrderBuilder = () => {
     // становится розничной базой — тогда оптовая скидка применится к ней
     if (l.base <= 0) {
       const p = round(price);
-      setLine(l.key, { base: p, price: autoWholesale ? round(p * (1 - autoPct / 100)) : p });
+      setLine(l.key, { base: p, price: (autoWholesale && mode === 'new') ? round(p * (1 - autoPct / 100)) : p });
       return;
     }
     setLine(l.key, { price: round(price), manual: true });
@@ -500,12 +500,12 @@ const AdminOrderBuilder = () => {
                   )}
 
                   <div className="flex justify-between items-center gap-6 mt-4 pt-3 border-t border-primary/15 flex-wrap">
-                    <label className="flex items-center gap-2 text-xs text-primary/70 cursor-pointer">
+                    {mode === 'new' ? <label className="flex items-center gap-2 text-xs text-primary/70 cursor-pointer">
                       <input type="checkbox" checked={autoWholesale}
                         onChange={e => setAutoWholesale(e.target.checked)} className="accent-primary" />
                       Оптовая скидка автоматически
                       {autoPct > 0 && <span className="font-bold text-accent">−{autoPct}%</span>}
-                    </label>
+                    </label> : <span />}
                     <div className="flex items-center gap-6">
                     <div className="text-right">
                       <div className="text-[10px] uppercase tracking-wide text-primary/40 font-semibold">Позиций</div>
