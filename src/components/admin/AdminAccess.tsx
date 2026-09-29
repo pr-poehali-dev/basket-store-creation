@@ -6,6 +6,7 @@ const ALL_PAGES = [
   { key: 'cabinet',     label: '👤 Личный кабинет (сотрудник)' },
   { key: 'tasks',       label: 'Задачи' },
   { key: 'orders',      label: 'Заказы' },
+  { key: 'order-builder', label: 'Конструктор заказов' },
   { key: 'production',  label: 'Производство' },
   { key: 'painting',    label: 'Малярка' },
   { key: 'calendar',    label: 'Календарь' },

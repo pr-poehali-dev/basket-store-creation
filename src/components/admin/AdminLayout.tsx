@@ -42,6 +42,7 @@ const NAV_BLOCKS = [
     items: [
       { label: 'Задачи',       path: '/admin/tasks',      key: 'tasks'       },
       { label: 'Заказы',       path: '/admin/orders',     key: 'orders'      },
+      { label: 'Конструктор заказов', path: '/admin/order-builder', key: 'order-builder' },
       { label: 'Производство', path: '/admin/production', key: 'production'  },
       { label: 'Малярка',      path: '/admin/painting',   key: 'painting'    },
       { label: 'Склад',        path: '/admin/warehouse',  key: 'warehouse'   },

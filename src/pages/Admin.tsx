@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import AdminLayout from '@/components/admin/AdminLayout';
+import AdminOrderBuilder from "@/components/admin/AdminOrderBuilder";
 import AdminOrders from '@/components/admin/AdminOrders';
 import AdminProducts from '@/components/admin/AdminProducts';
 import AdminProduction from '@/components/admin/AdminProduction';
@@ -20,6 +21,7 @@ const Admin = () => (
       <Route index element={<AdminOrders />} />
       <Route path="tasks"        element={<AdminTasks />} />
       <Route path="orders"       element={<AdminOrders />} />
+      <Route path="order-builder" element={<AdminOrderBuilder />} />
       <Route path="production"   element={<AdminProduction />} />
       <Route path="painting"     element={<AdminPainting />} />
       <Route path="warehouse"    element={<AdminWarehouse />} />
