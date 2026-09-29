@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
 
 const CDN = 'https://cdn.poehali.dev/projects/d5ee4f52-1455-4c6a-a1d4-6138f3445871';
 
@@ -87,14 +89,17 @@ const StoryScroll = () => {
   }, []);
 
   const active = Math.round(progress);
+  const last = frames.length - 1;
 
   return (
-    <div ref={ref} style={{ height: `${frames.length * 100}vh` }} className="relative">
-      <div className="sticky top-0 h-screen w-full overflow-hidden bg-black">
+    <div ref={ref} style={{ height: `${frames.length * 110}vh` }} className="relative">
+      <div className="sticky top-0 h-[100svh] w-full overflow-hidden bg-[#0d0f0c]">
         {frames.map((f, i) => {
-          const d = Math.abs(progress - i);
-          const opacity = Math.max(0, 1 - d * 1.6);
-          const scale = 1.12 - Math.min(d, 1) * 0.06;
+          const d = progress - i;
+          const ad = Math.abs(d);
+          if (ad > 1.4) return null;
+          const opacity = Math.max(0, 1 - Math.pow(Math.min(ad, 1), 1.4) * 1.25);
+          const scale = 1.16 - Math.min(ad, 1) * 0.1;
           return (
             <img
               key={f.img}
@@ -102,36 +107,70 @@ const StoryScroll = () => {
               alt={f.title}
               loading={i < 2 ? 'eager' : 'lazy'}
               className="absolute inset-0 h-full w-full object-cover will-change-transform"
-              style={{ opacity, transform: `scale(${scale})` }}
+              style={{
+                opacity,
+                transform: `scale(${scale}) translate3d(0, ${d * -3.5}%, 0)`,
+                filter: `brightness(${0.92 - Math.min(ad, 1) * 0.15}) saturate(0.92)`,
+              }}
             />
           );
         })}
 
-        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-black/40" />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#0d0f0c] via-[#0d0f0c]/15 to-[#0d0f0c]/55" />
+        <div
+          className="pointer-events-none absolute inset-0 opacity-[0.16] mix-blend-overlay"
+          style={{
+            backgroundImage:
+              "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E\")",
+          }}
+        />
+        <div
+          className="pointer-events-none absolute inset-0"
+          style={{ boxShadow: 'inset 0 0 220px 60px rgba(0,0,0,0.55)' }}
+        />
 
         <div className="absolute inset-0 flex items-end md:items-center">
-          <div className="container mx-auto px-6 pb-24 md:pb-0">
-            <div className="max-w-xl">
+          <div className="container mx-auto px-6 pb-28 md:pb-0">
+            <div className="relative max-w-xl">
               {frames.map((f, i) => {
-                const d = Math.abs(progress - i);
-                const opacity = Math.max(0, 1 - d * 2.6);
+                const d = progress - i;
+                const ad = Math.abs(d);
+                const opacity = Math.max(0, 1 - Math.pow(Math.min(ad, 1), 1.2) * 2.2);
+                if (ad > 1) return null;
                 return (
                   <div
                     key={f.title}
-                    className={i === 0 ? '' : 'absolute'}
+                    className={i === 0 ? '' : 'absolute inset-x-0 top-0'}
                     style={{
                       opacity,
-                      transform: `translateY(${(progress - i) * 28}px)`,
+                      transform: `translate3d(0, ${d * 42}px, 0)`,
                       pointerEvents: opacity > 0.5 ? 'auto' : 'none',
                     }}
                   >
-                    <p className="text-white/70 text-xs tracking-[0.35em] uppercase mb-4">
-                      {String(i + 1).padStart(2, '0')} — {f.label}
+                    <p className="text-white/60 text-[11px] tracking-[0.4em] uppercase mb-5">
+                      {String(i + 1).padStart(2, '0')} / {String(frames.length).padStart(2, '0')} — {f.label}
                     </p>
-                    <h2 className="text-white text-3xl sm:text-5xl md:text-6xl font-semibold leading-[1.05] mb-4">
+                    <h2 className="text-white text-[2rem] sm:text-5xl md:text-6xl font-semibold leading-[1.03] mb-4 [text-shadow:0_2px_40px_rgba(0,0,0,0.5)]">
                       {f.title}
                     </h2>
-                    <p className="text-white/80 text-base sm:text-lg max-w-md">{f.text}</p>
+                    <p className="text-white/75 text-base sm:text-lg max-w-md leading-relaxed">{f.text}</p>
+                    {i === last && (
+                      <div className="mt-8 flex flex-wrap gap-3">
+                        <Link to="/catalog">
+                          <Button className="bg-white text-[#0d0f0c] hover:bg-white/90 px-8 h-12 rounded-full">
+                            Смотреть каталог
+                          </Button>
+                        </Link>
+                        <Link to="/how-it-works">
+                          <Button
+                            variant="outline"
+                            className="px-8 h-12 rounded-full border-white/40 bg-transparent text-white hover:bg-white/10 hover:text-white"
+                          >
+                            Как мы работаем
+                          </Button>
+                        </Link>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -143,19 +182,26 @@ const StoryScroll = () => {
           {frames.map((f, i) => (
             <span
               key={f.label}
-              className={`h-1.5 rounded-full transition-all duration-300 ${
-                i === active ? 'bg-white w-6' : 'bg-white/40 w-1.5'
+              className={`h-1.5 rounded-full transition-all duration-500 ${
+                i === active ? 'bg-white w-7' : 'bg-white/30 w-1.5'
               }`}
             />
           ))}
         </div>
 
+        <div className="absolute bottom-0 left-0 h-[2px] w-full bg-white/10">
+          <div
+            className="h-full bg-white/70"
+            style={{ width: `${(progress / last) * 100}%` }}
+          />
+        </div>
+
         <div
-          className="absolute bottom-7 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 transition-opacity duration-500"
-          style={{ opacity: progress < 0.3 ? 1 : 0 }}
+          className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 transition-opacity duration-500"
+          style={{ opacity: progress < 0.25 ? 1 : 0 }}
         >
-          <span className="text-white/70 text-[11px] tracking-[0.3em] uppercase">Листайте</span>
-          <span className="block h-8 w-px bg-white/50 animate-pulse" />
+          <span className="text-white/60 text-[10px] tracking-[0.35em] uppercase">Листайте</span>
+          <span className="block h-8 w-px bg-white/40 animate-pulse" />
         </div>
       </div>
     </div>
