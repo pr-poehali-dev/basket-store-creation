@@ -5,13 +5,29 @@ import { STAGES, Order, RESPONSIBLES, DELIVERY_LABELS, fmtMoney } from './orderU
 
 interface Product { id: number; name: string; size: string; color: string; price: number; }
 interface Client  { id: number; callsign: string; full_name: string; phone: string; city: string; }
-interface Line    { key: string; name: string; size: string; color: string; price: number; qty: number; }
+interface Line    { key: string; name: string; color: string; base: number; price: number; qty: number; }
+interface Catalog { name: string; price: number; colors: string[]; }
 
 const EMPTY = {
   order_number: '', stage: 'Новый заказ', city: '', customer_name: '', phone: '',
-  customer_email: '', discount: 0, responsible: '', due_date: '',
+  customer_email: '', responsible: '', due_date: '',
   delivery_type: '', delivery_address: '', payment_method: '', comment: '',
 };
+
+const round = (n: number) => Math.round(n * 100) / 100;
+
+const Section = ({ title, open, onToggle, children }: {
+  title: string; open: boolean; onToggle: () => void; children: React.ReactNode;
+}) => (
+  <div className="border border-primary/20 rounded-2xl overflow-hidden">
+    <button onClick={onToggle}
+      className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-primary/5 transition-colors">
+      <span className="text-sm font-semibold text-primary">{title}</span>
+      <Icon name={open ? 'ChevronUp' : 'ChevronDown'} size={16} className="text-primary/45" />
+    </button>
+    {open && <div className="px-5 pb-5">{children}</div>}
+  </div>
+);
 
 const AdminOrderBuilder = () => {
   const [mode, setMode]         = useState<'new' | 'edit'>('new');
@@ -26,8 +42,19 @@ const AdminOrderBuilder = () => {
   const [head, setHead]     = useState({ ...EMPTY });
   const [lines, setLines]   = useState<Line[]>([]);
 
-  const [search, setSearch]     = useState('');
+  const [openClient, setOpenClient] = useState(true);
+  const [openParams, setOpenParams] = useState(true);
+
+  const [search, setSearch]         = useState('');
   const [prodSearch, setProdSearch] = useState('');
+
+  const calcNext = (list: Order[]) => {
+    const max = list.reduce((m, o) => {
+      const n = parseInt(String(o.order_number || '').replace(/\D/g, ''), 10);
+      return isNaN(n) ? m : Math.max(m, n);
+    }, 0);
+    return String(max + 1);
+  };
 
   const load = async () => {
     const [o, p, c] = await Promise.all([
@@ -35,21 +62,55 @@ const AdminOrderBuilder = () => {
       fetch(`${urls['products']}?raw=1`).then(r => r.json()),
       fetch(urls['clients']).then(r => r.json()),
     ]);
-    setOrders((o.orders || []).filter((x: Order) => !x.is_trashed));
+    const ords = (o.orders || []).filter((x: Order) => !x.is_trashed);
+    setOrders(ords);
     setProducts(p.products || []);
     setClients(c.clients || []);
     setLoading(false);
+    return ords as Order[];
   };
-  useEffect(() => { load(); }, []);
 
-  const total = useMemo(
-    () => Math.round(lines.reduce((s, l) => s + l.price * l.qty, 0) * (1 - (head.discount || 0) / 100)),
-    [lines, head.discount]);
+  useEffect(() => {
+    load().then(ords => setHead(h => ({ ...h, order_number: calcNext(ords) })));
+  }, []);
+
+  const clientList = useMemo(() => {
+    const seen = new Set<string>();
+    return clients
+      .map(c => ({ ...c, tag: (c.callsign || c.full_name || '').trim() }))
+      .filter(c => { if (!c.tag || seen.has(c.tag)) return false; seen.add(c.tag); return true; })
+      .sort((a, b) => a.tag.localeCompare(b.tag, 'ru'));
+  }, [clients]);
+
+  const catalog = useMemo<Catalog[]>(() => {
+    const map = new Map<string, { price: number; colors: Set<string> }>();
+    for (const p of products) {
+      const name = (p.name || '').trim();
+      if (!name) continue;
+      const e = map.get(name) || { price: p.price || 0, colors: new Set<string>() };
+      if (p.price && (!e.price || p.price < e.price)) e.price = p.price;
+      if (p.color) String(p.color).split(/[,/]/).forEach(c => { if (c.trim()) e.colors.add(c.trim()); });
+      map.set(name, e);
+    }
+    return [...map.entries()]
+      .map(([name, v]) => ({ name, price: v.price, colors: [...v.colors].sort((a, b) => a.localeCompare(b, 'ru')) }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+  }, [products]);
+
+  const colorsFor = (name: string) => catalog.find(c => c.name === name)?.colors || [];
+
+  const allColors = useMemo(() => {
+    const s = new Set<string>();
+    catalog.forEach(c => c.colors.forEach(x => s.add(x)));
+    return [...s].sort((a, b) => a.localeCompare(b, 'ru'));
+  }, [catalog]);
+
+  const total = useMemo(() => Math.round(lines.reduce((s, l) => s + l.price * l.qty, 0)), [lines]);
 
   const startNew = () => {
-    setMode('new'); setEditId(null);
-    setHead({ ...EMPTY, order_number: String(Date.now()).slice(-5) });
-    setLines([]); setSaved('');
+    setMode('new'); setEditId(null); setSaved('');
+    setHead({ ...EMPTY, order_number: calcNext(orders) });
+    setLines([]);
   };
 
   const startEdit = (o: Order) => {
@@ -57,41 +118,60 @@ const AdminOrderBuilder = () => {
     setHead({
       order_number: o.order_number || '', stage: o.stage, city: o.city || '',
       customer_name: o.customer_name || '', phone: o.customer_phone || '',
-      customer_email: o.customer_email || '', discount: o.discount || 0,
+      customer_email: o.customer_email || '',
       responsible: o.responsible || '', due_date: o.due_date || '',
       delivery_type: o.delivery_type || '', delivery_address: o.delivery_address || '',
       payment_method: o.payment_method || '', comment: o.comment || '',
     });
-    setLines((o.items || []).map((it, i) => ({
-      key: `l${i}`, name: it.name, size: it.size || '', color: it.color || '',
-      price: (it as { price?: number }).price || 0, qty: it.qty,
-    })));
+    setLines((o.items || []).map((it, i) => {
+      const price = (it as { price?: number }).price || 0;
+      const base  = catalog.find(c => c.name === it.name)?.price || price;
+      return { key: `l${i}`, name: it.name, color: it.color || '', base, price, qty: it.qty };
+    }));
   };
 
-  const addProduct = (p: Product) => setLines(prev => [...prev, {
-    key: `l${Date.now()}${prev.length}`, name: p.name, size: p.size || '',
-    color: p.color || '', price: p.price || 0, qty: 1,
+  const addItem = (c: Catalog) => setLines(prev => [...prev, {
+    key: `l${Date.now()}${prev.length}`, name: c.name,
+    color: c.colors[0] || '', base: c.price, price: c.price, qty: 1,
   }]);
 
   const addBlank = () => setLines(prev => [...prev, {
-    key: `l${Date.now()}${prev.length}`, name: '', size: '', color: '', price: 0, qty: 1,
+    key: `l${Date.now()}${prev.length}`, name: '', color: '', base: 0, price: 0, qty: 1,
   }]);
 
   const setLine = (key: string, patch: Partial<Line>) =>
     setLines(prev => prev.map(l => l.key === key ? { ...l, ...patch } : l));
+
+  const changePrice = (l: Line, price: number) => setLine(l.key, { price: round(price) });
+
+  const changeDiscount = (l: Line, disc: number) => {
+    const d = Math.min(100, Math.max(0, disc));
+    setLine(l.key, { price: round(l.base * (1 - d / 100)) });
+  };
+
+  const changeName = (l: Line, name: string) => {
+    const c = catalog.find(x => x.name === name);
+    if (c) setLine(l.key, { name, base: c.price, price: c.price, color: l.color || c.colors[0] || '' });
+    else setLine(l.key, { name });
+  };
+
+  const discOf = (l: Line) => l.base > 0 ? Math.round((1 - l.price / l.base) * 100) : 0;
+
   const delLine = (key: string) => setLines(prev => prev.filter(l => l.key !== key));
 
-  const pickClient = (c: Client) => setHead(h => ({
-    ...h, customer_name: c.full_name || c.callsign, phone: c.phone || '', city: c.city || h.city,
-  }));
+  const pickClient = (tag: string) => {
+    const c = clientList.find(x => x.tag === tag);
+    if (!c) { setHead(h => ({ ...h, customer_name: tag })); return; }
+    setHead(h => ({ ...h, customer_name: c.tag, phone: c.phone || '', city: c.city || '' }));
+  };
 
   const save = async () => {
-    if (!head.customer_name.trim()) { alert('Укажите клиента'); return; }
+    if (!head.customer_name.trim()) { alert('Выберите клиента'); return; }
     if (lines.length === 0) { alert('Добавьте хотя бы одну позицию'); return; }
     setSaving(true);
     const payload = {
       ...head, total,
-      items: lines.map(l => ({ name: l.name, size: l.size, color: l.color, qty: l.qty, price: l.price })),
+      items: lines.map(l => ({ name: l.name, color: l.color, qty: l.qty, price: l.price })),
     };
     if (mode === 'edit' && editId) {
       await fetch(urls['orders'], {
@@ -99,16 +179,19 @@ const AdminOrderBuilder = () => {
         body: JSON.stringify({ id: editId, ...payload }),
       });
       setSaved('Заказ обновлён');
+      await load();
     } else {
       await fetch(urls['orders'], {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
       setSaved('Заказ создан');
+      const ords = await load();
+      setEditId(null);
+      setLines([]);
+      setHead({ ...EMPTY, order_number: calcNext(ords) });
     }
     setSaving(false);
-    await load();
-    if (mode === 'new') startNew();
   };
 
   const foundOrders = useMemo(() => {
@@ -120,11 +203,11 @@ const AdminOrderBuilder = () => {
     return list.slice(0, 40);
   }, [orders, search]);
 
-  const foundProducts = useMemo(() => {
+  const foundItems = useMemo(() => {
     const q = prodSearch.trim().toLowerCase();
-    if (!q) return products.slice(0, 12);
-    return products.filter(p => `${p.name} ${p.size}`.toLowerCase().includes(q)).slice(0, 20);
-  }, [products, prodSearch]);
+    if (!q) return catalog.slice(0, 14);
+    return catalog.filter(c => c.name.toLowerCase().includes(q)).slice(0, 24);
+  }, [catalog, prodSearch]);
 
   const inp = 'w-full border border-primary/25 rounded-xl px-3 py-2 text-sm bg-background text-primary outline-none focus:border-accent';
   const lbl = 'text-[11px] text-primary/50 block mb-1';
@@ -148,15 +231,14 @@ const AdminOrderBuilder = () => {
       </div>
 
       {saved && (
-        <div className="mb-4 px-4 py-2.5 rounded-xl bg-accent/12 text-accent text-sm font-semibold flex items-center gap-2">
+        <div className="mb-4 px-4 py-2.5 rounded-xl bg-accent/10 text-accent text-sm font-semibold flex items-center gap-2">
           <Icon name="Check" size={15} /> {saved}
         </div>
       )}
 
       {loading ? <p className="text-muted-foreground">Загружаю...</p> : (
-        <div className="grid gap-5 lg:grid-cols-[340px_1fr]">
+        <div className={mode === 'edit' ? 'grid gap-5 lg:grid-cols-[340px_1fr]' : ''}>
 
-          {/* Левая колонка: поиск заказа для редактирования */}
           {mode === 'edit' && (
             <div className="border border-primary/20 rounded-2xl p-4 h-fit lg:sticky lg:top-4">
               <div className="text-sm font-semibold text-primary mb-2">Выберите заказ</div>
@@ -166,7 +248,7 @@ const AdminOrderBuilder = () => {
                 {foundOrders.map(o => (
                   <button key={o.id} onClick={() => startEdit(o)}
                     className={`w-full text-left px-3 py-2 rounded-xl border transition-colors ${
-                      editId === o.id ? 'border-primary bg-primary/6' : 'border-primary/15 hover:border-primary/45'}`}>
+                      editId === o.id ? 'border-primary bg-primary/5' : 'border-primary/15 hover:border-primary/45'}`}>
                     <div className="text-[10px] uppercase tracking-wide text-primary/40 font-semibold">
                       {o.city || 'Город не указан'}
                     </div>
@@ -182,35 +264,26 @@ const AdminOrderBuilder = () => {
             </div>
           )}
 
-          {/* Правая колонка: форма */}
-          <div className={mode === 'new' ? 'lg:col-span-2 max-w-4xl' : ''}>
+          <div className={mode === 'new' ? 'max-w-5xl' : ''}>
             {mode === 'edit' && !editId ? (
               <div className="border border-dashed border-primary/25 rounded-2xl p-10 text-center text-muted-foreground">
                 Выберите заказ слева, чтобы отредактировать
               </div>
             ) : (
-              <div className="space-y-5">
+              <div className="space-y-4">
 
-                {/* Клиент */}
-                <div className="border border-primary/20 rounded-2xl p-5">
-                  <div className="text-sm font-semibold text-primary mb-3">Клиент и доставка</div>
+                <Section title="Клиент и доставка" open={openClient} onToggle={() => setOpenClient(v => !v)}>
                   <div className="grid gap-3 sm:grid-cols-3">
+                    <div className="sm:col-span-2">
+                      <label className={lbl}>Клиент (позывной)</label>
+                      <select value={head.customer_name} onChange={e => pickClient(e.target.value)} className={inp}>
+                        <option value="">— выберите клиента —</option>
+                        {clientList.map(c => <option key={c.id} value={c.tag}>{c.tag}</option>)}
+                      </select>
+                    </div>
                     <div>
                       <label className={lbl}>Город</label>
                       <input value={head.city} onChange={e => setHead(h => ({ ...h, city: e.target.value }))} className={inp} />
-                    </div>
-                    <div className="sm:col-span-2">
-                      <label className={lbl}>Клиент</label>
-                      <input list="clients-dl" value={head.customer_name}
-                        onChange={e => {
-                          const v = e.target.value;
-                          const c = clients.find(x => (x.full_name || x.callsign) === v);
-                          if (c) pickClient(c); else setHead(h => ({ ...h, customer_name: v }));
-                        }}
-                        placeholder="Имя или позывной" className={inp} />
-                      <datalist id="clients-dl">
-                        {clients.map(c => <option key={c.id} value={c.full_name || c.callsign} />)}
-                      </datalist>
                     </div>
                     <div>
                       <label className={lbl}>Телефон</label>
@@ -228,15 +301,14 @@ const AdminOrderBuilder = () => {
                       <input value={head.delivery_address} onChange={e => setHead(h => ({ ...h, delivery_address: e.target.value }))} className={inp} />
                     </div>
                   </div>
-                </div>
+                </Section>
 
-                {/* Параметры заказа */}
-                <div className="border border-primary/20 rounded-2xl p-5">
-                  <div className="text-sm font-semibold text-primary mb-3">Параметры заказа</div>
+                <Section title="Параметры заказа" open={openParams} onToggle={() => setOpenParams(v => !v)}>
                   <div className="grid gap-3 sm:grid-cols-4">
                     <div>
-                      <label className={lbl}>Номер</label>
-                      <input value={head.order_number} onChange={e => setHead(h => ({ ...h, order_number: e.target.value }))} className={inp} />
+                      <label className={lbl}>Номер (авто)</label>
+                      <input value={head.order_number} readOnly
+                        className={inp + ' bg-primary/5 text-primary/60 cursor-not-allowed'} />
                     </div>
                     <div>
                       <label className={lbl}>Этап</label>
@@ -256,28 +328,22 @@ const AdminOrderBuilder = () => {
                       <input type="date" value={head.due_date} onChange={e => setHead(h => ({ ...h, due_date: e.target.value }))} className={inp} />
                     </div>
                     <div>
-                      <label className={lbl}>Скидка, %</label>
-                      <input type="number" min={0} max={100} value={head.discount || ''}
-                        onChange={e => setHead(h => ({ ...h, discount: parseInt(e.target.value) || 0 }))} className={inp} />
-                    </div>
-                    <div>
                       <label className={lbl}>Оплата</label>
                       <input value={head.payment_method} onChange={e => setHead(h => ({ ...h, payment_method: e.target.value }))} className={inp} />
                     </div>
-                    <div className="sm:col-span-2">
+                    <div className="sm:col-span-3">
                       <label className={lbl}>Комментарий</label>
                       <input value={head.comment} onChange={e => setHead(h => ({ ...h, comment: e.target.value }))} className={inp} />
                     </div>
                   </div>
-                </div>
+                </Section>
 
-                {/* Позиции */}
                 <div className="border border-primary/20 rounded-2xl p-5">
                   <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
                     <div className="text-sm font-semibold text-primary">Позиции заказа</div>
                     <div className="flex gap-2 items-center">
                       <input value={prodSearch} onChange={e => setProdSearch(e.target.value)}
-                        placeholder="Поиск товара..." className="border border-primary/25 rounded-xl px-3 py-1.5 text-sm bg-background outline-none focus:border-accent w-48" />
+                        placeholder="Поиск позиции..." className="border border-primary/25 rounded-xl px-3 py-1.5 text-sm bg-background outline-none focus:border-accent w-48" />
                       <button onClick={addBlank}
                         className="text-xs px-3 py-1.5 rounded-xl border border-primary/30 text-primary hover:border-primary transition-colors">
                         + Своя позиция
@@ -285,37 +351,47 @@ const AdminOrderBuilder = () => {
                     </div>
                   </div>
 
-                  {prodSearch && (
-                    <div className="flex flex-wrap gap-1.5 mb-3 pb-3 border-b border-primary/10">
-                      {foundProducts.map(p => (
-                        <button key={p.id} onClick={() => { addProduct(p); setProdSearch(''); }}
-                          className="text-xs px-2.5 py-1.5 rounded-xl border border-primary/20 text-primary hover:border-primary hover:bg-primary/5 transition-colors">
-                          {p.name}{p.size ? ` (${p.size})` : ''} · {fmtMoney(p.price)}
-                        </button>
-                      ))}
-                      {foundProducts.length === 0 && <span className="text-xs text-muted-foreground">Не найдено</span>}
-                    </div>
-                  )}
+                  <div className="flex flex-wrap gap-1.5 mb-3 pb-3 border-b border-primary/10">
+                    {foundItems.map(c => (
+                      <button key={c.name} onClick={() => { addItem(c); setProdSearch(''); }}
+                        className="text-xs px-2.5 py-1.5 rounded-xl border border-primary/20 text-primary hover:border-primary hover:bg-primary/5 transition-colors">
+                        {c.name} ({Math.round(c.price)}р)
+                      </button>
+                    ))}
+                    {foundItems.length === 0 && <span className="text-xs text-muted-foreground">Не найдено</span>}
+                  </div>
+
+                  <datalist id="colors-all">
+                    {allColors.map(c => <option key={c} value={c} />)}
+                  </datalist>
+                  <datalist id="names-all">
+                    {catalog.map(c => <option key={c.name} value={c.name} />)}
+                  </datalist>
 
                   {lines.length === 0 ? (
                     <p className="text-sm text-muted-foreground py-4 text-center">Позиции не добавлены</p>
                   ) : (
                     <div className="space-y-2">
-                      <div className="hidden sm:grid grid-cols-[1fr_120px_130px_70px_100px_32px] gap-2 text-[10px] uppercase tracking-wide text-primary/40 font-semibold px-1">
-                        <span>Позиция</span><span>Размер</span><span>Цвет</span><span>Кол-во</span><span>Цена</span><span />
+                      <div className="hidden sm:grid grid-cols-[1fr_150px_70px_110px_100px_32px] gap-2 text-[10px] uppercase tracking-wide text-primary/40 font-semibold px-1">
+                        <span>Позиция</span><span>Цвет</span><span>Кол-во</span><span>Цена со скидкой</span><span>Скидка, %</span><span />
                       </div>
                       {lines.map(l => (
-                        <div key={l.key} className="grid gap-2 sm:grid-cols-[1fr_120px_130px_70px_100px_32px] items-center">
-                          <input value={l.name} onChange={e => setLine(l.key, { name: e.target.value })}
+                        <div key={l.key} className="grid gap-2 sm:grid-cols-[1fr_150px_70px_110px_100px_32px] items-center">
+                          <input list="names-all" value={l.name} onChange={e => changeName(l, e.target.value)}
                             placeholder="Название" className={inp} />
-                          <input value={l.size} onChange={e => setLine(l.key, { size: e.target.value })}
-                            placeholder="Размер" className={inp} />
-                          <input value={l.color} onChange={e => setLine(l.key, { color: e.target.value })}
+                          <input list={`colors-${l.key}`} value={l.color}
+                            onChange={e => setLine(l.key, { color: e.target.value })}
                             placeholder="Цвет" className={inp} />
+                          <datalist id={`colors-${l.key}`}>
+                            {(colorsFor(l.name).length ? colorsFor(l.name) : allColors).map(c => <option key={c} value={c} />)}
+                          </datalist>
                           <input type="number" min={1} value={l.qty}
                             onChange={e => setLine(l.key, { qty: parseInt(e.target.value) || 1 })} className={inp + ' text-center'} />
                           <input type="number" min={0} value={l.price}
-                            onChange={e => setLine(l.key, { price: parseFloat(e.target.value) || 0 })} className={inp + ' text-right'} />
+                            onChange={e => changePrice(l, parseFloat(e.target.value) || 0)} className={inp + ' text-right font-semibold'} />
+                          <input type="number" min={0} max={100} value={discOf(l)}
+                            onChange={e => changeDiscount(l, parseFloat(e.target.value) || 0)}
+                            className={inp + ' text-right'} />
                           <button onClick={() => delLine(l.key)}
                             className="text-primary/35 hover:text-red-500 transition-colors flex justify-center">
                             <Icon name="Trash2" size={15} />
@@ -330,12 +406,6 @@ const AdminOrderBuilder = () => {
                       <div className="text-[10px] uppercase tracking-wide text-primary/40 font-semibold">Позиций</div>
                       <div className="font-bold text-primary tabular-nums">{lines.reduce((s, l) => s + l.qty, 0)} шт</div>
                     </div>
-                    {head.discount > 0 && (
-                      <div className="text-right">
-                        <div className="text-[10px] uppercase tracking-wide text-primary/40 font-semibold">Скидка</div>
-                        <div className="font-bold text-accent tabular-nums">{head.discount}%</div>
-                      </div>
-                    )}
                     <div className="text-right">
                       <div className="text-[10px] uppercase tracking-wide text-primary/40 font-semibold">Итого</div>
                       <div className="font-bold text-primary text-xl tabular-nums">{fmtMoney(total)}</div>
