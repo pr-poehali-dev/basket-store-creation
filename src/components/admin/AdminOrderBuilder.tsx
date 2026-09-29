@@ -3,11 +3,12 @@ import Icon from '@/components/ui/icon';
 import urls from '../../../backend/func2url.json';
 import { STAGES, Order, RESPONSIBLES, DELIVERY_LABELS, fmtMoney } from './orderUtils';
 import { WHOLESALE_TIERS } from '../PriceTiers';
+import { ClientForm, emptyForm } from './AdminClients';
 
 const PAYMENTS = ['По счёту', 'QR-код'];
 
 interface Product { id: number; name: string; size: string; color: string; price: number; }
-interface Client  { id: number; callsign: string; full_name: string; phone: string; city: string; delivery_address: string; delivery_type: string; }
+interface Client  { id: number; callsign: string; full_name: string; phone: string; city: string; email: string; delivery_address: string; delivery_type: string; payment_method: string; }
 interface Line    { key: string; name: string; color: string; base: number; price: number; qty: number; manual?: boolean; }
 interface Catalog { name: string; price: number; colors: string[]; }
 
@@ -17,7 +18,7 @@ const EMPTY = {
   delivery_type: '', delivery_address: '', payment_method: '', comment: '',
 };
 
-const round = (n: number) => Math.round(n * 100) / 100;
+const round = (n: number) => Math.round(n);
 
 const Section = ({ title, open, onToggle, children }: {
   title: string; open: boolean; onToggle: () => void; children: React.ReactNode;
@@ -54,6 +55,8 @@ const AdminOrderBuilder = () => {
   const [cliSearch, setCliSearch]   = useState('');
   const [cliOpen, setCliOpen]       = useState(false);
   const [autoWholesale, setAutoWholesale] = useState(true);
+  const [openPicker, setOpenPicker] = useState(true);
+  const [newClient, setNewClient]   = useState<(ReturnType<typeof emptyForm> & { id?: number }) | null>(null);
 
   const calcNext = (list: Order[]) => {
     const max = list.reduce((m, o) => {
@@ -69,7 +72,10 @@ const AdminOrderBuilder = () => {
       fetch(`${urls['products']}?raw=1`).then(r => r.json()),
       fetch(urls['clients']).then(r => r.json()),
     ]);
-    const ords = (o.orders || []).filter((x: Order) => !x.is_trashed);
+    const ords = (o.orders || [])
+      .filter((x: Order) => !x.is_trashed)
+      .sort((a: Order, b: Order) =>
+        String(b.created_at || '').localeCompare(String(a.created_at || '')) || b.id - a.id);
     setOrders(ords);
     setProducts(p.products || []);
     setClients(c.clients || []);
@@ -151,7 +157,8 @@ const AdminOrderBuilder = () => {
       customer_email: o.customer_email || '',
       responsible: o.responsible || '', due_date: o.due_date || '',
       delivery_type: o.delivery_type || '', delivery_address: o.delivery_address || '',
-      payment_method: o.payment_method || '', comment: o.comment || '',
+      payment_method: o.payment_method || '',
+      comment: /Импорт из таблицы/i.test(o.comment || '') ? '' : (o.comment || ''),
     });
     setLines((o.items || []).map((it, i) => {
       const price = (it as { price?: number }).price || 0;
@@ -172,7 +179,16 @@ const AdminOrderBuilder = () => {
   const setLine = (key: string, patch: Partial<Line>) =>
     setLines(prev => prev.map(l => l.key === key ? { ...l, ...patch } : l));
 
-  const changePrice = (l: Line, price: number) => setLine(l.key, { price: round(price), manual: true });
+  const changePrice = (l: Line, price: number) => {
+    // Для своей позиции (нет базовой цены из каталога) введённая цена
+    // становится розничной базой — тогда оптовая скидка применится к ней
+    if (l.base <= 0) {
+      const p = round(price);
+      setLine(l.key, { base: p, price: autoWholesale ? round(p * (1 - autoPct / 100)) : p });
+      return;
+    }
+    setLine(l.key, { price: round(price), manual: true });
+  };
 
   const changeDiscount = (l: Line, disc: number) => {
     const d = Math.min(100, Math.max(0, disc));
@@ -194,8 +210,10 @@ const AdminOrderBuilder = () => {
     if (!c) { setHead(h => ({ ...h, customer_name: tag })); return; }
     setHead(h => ({
       ...h, customer_name: c.tag, phone: c.phone || '', city: c.city || '',
+      customer_email: c.email || h.customer_email,
       delivery_address: c.delivery_address || h.delivery_address,
       delivery_type: c.delivery_type || h.delivery_type,
+      payment_method: c.payment_method || h.payment_method,
     }));
   };
 
@@ -234,7 +252,7 @@ const AdminOrderBuilder = () => {
       (o.customer_name || '').toLowerCase().includes(q) ||
       (o.city || '').toLowerCase().includes(q) ||
       (o.order_number || '').toLowerCase().includes(q)) : orders;
-    return list.slice(0, 40);
+    return list;
   }, [orders, search]);
 
   const foundClients = useMemo(() => {
@@ -281,8 +299,13 @@ const AdminOrderBuilder = () => {
         <div className={mode === 'edit' ? 'grid gap-5 lg:grid-cols-[340px_1fr]' : ''}>
 
           {mode === 'edit' && (
-            <div className="border border-primary/20 rounded-2xl p-4 h-fit lg:sticky lg:top-4">
-              <div className="text-sm font-semibold text-primary mb-2">Выберите заказ</div>
+            <div className="border border-primary/20 rounded-2xl h-fit lg:sticky lg:top-4 overflow-hidden">
+              <button onClick={() => setOpenPicker(v => !v)}
+                className="w-full flex items-center justify-between px-4 py-3.5 hover:bg-primary/5 transition-colors">
+                <span className="text-sm font-semibold text-primary">Выберите заказ</span>
+                <Icon name={openPicker ? 'ChevronUp' : 'ChevronDown'} size={16} className="text-primary/45" />
+              </button>
+              {openPicker && <div className="px-4 pb-4">
               <input value={search} onChange={e => setSearch(e.target.value)}
                 placeholder="Номер / клиент / город..." className={inp + ' mb-3'} />
               <div className="max-h-[60vh] overflow-y-auto space-y-1.5">
@@ -302,6 +325,7 @@ const AdminOrderBuilder = () => {
                 ))}
                 {foundOrders.length === 0 && <p className="text-xs text-muted-foreground py-3">Ничего не найдено</p>}
               </div>
+              </div>}
             </div>
           )}
 
@@ -323,6 +347,10 @@ const AdminOrderBuilder = () => {
                         onChange={e => { setCliSearch(e.target.value); setCliOpen(true); }}
                         onBlur={() => setTimeout(() => setCliOpen(false), 150)}
                         placeholder="Начните вводить позывной..." className={inp} />
+                      <button type="button" onClick={() => setNewClient(emptyForm())}
+                        className="absolute right-2 top-[26px] h-7 px-2.5 rounded-lg bg-primary text-white text-[11px] font-semibold hover:opacity-90">
+                        + Клиент
+                      </button>
                       {cliOpen && (
                         <div className="absolute z-20 left-0 right-0 top-full mt-1 max-h-60 overflow-y-auto bg-background border border-primary/25 rounded-xl shadow-lg">
                           {foundClients.length === 0 && (
@@ -488,6 +516,14 @@ const AdminOrderBuilder = () => {
                       <div className="font-bold text-primary text-xl tabular-nums">{fmtMoney(total)}</div>
                     </div>
                     </div>
+                    {baseSum > total && (
+                      <div className="w-full flex justify-end gap-6 text-xs text-primary/60">
+                        <span>Розничная сумма: <b className="tabular-nums">{fmtMoney(baseSum)}</b></span>
+                        <span className="text-accent font-semibold">
+                          Скидка: −{fmtMoney(baseSum - total)} ({Math.round((1 - total / baseSum) * 100)}%)
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -507,6 +543,28 @@ const AdminOrderBuilder = () => {
             )}
           </div>
         </div>
+      )}
+
+      {newClient && (
+        <ClientForm
+          initial={newClient}
+          onClose={() => setNewClient(null)}
+          onSave={async data => {
+            await fetch(urls['clients'], {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ type: 'client', ...data }),
+            });
+            setNewClient(null);
+            const res = await fetch(urls['clients']).then(r => r.json());
+            setClients(res.clients || []);
+            const tag = (data.callsign || data.full_name || '').trim();
+            setHead(h => ({
+              ...h, customer_name: tag, phone: data.phone || '', city: data.city || '',
+              customer_email: data.email || '', delivery_address: data.delivery_address || '',
+              delivery_type: data.delivery_type || '', payment_method: data.payment_method || h.payment_method,
+            }));
+          }}
+        />
       )}
     </div>
   );

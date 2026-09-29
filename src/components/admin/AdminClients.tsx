@@ -32,7 +32,7 @@ function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
-const emptyForm = () => ({
+export const emptyForm = () => ({
   full_name: '', phone: '', email: '', city: '', callsign: '',
   inn: '', delivery_days: '', delivery_time: '',
   payment_method: '', delivery_address: '', delivery_type: '',
@@ -161,7 +161,7 @@ const ClientCard = ({ client, onDelete, onEdit }: {
 };
 
 // ── Форма добавления/редактирования ───────────────────────────────────────────
-const ClientForm = ({ initial, onSave, onClose }: {
+export const ClientForm = ({ initial, onSave, onClose }: {
   initial: ReturnType<typeof emptyForm> & { id?: number };
   onSave: (data: ReturnType<typeof emptyForm> & { id?: number }) => void;
   onClose: () => void;
