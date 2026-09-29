@@ -3,7 +3,6 @@ import Icon from '@/components/ui/icon';
 import { Button } from '@/components/ui/button';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
-import StoryScroll from '@/components/StoryScroll';
 
 const scrollTo = (id: string) => {
   document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
@@ -14,11 +13,8 @@ const Index = () => {
     <div className="min-h-screen bg-background text-foreground">
       <Header />
 
-      {/* Story */}
-      <StoryScroll />
-
       {/* Hero */}
-      <section id="home" className="pt-24 pb-24 px-6">
+      <section id="home" className="pt-32 pb-24 px-6">
         <div className="container mx-auto grid md:grid-cols-2 gap-12 items-center px-0">
           <div className="animate-fade-in">
             <p className="text-accent text-sm tracking-[0.3em] uppercase mb-6">Оптовое производство</p>
